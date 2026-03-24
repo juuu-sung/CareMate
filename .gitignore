@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+dist/
+coverage/
+__pycache__/
+.pytest_cache/
+.venv/
+.env
+*.pyc
+
