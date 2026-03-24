@@ -2,9 +2,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Donghang AI"
+    app_name: str = "CareMate"
     api_prefix: str = "/api/v1"
-    database_url: str = "postgresql://USER:PASSWORD@HOST:5432/DB_NAME"
+    database_url: str = "postgresql+psycopg://caremate:caremate@localhost:5432/caremate"
     openai_api_key: str = ""
     gemini_api_key: str = ""
     stt_api_key: str = ""

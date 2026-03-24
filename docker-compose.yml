@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: caremate-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: caremate
+      POSTGRES_USER: caremate
+      POSTGRES_PASSWORD: caremate
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U caremate -d caremate"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: caremate-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_NAME: CareMate
+      API_PREFIX: /api/v1
+      DATABASE_URL: postgresql+psycopg://caremate:caremate@db:5432/caremate
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      STT_API_KEY: ${STT_API_KEY:-}
+      TTS_API_KEY: ${TTS_API_KEY:-}
+      MAP_API_KEY: ${MAP_API_KEY:-}
+      LOCATION_RETENTION_DAYS: 30
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+
+volumes:
+  postgres_data:

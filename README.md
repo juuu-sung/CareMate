@@ -213,6 +213,7 @@ CareMate/
 - 사용자 앱 구조: [docs/architecture/feature-structure.md](docs/architecture/feature-structure.md)
 - API 명세: [docs/api-spec/README.md](docs/api-spec/README.md)
 - DB 스키마 초안: [docs/architecture/database-schema.md](docs/architecture/database-schema.md)
+- 개발 체크리스트: [docs/project-management/development-checklist.md](docs/project-management/development-checklist.md)
 - 테스트 시나리오: [docs/test-scenarios/README.md](docs/test-scenarios/README.md)
 
 ## Quick Start
@@ -228,8 +229,10 @@ npx expo start
 ### Backend
 
 ```bash
+docker compose up -d db
 cd backend
 pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -238,7 +241,7 @@ uvicorn app.main:app --reload
 ```env
 APP_NAME=CareMate
 API_PREFIX=/api/v1
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5432/caremate
 OPENAI_API_KEY=your_openai_key
 GEMINI_API_KEY=your_gemini_key
 STT_API_KEY=your_stt_key
@@ -246,6 +249,12 @@ TTS_API_KEY=your_tts_key
 MAP_API_KEY=your_map_key
 LOCATION_RETENTION_DAYS=30
 ```
+
+## Collaboration
+
+- 개발 체크리스트: [docs/project-management/development-checklist.md](docs/project-management/development-checklist.md)
+- 기여 가이드: [CONTRIBUTING.md](CONTRIBUTING.md)
+- 라이선스: [LICENSE](LICENSE)
 
 ## Roadmap
 
