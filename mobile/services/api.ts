@@ -1,4 +1,6 @@
-export const API_BASE_URL = "http://localhost:8000/api/v1";
+const FALLBACK_API_BASE_URL = "http://<PRIVATE_IP>:8001/api/v1";
+
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? FALLBACK_API_BASE_URL;
 
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);

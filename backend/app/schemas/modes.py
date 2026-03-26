@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel
+
+CareMode = Literal["basic", "cognitive_support", "health_support"]
 
 
 class GuardianOptions(BaseModel):
@@ -8,10 +12,10 @@ class GuardianOptions(BaseModel):
 
 
 class CareModeResponse(BaseModel):
-    mode: str
+    mode: CareMode
     options: GuardianOptions
 
 
 class CareModeUpdateRequest(BaseModel):
-    mode: str
+    mode: CareMode
     options: GuardianOptions

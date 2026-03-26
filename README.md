@@ -231,9 +231,11 @@ npx expo start
 ```bash
 docker compose up -d db
 cd backend
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
 ## Environment Variables
@@ -241,7 +243,7 @@ uvicorn app.main:app --reload
 ```env
 APP_NAME=CareMate
 API_PREFIX=/api/v1
-DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5432/caremate
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate
 OPENAI_API_KEY=your_openai_key
 GEMINI_API_KEY=your_gemini_key
 STT_API_KEY=your_stt_key

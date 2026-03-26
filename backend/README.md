@@ -11,8 +11,10 @@ FastAPI 기반 서버 골격입니다.
 ## Local Run
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
 ## Docker
@@ -24,10 +26,13 @@ docker compose up -d db
 docker compose up backend
 ```
 
+로컬에서 직접 접속할 때는 Docker Postgres가 `localhost:5433`에 열립니다.
+
 ## Alembic
 
 초기 마이그레이션 적용:
 
 ```bash
-alembic upgrade head
+source .venv/bin/activate
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
 ```

@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "CareMate",
+    "slug": "caremate",
+    "scheme": "caremate",
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

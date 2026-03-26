@@ -35,7 +35,11 @@ export default function GuardianDashboardScreen() {
   }
 
   return (
-    <SeniorScreen title="보호자 대시보드" subtitle="대상자의 상태 요약과 최근 이상 징후를 확인하는 화면입니다.">
+    <SeniorScreen
+      title="보호자 대시보드"
+      subtitle="대상자의 상태 요약과 최근 이상 징후를 확인하는 화면입니다."
+      backHref="/(user)/home"
+    >
       <SectionCard title="오늘 상태 요약" description="체크인 응답, 알림 미응답, 최신 위치 상태를 요약합니다.">
         {loading ? <Text style={styles.value}>불러오는 중...</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}

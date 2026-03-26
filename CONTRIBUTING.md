@@ -50,8 +50,10 @@ npx expo start
 
 ```bash
 cd backend
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
 ### DB와 마이그레이션
@@ -59,5 +61,6 @@ uvicorn app.main:app --reload
 ```bash
 docker compose up -d db
 cd backend
-alembic upgrade head
+source .venv/bin/activate
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
 ```

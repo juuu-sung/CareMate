@@ -6,7 +6,11 @@ import { SeniorScreen } from "@/components/common/SeniorScreen";
 
 export default function UserHomeScreen() {
   return (
-    <SeniorScreen title="동행AI 홈" subtitle="자주 쓰는 기능을 크게 배치한 사용자 홈 화면입니다.">
+    <SeniorScreen
+      title="CareMate 홈"
+      subtitle="자주 쓰는 기능을 크게 배치한 사용자 홈 화면입니다."
+      showBackButton={false}
+    >
       <SectionCard title="대화하기" description="버튼을 눌러 질문하고 음성으로 답변을 듣습니다.">
         <Link href="/(user)/chat">
           <Text>대화 화면으로 이동</Text>
@@ -25,6 +29,14 @@ export default function UserHomeScreen() {
       <SectionCard title="긴급 요청" description="도움이 필요할 때 SOS를 요청합니다.">
         <Link href="/(user)/sos">
           <Text>SOS 화면으로 이동</Text>
+        </Link>
+      </SectionCard>
+      <SectionCard title="보호자 화면" description="보호자 대시보드와 돌봄 모드 설정 화면으로 이동합니다.">
+        <Link href="/(guardian)/dashboard">
+          <Text>보호자 대시보드로 이동</Text>
+        </Link>
+        <Link href="/(guardian)/modes">
+          <Text>돌봄 모드 설정으로 바로 이동</Text>
         </Link>
       </SectionCard>
     </SeniorScreen>
