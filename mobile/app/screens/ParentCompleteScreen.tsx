@@ -1,0 +1,145 @@
+import React from 'react';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+
+export default function ParentCompleteScreen() {
+  const router = useRouter();
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.card}>
+          <View style={styles.checkCircle}>
+            <Text style={styles.checkText}>✓</Text>
+          </View>
+
+          <Text style={styles.title}>가입 완료!</Text>
+          <Text style={styles.subtitle}>보호자에게 아래 코드를 알려주세요</Text>
+
+          <View style={styles.codeBox}>
+            <Text style={styles.codeLabel}>연동 코드</Text>
+            <Text style={styles.codeText}>PC0YEH</Text>
+          </View>
+
+          <View style={styles.infoBox}>
+            <Text style={styles.infoText}>
+              이 코드를 보호자가 입력하면 서로 연동됩니다
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={() => router.replace('/parent-agent-voice-setup')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.startButtonText}>시작하기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#E8EEF5',
+  },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    backgroundColor: '#E8EEF5',
+  },
+  card: {
+    backgroundColor: '#F4F4F4',
+    borderRadius: 42,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  checkCircle: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: '#05D34E',
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 26,
+  },
+  checkText: {
+    fontSize: 70,
+    color: '#fff',
+    fontWeight: '800',
+  },
+  title: {
+    textAlign: 'center',
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 18,
+  },
+  subtitle: {
+    textAlign: 'center',
+    fontSize: 18,
+    color: '#475569',
+    marginBottom: 28,
+  },
+  codeBox: {
+    backgroundColor: '#E4EAF2',
+    borderRadius: 30,
+    paddingVertical: 30,
+    alignItems: 'center',
+    marginBottom: 26,
+  },
+  codeLabel: {
+    fontSize: 18,
+    color: '#4B5563',
+    marginBottom: 18,
+  },
+  codeText: {
+    fontSize: 54,
+    fontWeight: '900',
+    color: '#2563EB',
+    letterSpacing: 2,
+  },
+  infoBox: {
+    backgroundColor: '#F5F2DE',
+    borderWidth: 1.2,
+    borderColor: '#E7D35A',
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 26,
+    marginBottom: 28,
+  },
+  infoText: {
+    fontSize: 17,
+    color: '#334155',
+    lineHeight: 30,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  startButton: {
+    height: 74,
+    backgroundColor: '#3B82F6',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  startButtonText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+});

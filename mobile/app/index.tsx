@@ -1,5 +1,5 @@
-import { Redirect } from "expo-router";
+import SignupSelectScreen from './screens/SignupSelectScreen';
 
-export default function Index() {
-  return <Redirect href="/(user)/home" />;
+export default function Page() {
+  return <SignupSelectScreen />;
 }
