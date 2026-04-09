@@ -6,10 +6,15 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 export default function ParentCompleteScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  const linkCode = String(params.linkCode || params.link_code || '');
+  const parentId = String(params.parentId || params.elderUserId || params.elder_user_id || '');
+  const parentName = String(params.parentName || '부모님');
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -20,11 +25,11 @@ export default function ParentCompleteScreen() {
           </View>
 
           <Text style={styles.title}>가입 완료!</Text>
-          <Text style={styles.subtitle}>보호자에게 아래 코드를 알려주세요</Text>
+          <Text style={styles.subtitle}>{parentName}님의 연동 코드가 생성되었습니다</Text>
 
           <View style={styles.codeBox}>
             <Text style={styles.codeLabel}>연동 코드</Text>
-            <Text style={styles.codeText}>PC0YEH</Text>
+            <Text style={styles.codeText}>{linkCode || '생성 중'}</Text>
           </View>
 
           <View style={styles.infoBox}>
@@ -35,7 +40,17 @@ export default function ParentCompleteScreen() {
 
           <TouchableOpacity
             style={styles.startButton}
-            onPress={() => router.replace('/parent-agent-voice-setup')}
+            onPress={() =>
+              router.replace({
+                pathname: '/parent-agent-voice-setup',
+                params: {
+                  parentId,
+                  elderUserId: parentId,
+                  parentName,
+                  linkCode,
+                },
+              })
+            }
             activeOpacity={0.85}
           >
             <Text style={styles.startButtonText}>시작하기</Text>

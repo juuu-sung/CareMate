@@ -7,10 +7,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 export default function ParentAgentNameSetupScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  const parentId = String(params.parentId || params.elderUserId || params.elder_user_id || '');
+  const parentName = String(params.parentName || '부모님');
+  const linkCode = String(params.linkCode || params.link_code || '');
+  const selectedVoice = String(params.selectedVoice || '');
 
   const [isPlayingIntro, setIsPlayingIntro] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
@@ -30,12 +36,6 @@ export default function ParentAgentNameSetupScreen() {
     setIsPlayingIntro(true);
 
     try {
-      /**
-       * TODO:
-       * 이전 화면에서 설정한 에이전트 목소리 정보를 받아와
-       * "제 이름을 정해서 불러주세요" 음성을 재생
-       */
-
       await new Promise(resolve => setTimeout(resolve, 1800));
 
       setGuideText(
@@ -58,11 +58,6 @@ export default function ParentAgentNameSetupScreen() {
     setGuideText('듣고 있습니다...\n이름을 또렷하게 말씀해주세요.');
 
     try {
-      /**
-       * TODO:
-       * 여기서 STT 시작
-       */
-
       await new Promise(resolve => setTimeout(resolve, 2000));
       const detectedName = '동행이';
 
@@ -81,17 +76,6 @@ export default function ParentAgentNameSetupScreen() {
     setIsConfirming(true);
 
     try {
-      /**
-       * TODO:
-       * 여기서 실제 TTS 재생
-       * 예시 문장:
-       * "제 이름은 ${name}입니다. 필요하실 때 제 이름을 부르고 말씀해주세요."
-       *
-       * 필요하면 함께 저장:
-       * - agentName 저장
-       * - voiceType 저장
-       */
-
       await new Promise(resolve => setTimeout(resolve, 2200));
 
       setGuideText(`제 이름은 ${name}입니다.\n필요하실 때 제 이름을 부르고 말씀해주세요.`);
@@ -106,7 +90,26 @@ export default function ParentAgentNameSetupScreen() {
   };
 
   const handleGoHome = () => {
-    router.replace('/home');
+    console.log('홈으로 이동 params:', {
+      elderUserId: parentId,
+      parentName,
+      linkCode,
+      selectedVoice,
+      agentName: recognizedName,
+    });
+
+    router.replace({
+      pathname: '/home',
+      params: {
+        elderUserId: parentId,
+        elder_user_id: parentId,
+        parentName,
+        linkCode,
+        link_code: linkCode,
+        selectedVoice,
+        agentName: recognizedName,
+      },
+    });
   };
 
   return (

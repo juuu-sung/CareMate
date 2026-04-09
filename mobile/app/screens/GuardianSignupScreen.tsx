@@ -7,19 +7,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   View,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { getParentByCode, guardianSignup } from '../../lib/api';
 
 const relationOptions = ['아들', '딸', '며느리', '사위', '손주', '기타'];
-
-const mockParentMap: Record<
-  string,
-  { name: string; age: number; gender: string }
-> = {
-  PC0YEH: { name: '김영희', age: 78, gender: '여성' },
-  AB12CD: { name: '이철수', age: 82, gender: '남성' },
-  QW9E2R: { name: '박순자', age: 75, gender: '여성' },
-};
 
 export default function GuardianSignupScreen() {
   const router = useRouter();
@@ -29,29 +23,48 @@ export default function GuardianSignupScreen() {
   const [phone, setPhone] = useState('');
   const [relation, setRelation] = useState('');
   const [linkCode, setLinkCode] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
-    const normalizedCode = linkCode.trim().toUpperCase() || 'AAAAAA';
+  const handleSubmit = async () => {
+    if (!name.trim() || !birth.trim() || !phone.trim() || !relation || !linkCode.trim()) {
+      Alert.alert('입력 확인', '모든 항목을 입력해주세요.');
+      return;
+    }
 
-    const parentInfo = mockParentMap[normalizedCode] || {
-      name: '부모님 성함',
-      age: 75,
-      gender: '여성',
-    };
+    const normalizedCode = linkCode.trim().toUpperCase();
 
-    router.push({
-      pathname: '/guardian-parent-info',
-      params: {
-        guardianName: name || '홍길동',
-        guardianBirth: birth || '1970. 01. 01.',
-        guardianPhone: phone || '010-0000-0000',
-        guardianRelation: relation || '아들',
-        linkCode: normalizedCode,
-        parentName: parentInfo.name,
-        parentAge: String(parentInfo.age),
-        parentGender: parentInfo.gender,
-      },
-    });
+    try {
+      setLoading(true);
+
+      const parentInfo = await getParentByCode(normalizedCode);
+
+      await guardianSignup({
+        name: name.trim(),
+        birth: birth.trim(),
+        phone: phone.trim(),
+        relation,
+        link_code: normalizedCode,
+      });
+
+      router.push({
+        pathname: '/guardian-parent-info',
+        params: {
+          guardianName: name.trim(),
+          guardianBirth: birth.trim(),
+          guardianPhone: phone.trim(),
+          guardianRelation: relation,
+          linkCode: normalizedCode,
+          parentId: parentInfo.parent_id,
+          parentName: parentInfo.parent_name,
+          parentAge: String(parentInfo.parent_age ?? ''),
+          parentGender: parentInfo.parent_gender ?? '',
+        },
+      });
+    } catch (error: any) {
+      Alert.alert('연동 실패', error.message || '연동 코드 확인 또는 보호자 가입에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -67,7 +80,7 @@ export default function GuardianSignupScreen() {
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="이름 입력"
+          placeholder="예: 김민수"
           placeholderTextColor="#A0A0A0"
         />
 
@@ -76,7 +89,7 @@ export default function GuardianSignupScreen() {
           style={styles.input}
           value={birth}
           onChangeText={setBirth}
-          placeholder="YYYY. MM. DD."
+          placeholder="예: 1978. 09. 21."
           placeholderTextColor="#A0A0A0"
         />
 
@@ -86,7 +99,7 @@ export default function GuardianSignupScreen() {
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
-          placeholder="010-0000-0000"
+          placeholder="예: 010-9876-5432"
           placeholderTextColor="#A0A0A0"
         />
 
@@ -114,7 +127,7 @@ export default function GuardianSignupScreen() {
             style={styles.linkInput}
             value={linkCode}
             onChangeText={setLinkCode}
-            placeholder="연동 코드 입력"
+            placeholder="예: PC0YEH"
             placeholderTextColor="#A0A0A0"
             autoCapitalize="characters"
             maxLength={6}
@@ -123,11 +136,20 @@ export default function GuardianSignupScreen() {
         </View>
 
         <Text style={styles.helperText}>
-          지금은 테스트용이라 아무 코드나 입력해도 진행됩니다
+          부모님 가입 완료 화면에 표시된 6자리 연동 코드를 입력해주세요.
         </Text>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} activeOpacity={0.85}>
-          <Text style={styles.submitText}>가입하기</Text>
+        <TouchableOpacity
+          style={[styles.submitButton, loading && { opacity: 0.7 }]}
+          onPress={handleSubmit}
+          activeOpacity={0.85}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>가입하기</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>

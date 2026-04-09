@@ -2,17 +2,24 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Donghang AI"
-    api_prefix: str = "/api/v1"
-    database_url: str = "postgresql://USER:PASSWORD@HOST:5432/DB_NAME"
-    openai_api_key: str = ""
-    gemini_api_key: str = ""
-    stt_api_key: str = ""
-    tts_api_key: str = ""
-    map_api_key: str = ""
-    location_retention_days: int = 30
+    APP_NAME: str = "CareMate API"
+    APP_VERSION: str = "1.0.0"
+    API_PREFIX: str = "/api/v1"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    DATABASE_URL: str
+
+    OPENAI_API_KEY: str | None = None
+    GEMINI_API_KEY: str | None = None
+    STT_API_KEY: str | None = None
+    TTS_API_KEY: str | None = None
+    MAP_API_KEY: str | None = None
+    LOCATION_RETENTION_DAYS: int = 30
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()
