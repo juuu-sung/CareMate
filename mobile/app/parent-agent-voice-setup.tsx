@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 type VoiceOption = {
   id: string;
@@ -21,6 +21,12 @@ type VoiceOption = {
 
 export default function ParentAgentVoiceSetupScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  const parentId = String(params.parentId || params.elderUserId || params.elder_user_id || '');
+  const parentName = String(params.parentName || '부모님');
+  const linkCode = String(params.linkCode || params.link_code || '');
+
   const [selectedVoice, setSelectedVoice] = useState('');
   const [isPlaying, setIsPlaying] = useState<string | null>(null);
 
@@ -74,7 +80,16 @@ export default function ParentAgentVoiceSetupScreen() {
       return;
     }
 
-    router.push('/parent-agent-name-setup');
+    router.push({
+      pathname: '/parent-agent-name-setup',
+      params: {
+        parentId,
+        elderUserId: parentId,
+        parentName,
+        linkCode,
+        selectedVoice,
+      },
+    });
   };
 
   return (

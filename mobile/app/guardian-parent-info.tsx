@@ -7,41 +7,70 @@ import {
   TouchableOpacity,
   StyleSheet,
   View,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { updateParentCareInfo } from '../lib/api';
 
 export default function GuardianParentInfoScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  const parentName = String(params.parentName || '김영희');
-  const parentAge = String(params.parentAge || '78');
-  const parentGender = String(params.parentGender || '여성');
-  const linkCode = String(params.linkCode || 'PC0YEH');
+  const parentId = String(params.parentId || '');
+  const parentName = String(params.parentName || '부모님');
+  const parentAge = String(params.parentAge || '');
+  const parentGender = String(params.parentGender || '');
+  const linkCode = String(params.linkCode || '');
 
-  const [medications, setMedications] = useState('혈압약, 당뇨약');
-  const [diseases, setDiseases] = useState('고혈압, 당뇨');
-  const [allergies, setAllergies] = useState('없음');
-  const [hospital, setHospital] = useState('강남서울내과');
-  const [doctorContact, setDoctorContact] = useState('02-123-4567');
-  const [memo, setMemo] = useState('매일 아침 8시에 약 복용, 저녁 산책 선호');
+  const [medications, setMedications] = useState('');
+  const [diseases, setDiseases] = useState('');
+  const [allergies, setAllergies] = useState('');
+  const [hospital, setHospital] = useState('');
+  const [doctorContact, setDoctorContact] = useState('');
+  const [memo, setMemo] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleComplete = () => {
-    router.replace({
-      pathname: '/guardian-home',
-      params: {
-        parentName,
-        parentAge,
-        parentGender,
-        linkCode,
-        medications,
-        diseases,
-        allergies,
-        hospital,
-        doctorContact,
-        memo,
-      },
-    });
+  const handleComplete = async () => {
+    if (!parentId) {
+      Alert.alert('오류', '부모님 정보가 올바르게 전달되지 않았습니다.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      await updateParentCareInfo(parentId, {
+        medications: medications.trim(),
+        diseases: diseases.trim(),
+        allergies: allergies.trim(),
+        hospital: hospital.trim(),
+        doctor_contact: doctorContact.trim(),
+        memo: memo.trim(),
+      });
+
+      router.replace({
+        pathname: '/guardian-home',
+        params: {
+          parentId,
+          parentName,
+          parentAge,
+          parentGender,
+          linkCode,
+          
+            medications,
+            diseases,
+            allergies,
+            hospital,
+            doctorContact,
+            memo,
+        },
+      });
+    } catch (error: any) {
+      Alert.alert('저장 실패', error.message || '부모님 건강정보 저장에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -67,13 +96,13 @@ export default function GuardianParentInfoScreen() {
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>나이</Text>
-            <Text style={styles.infoValue}>{parentAge}세</Text>
+            <Text style={styles.infoValue}>{parentAge ? `${parentAge}세` : '-'}</Text>
           </View>
           <View style={styles.divider} />
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>성별</Text>
-            <Text style={styles.infoValue}>{parentGender}</Text>
+            <Text style={styles.infoValue}>{parentGender || '-'}</Text>
           </View>
         </View>
 
@@ -104,7 +133,7 @@ export default function GuardianParentInfoScreen() {
           style={styles.textArea}
           value={allergies}
           onChangeText={setAllergies}
-          placeholder="예: 특정 약 알레르기"
+          placeholder="예: 페니실린 알레르기, 낙상 주의"
           placeholderTextColor="#A0A0A0"
           multiline
         />
@@ -114,7 +143,7 @@ export default function GuardianParentInfoScreen() {
           style={styles.input}
           value={hospital}
           onChangeText={setHospital}
-          placeholder="병원명 또는 담당 진료과"
+          placeholder="예: 진주서울내과"
           placeholderTextColor="#A0A0A0"
         />
 
@@ -123,7 +152,7 @@ export default function GuardianParentInfoScreen() {
           style={styles.input}
           value={doctorContact}
           onChangeText={setDoctorContact}
-          placeholder="전화번호 입력"
+          placeholder="예: 055-123-4567"
           placeholderTextColor="#A0A0A0"
           keyboardType="phone-pad"
         />
@@ -133,13 +162,22 @@ export default function GuardianParentInfoScreen() {
           style={[styles.textArea, { height: 120 }]}
           value={memo}
           onChangeText={setMemo}
-          placeholder="생활 습관, 주의할 점 등을 입력"
+          placeholder="예: 매일 아침 8시 복약, 저녁 산책 선호"
           placeholderTextColor="#A0A0A0"
           multiline
         />
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleComplete} activeOpacity={0.85}>
-          <Text style={styles.submitText}>정보 저장 후 케어 시작하기</Text>
+        <TouchableOpacity
+          style={[styles.submitButton, loading && { opacity: 0.7 }]}
+          onPress={handleComplete}
+          activeOpacity={0.85}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>정보 저장 후 케어 시작하기</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
