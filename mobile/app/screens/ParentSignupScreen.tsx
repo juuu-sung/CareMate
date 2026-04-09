@@ -8,8 +8,10 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { parentSignup } from '../../lib/api';
 
 export default function ParentSignupScreen() {
   const router = useRouter();
@@ -19,8 +21,9 @@ export default function ParentSignupScreen() {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name.trim() || !birth.trim() || !gender || !address.trim() || !phone.trim()) {
       Alert.alert('입력 확인', '모든 항목을 입력해주세요.');
       return;
@@ -31,7 +34,30 @@ export default function ParentSignupScreen() {
       return;
     }
 
-    router.push('/parent-complete');
+    try {
+      setLoading(true);
+
+      const result = await parentSignup({
+        name: name.trim(),
+        birth: birth.trim(),
+        gender,
+        address: address.trim(),
+        phone: phone.trim(),
+      });
+
+      router.push({
+        pathname: '/parent-complete',
+        params: {
+          parentId: result.parent_id,
+          parentName: result.parent_name,
+          linkCode: result.link_code,
+        },
+      });
+    } catch (error: any) {
+      Alert.alert('가입 실패', error.message || '부모님 회원가입에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -44,7 +70,7 @@ export default function ParentSignupScreen() {
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="이름 입력"
+          placeholder="예: 김영희"
           placeholderTextColor="#A0A0A0"
         />
 
@@ -53,7 +79,7 @@ export default function ParentSignupScreen() {
           style={styles.input}
           value={birth}
           onChangeText={setBirth}
-          placeholder="YYYY. MM. DD."
+          placeholder="예: 1947. 03. 12."
           placeholderTextColor="#A0A0A0"
         />
 
@@ -83,7 +109,7 @@ export default function ParentSignupScreen() {
           style={styles.input}
           value={address}
           onChangeText={setAddress}
-          placeholder="주소 입력"
+          placeholder="예: 경남 진주시 진주대로 501"
           placeholderTextColor="#A0A0A0"
         />
 
@@ -92,7 +118,7 @@ export default function ParentSignupScreen() {
           style={styles.input}
           value={phone}
           onChangeText={setPhone}
-          placeholder="010-0000-0000"
+          placeholder="예: 010-1234-5678"
           placeholderTextColor="#A0A0A0"
           keyboardType="phone-pad"
         />
@@ -105,13 +131,19 @@ export default function ParentSignupScreen() {
           <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
             {agreed && <Text style={styles.checkmark}>✓</Text>}
           </View>
-          <Text style={styles.agreeText}>
-            개인정보 수집 및 이용에 동의합니다.
-          </Text>
+          <Text style={styles.agreeText}>개인정보 수집 및 이용에 동의합니다.</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitText}>가입하기</Text>
+        <TouchableOpacity
+          style={[styles.submitButton, loading && { opacity: 0.7 }]}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>가입하기</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -173,6 +205,7 @@ const styles = StyleSheet.create({
   },
   selectedText: {
     color: '#2563EB',
+    fontWeight: '700',
   },
   agreeBox: {
     marginTop: 24,
@@ -186,15 +219,22 @@ const styles = StyleSheet.create({
     marginRight: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    borderColor: '#94A3B8',
+    borderRadius: 6,
+    backgroundColor: '#fff',
   },
   checkboxChecked: {
     backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
   },
   checkmark: {
     color: '#fff',
+    fontWeight: '800',
   },
   agreeText: {
     flex: 1,
+    fontSize: 15,
+    color: '#334155',
   },
   submitButton: {
     marginTop: 24,
@@ -212,5 +252,10 @@ const styles = StyleSheet.create({
   backButton: {
     marginTop: 16,
     alignItems: 'center',
+  },
+  backText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '600',
   },
 });

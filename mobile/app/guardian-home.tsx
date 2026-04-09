@@ -13,21 +13,24 @@ export default function GuardianHomeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
+  const parentId = String(params.parentId || params.elderUserId || '');
   const parentName = String(params.parentName || '김영희');
   const parentAge = String(params.parentAge || '78');
   const parentGender = String(params.parentGender || '여성');
-  const medications = String(params.medications || '혈압약, 당뇨약');
-  const diseases = String(params.diseases || '고혈압, 당뇨');
-  const hospital = String(params.hospital || '강남서울내과');
-  const doctorContact = String(params.doctorContact || '02-123-4567');
-  const memo = String(params.memo || '매일 아침 8시에 약 복용');
-  const allergies = String(params.allergies || '없음');
+  const linkCode = String(params.linkCode || '');
+
+  const medications = String(params.medications || '');
+  const diseases = String(params.diseases || '');
+  const hospital = String(params.hospital || '');
+  const doctorContact = String(params.doctorContact || '');
+  const memo = String(params.memo || '');
+  const allergies = String(params.allergies || '');
 
   const quickStats = [
     { label: '오늘 대화', value: '12회', emoji: '💬' },
-    { label: '건강 점수', value: '85점', emoji: '💚' },
+    { label: '건강 점수', value: '85점', emoji: '📊' },
     { label: '다음 일정', value: '내일 병원', emoji: '📅' },
-    { label: '현재 위치', value: '집', emoji: '📍' },
+    { label: '현재 위치', value: '확인 가능', emoji: '📍' },
   ];
 
   const menuItems = [
@@ -45,6 +48,61 @@ export default function GuardianHomeScreen() {
     { title: '내일 오후 2시 병원 일정이 있어요', time: '2시간 전' },
   ];
 
+  const handleMenuPress = (title: string) => {
+    if (title === '위치 확인') {
+      router.push({
+        pathname: '/guardian-location',
+        params: {
+          parentId,
+          parentName,
+          linkCode,
+        },
+      });
+      return;
+    }
+
+    if (title === '편지 쓰기') {
+      router.push({
+        pathname: '/guardian-letter',
+        params: {
+          parentId,
+          elderUserId: parentId,
+          parentName,
+          parentAge,
+          parentGender,
+          linkCode,
+          medications,
+          diseases,
+          allergies,
+          hospital,
+          doctorContact,
+          memo,
+        },
+      });
+      return;
+    }
+
+    if (title === '정보 수정') {
+      router.push({
+        pathname: '/guardian-parent-info',
+        params: {
+          parentId,
+          parentName,
+          parentAge,
+          parentGender,
+          linkCode,
+          medications,
+          diseases,
+          allergies,
+          hospital,
+          doctorContact,
+          memo,
+        },
+      });
+      return;
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -53,9 +111,6 @@ export default function GuardianHomeScreen() {
             <View>
               <Text style={styles.headerTitle}>보호자 홈</Text>
               <Text style={styles.headerSubtitle}>부모님 케어를 시작했어요</Text>
-            </View>
-            <View style={styles.heartBadge}>
-              <Text style={styles.heartText}>💚</Text>
             </View>
           </View>
 
@@ -91,17 +146,19 @@ export default function GuardianHomeScreen() {
 
         <Text style={styles.sectionTitle}>부모님 기본 정보</Text>
         <View style={styles.infoCard}>
-          <InfoRow label="복용 중인 약" value={medications} />
+          <InfoRow label="연동 코드" value={linkCode || '-'} />
           <Divider />
-          <InfoRow label="보유 질환" value={diseases} />
+          <InfoRow label="복용 중인 약" value={medications || '-'} multiline />
           <Divider />
-          <InfoRow label="알레르기" value={allergies} />
+          <InfoRow label="보유 질환" value={diseases || '-'} multiline />
           <Divider />
-          <InfoRow label="주치의 / 병원" value={hospital} />
+          <InfoRow label="알레르기" value={allergies || '-'} multiline />
           <Divider />
-          <InfoRow label="비상 연락처" value={doctorContact} />
+          <InfoRow label="주치의 / 병원" value={hospital || '-'} multiline />
           <Divider />
-          <InfoRow label="추가 메모" value={memo} multiline />
+          <InfoRow label="비상 연락처" value={doctorContact || '-'} />
+          <Divider />
+          <InfoRow label="추가 메모" value={memo || '-'} multiline />
         </View>
 
         <Text style={styles.sectionTitle}>주요 기능</Text>
@@ -111,7 +168,7 @@ export default function GuardianHomeScreen() {
               key={item.title}
               style={styles.menuCard}
               activeOpacity={0.85}
-              onPress={() => {}}
+              onPress={() => handleMenuPress(item.title)}
             >
               <Text style={styles.menuEmoji}>{item.emoji}</Text>
               <Text style={styles.menuTitle}>{item.title}</Text>
@@ -137,14 +194,6 @@ export default function GuardianHomeScreen() {
             </View>
           ))}
         </View>
-
-        <TouchableOpacity
-          style={styles.editButton}
-          activeOpacity={0.85}
-          onPress={() => router.push('/guardian-signup')}
-        >
-          <Text style={styles.editButtonText}>다른 부모님 정보로 다시 테스트하기</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -203,17 +252,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 14,
     color: '#E8FFF0',
-  },
-  heartBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heartText: {
-    fontSize: 24,
   },
   parentSummaryCard: {
     marginTop: 18,
@@ -400,18 +438,5 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     color: '#6B7280',
-  },
-  editButton: {
-    marginTop: 20,
-    height: 56,
-    backgroundColor: '#111827',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  editButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
 });
