@@ -5,14 +5,17 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
   Modal,
   Alert,
   Linking,
+  StatusBar,
+  ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { fetchLettersForElder } from '../lib/letter';
+import { fetchGuardianContact } from '../lib/guardian';
 
 type LetterItem = {
   guardian_user_id: string;
@@ -34,20 +37,14 @@ export default function HomeScreen() {
     params.linkCode || params.link_code || params.code || ''
   );
 
-  // 보호자 전화번호 파라미터
-  const guardianPhone = String(
-    params.guardianPhone ||
-      params.guardian_phone ||
-      params.phone ||
-      params.guardianPhoneNumber ||
-      ''
-  );
-
   const [isRecording, setIsRecording] = useState(false);
   const [latestLetter, setLatestLetter] = useState<LetterItem | null>(null);
   const [letters, setLetters] = useState<LetterItem[]>([]);
   const [loadingLetter, setLoadingLetter] = useState(true);
   const [isLetterModalVisible, setIsLetterModalVisible] = useState(false);
+
+  const [guardianPhone, setGuardianPhone] = useState('');
+  const [guardianName, setGuardianName] = useState('');
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -121,13 +118,7 @@ export default function HomeScreen() {
   };
 
   const loadLetters = async (showLoading: boolean = false) => {
-    console.log('부모님 홈 params:', params);
-    console.log('elderUserId:', elderUserId);
-    console.log('linkCode:', linkCode);
-    console.log('guardianPhone:', guardianPhone);
-
     if (!elderUserId || !linkCode) {
-      console.log('편지 조회 중단: elderUserId 또는 linkCode 없음');
       setLatestLetter(null);
       setLetters([]);
       setLoadingLetter(false);
@@ -140,8 +131,6 @@ export default function HomeScreen() {
       }
 
       const data = await fetchLettersForElder(elderUserId, linkCode);
-
-      console.log('편지 조회 응답:', JSON.stringify(data, null, 2));
 
       if (data?.letters && Array.isArray(data.letters) && data.letters.length > 0) {
         setLetters(data.letters);
@@ -159,9 +148,35 @@ export default function HomeScreen() {
     }
   };
 
+  const loadGuardianContact = async () => {
+    try {
+      if (!linkCode) return;
+
+      const data = await fetchGuardianContact(linkCode);
+
+      if (data?.guardian_phone) {
+        setGuardianPhone(data.guardian_phone);
+      }
+
+      if (data?.guardian_name) {
+        setGuardianName(data.guardian_name);
+      }
+    } catch (error: any) {
+      console.log('보호자 연락처 조회 오류:', error?.message);
+    }
+  };
+
   useEffect(() => {
     loadLetters(true);
+  }, [elderUserId, linkCode]);
 
+  useEffect(() => {
+    if (linkCode) {
+      loadGuardianContact();
+    }
+  }, [linkCode]);
+
+  useEffect(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
     }
@@ -182,103 +197,154 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>안녕하세요</Text>
+      <StatusBar barStyle="dark-content" backgroundColor="#F5F7FB" />
+
+      <View style={styles.container}>
+        <View style={styles.topSection}>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>안녕하세요</Text>
+
+            <View style={styles.linkCodeChip}>
+              <Text style={styles.linkCodeLabel}>연동코드</Text>
+              <Text style={styles.linkCodeValue}>{linkCode || '없음'}</Text>
+            </View>
+          </View>
+
           <Text style={styles.subtitle}>무엇을 도와드릴까요?</Text>
         </View>
 
-        <View style={styles.messageCard}>
-          <View style={styles.messageTopRow}>
-            <View style={styles.messageLeftArea}>
-              <Text style={styles.messageTitle}>보호자 메시지</Text>
-              {letters.length > 0 ? (
+        <View style={styles.middleSection}>
+          <View style={styles.messageCard}>
+            <View style={styles.messageTopRow}>
+              <View style={styles.messageLeftArea}>
+                <Text style={styles.messageTitle}>보호자 메시지</Text>
                 <Text style={styles.messageSubInfo}>
-                  총 {letters.length}개의 메시지
+                  {letters.length > 0
+                    ? `총 ${letters.length}개의 메시지`
+                    : '최근 도착한 메시지를 확인하세요'}
                 </Text>
-              ) : null}
+              </View>
+
+              <TouchableOpacity
+                style={styles.simpleMessageButton}
+                onPress={() => setIsLetterModalVisible(true)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.simpleMessageButtonText}>전체보기</Text>
+                <Ionicons name="chevron-forward" size={16} color="#2563EB" />
+              </TouchableOpacity>
             </View>
 
+            {loadingLetter ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingText}>메시지를 불러오는 중입니다</Text>
+              </View>
+            ) : latestLetter ? (
+              <>
+                <Text style={styles.messageText} numberOfLines={3}>
+                  {latestLetter.content}
+                </Text>
+                <Text style={styles.messageTime}>
+                  {formatToYearMonthDayHour(latestLetter.created_at)}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.emptyMessageText}>
+                도착한 보호자 메시지가 없습니다.
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.micWrap}>
             <TouchableOpacity
-              style={styles.simpleMessageButton}
-              onPress={() => setIsLetterModalVisible(true)}
-              activeOpacity={0.85}
+              style={[styles.micButton, isRecording && styles.micActive]}
+              onPress={handleMicPress}
+              activeOpacity={0.9}
             >
-              <Text style={styles.simpleMessageButtonText}>전체보기</Text>
-              <Text style={styles.simpleMessageButtonArrow}>›</Text>
+              <View style={[styles.micIconWrap, isRecording && styles.micIconWrapActive]}>
+                <Ionicons name="mic" size={32} color="#FFFFFF" />
+              </View>
+
+              <Text style={styles.micText}>
+                {isRecording ? '말씀하세요' : '눌러서 말하기'}
+              </Text>
+              <Text style={styles.micSubText}>
+                {isRecording ? '음성을 듣고 있습니다' : '터치하면 바로 시작됩니다'}
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {loadingLetter ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="small" />
-              <Text style={styles.loadingText}>메시지를 불러오는 중입니다</Text>
-            </View>
-          ) : latestLetter ? (
-            <>
-              <Text style={styles.messageText}>{latestLetter.content}</Text>
-              <Text style={styles.messageTime}>
-                {formatToYearMonthDayHour(latestLetter.created_at)}
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.messageText}>
-              도착한 보호자 메시지가 없습니다.
-            </Text>
-          )}
+          <View style={styles.grid}>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => router.push('/chat')}
+              activeOpacity={0.88}
+            >
+              <View style={styles.cardIconWrap}>
+                <Ionicons name="chatbubble-ellipses-outline" size={24} color="#2563EB" />
+              </View>
+              <Text style={styles.cardText}>대화 보기</Text>
+              <Text style={styles.cardSubText}>대화 내용을 확인합니다</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => router.push('/calendar')}
+              activeOpacity={0.88}
+            >
+              <View style={styles.cardIconWrap}>
+                <Ionicons name="calendar-outline" size={24} color="#2563EB" />
+              </View>
+              <Text style={styles.cardText}>일정 보기</Text>
+              <Text style={styles.cardSubText}>오늘 일정을 확인합니다</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={styles.micWrap}>
+        <View style={styles.bottomSection}>
           <TouchableOpacity
-            style={[styles.micButton, isRecording && styles.micActive]}
-            onPress={handleMicPress}
+            style={styles.callButton}
+            onPress={handleCall119}
+            activeOpacity={0.9}
           >
-            <Text style={styles.micIcon}>🎤</Text>
-            <Text style={styles.micText}>
-              {isRecording ? '말씀하세요' : '눌러서 말하기'}
-            </Text>
+            <View style={styles.emergencyLeft}>
+              <Text style={styles.callLabel}>응급 상황</Text>
+              <Text style={styles.callText}>119 전화하기</Text>
+            </View>
+            <Ionicons name="call" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.sosButton}
+            onPress={handleGuardianEmergencyCall}
+            activeOpacity={0.9}
+          >
+            <View style={styles.emergencyLeft}>
+              <Text style={styles.sosLabel}>보호자 긴급 연락</Text>
+              <Text style={styles.sosText}>
+                {guardianName
+                  ? `${guardianName}님께 연락`
+                  : guardianPhone
+                  ? guardianPhone
+                  : 'SOS 긴급 연락'}
+              </Text>
+            </View>
+            <Ionicons name="warning" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-
-        <View style={styles.grid}>
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/chat')}>
-            <Text style={styles.cardIcon}>💬</Text>
-            <Text style={styles.cardText}>대화 보기</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/calendar')}>
-            <Text style={styles.cardIcon}>📅</Text>
-            <Text style={styles.cardText}>일정 보기</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 119 버튼을 위로 */}
-        <TouchableOpacity
-          style={styles.callButton}
-          onPress={handleCall119}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.callText}>119 전화하기</Text>
-        </TouchableOpacity>
-
-        {/* SOS 버튼을 아래로 + 보호자 전화 연결 */}
-        <TouchableOpacity
-          style={styles.sosButton}
-          onPress={handleGuardianEmergencyCall}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.sosText}>SOS 긴급 연락</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       <Modal
         visible={isLetterModalVisible}
         animationType="slide"
-        transparent={true}
+        transparent
         onRequestClose={() => setIsLetterModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
+            <View style={styles.modalHandle} />
+
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>메시지함</Text>
@@ -297,7 +363,10 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={styles.modalScrollContent}>
+            <ScrollView
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
               {letters.length > 0 ? (
                 letters.map((letter, index) => (
                   <View key={`${letter.created_at}-${index}`} style={styles.letterItem}>
@@ -329,205 +398,288 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#EEF4FF',
-  },
-  container: {
-    padding: 20,
-    paddingBottom: 28,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  subtitle: {
-    fontSize: 20,
-    color: '#64748B',
-    marginTop: 6,
+    backgroundColor: '#F5F7FB',
   },
 
-  messageCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  messageTopRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    marginBottom: 8,
-    gap: 12,
-  },
-  messageLeftArea: {
-    flex: 2,
-    justifyContent: 'center',
-  },
-  messageTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  messageSubInfo: {
-    marginTop: 2,
-    fontSize: 13,
-    color: '#94A3B8',
-  },
-  simpleMessageButton: {
+  container: {
     flex: 1,
-    minHeight: 56,
-    borderRadius: 14,
-    backgroundColor: '#F4F7FF',
-    borderWidth: 1,
-    borderColor: '#DCE7FF',
-    paddingHorizontal: 12,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 18,
+    justifyContent: 'space-between',
+  },
+
+  topSection: {
+    paddingTop: 4,
+  },
+  middleSection: {
+    flex: 1,
+    justifyContent: 'space-evenly',
+  },
+  bottomSection: {
+    paddingTop: 8,
+  },
+
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  simpleMessageButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#315EDE',
+  title: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
   },
-  simpleMessageButtonArrow: {
+  subtitle: {
+    fontSize: 18,
+    color: '#6B7280',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+
+  linkCodeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 8,
+  },
+  linkCodeLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '700',
+  },
+  linkCodeValue: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+
+  messageCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#EAECEF',
+  },
+  messageTopRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginBottom: 10,
+    gap: 10,
+  },
+  messageLeftArea: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  messageTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#315EDE',
+    color: '#111827',
+  },
+  messageSubInfo: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  simpleMessageButton: {
+    minHeight: 48,
+    minWidth: 106,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  simpleMessageButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#2563EB',
   },
   loadingWrap: {
     alignItems: 'center',
     paddingVertical: 8,
   },
   loadingText: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 14,
-    color: '#64748B',
+    color: '#6B7280',
   },
   messageText: {
     fontSize: 18,
-    color: '#0F172A',
-    lineHeight: 27,
-    marginTop: 2,
+    color: '#111827',
+    lineHeight: 28,
+    fontWeight: '600',
+  },
+  emptyMessageText: {
+    fontSize: 17,
+    color: '#6B7280',
+    lineHeight: 26,
   },
   messageTime: {
-    marginTop: 8,
+    marginTop: 10,
     fontSize: 13,
-    color: '#94A3B8',
-    fontWeight: '600',
+    color: '#9CA3AF',
+    fontWeight: '700',
   },
 
   micWrap: {
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 6,
   },
   micButton: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: '#4F7CFF',
-    justifyContent: 'center',
+    width: '100%',
+    backgroundColor: '#111827',
+    borderRadius: 32,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    shadowColor: '#4F7CFF',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    elevation: 8,
   },
   micActive: {
-    backgroundColor: '#7DA2FF',
+    backgroundColor: '#1D4ED8',
   },
-  micIcon: {
-    fontSize: 60,
+  micIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  micIconWrapActive: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
   micText: {
-    marginTop: 10,
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  micSubText: {
+    marginTop: 8,
+    color: 'rgba(255,255,255,0.78)',
+    fontSize: 15,
+    fontWeight: '500',
   },
 
   grid: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 20,
+    marginTop: 2,
   },
   card: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 20,
-    alignItems: 'center',
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#EAECEF',
   },
-  cardIcon: {
-    fontSize: 28,
-    marginBottom: 8,
+  cardIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#EEF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   cardText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0F172A',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  cardSubText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#6B7280',
+    fontWeight: '500',
   },
 
-  // 119 = 위 / 빨간색
   callButton: {
-    marginTop: 30,
-    backgroundColor: '#FF3B30',
+    marginTop: 10,
+    backgroundColor: '#DC2626',
     paddingVertical: 18,
-    borderRadius: 20,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#FF3B30',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 4,
+    justifyContent: 'space-between',
+  },
+  callLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.82)',
+    fontWeight: '800',
+    marginBottom: 4,
   },
   callText: {
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '900',
   },
 
-  // SOS = 아래 / 주황색
   sosButton: {
     marginTop: 12,
-    backgroundColor: '#FF9500',
-    paddingVertical: 16,
-    borderRadius: 20,
+    backgroundColor: '#F59E0B',
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#FF9500',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 4,
+    justifyContent: 'space-between',
+  },
+  sosLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.82)',
+    fontWeight: '800',
+    marginBottom: 4,
   },
   sosText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  emergencyLeft: {
+    flex: 1,
+    paddingRight: 10,
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    backgroundColor: 'rgba(17, 24, 39, 0.28)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
     height: '74%',
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 30,
+  },
+  modalHandle: {
+    width: 52,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -536,36 +688,39 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 21,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#111827',
   },
   modalSubTitle: {
     marginTop: 4,
     fontSize: 13,
-    color: '#94A3B8',
+    color: '#9CA3AF',
+    fontWeight: '600',
   },
   closeButton: {
-    backgroundColor: '#EAF1FF',
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingVertical: 9,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   closeButtonText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#315EDE',
+    color: '#2563EB',
   },
   modalScrollContent: {
     paddingBottom: 20,
   },
   letterItem: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
+    backgroundColor: '#FAFAFA',
+    borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5EDF8',
+    borderColor: '#EEEEEE',
   },
   letterItemTopRow: {
     flexDirection: 'row',
@@ -576,17 +731,18 @@ const styles = StyleSheet.create({
   },
   letterSender: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#315EDE',
+    fontWeight: '800',
+    color: '#2563EB',
   },
   letterItemContent: {
     fontSize: 16,
-    color: '#0F172A',
-    lineHeight: 24,
+    color: '#111827',
+    lineHeight: 25,
+    fontWeight: '600',
   },
   letterItemTime: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#6B7280',
     fontWeight: '600',
   },
   emptyBox: {
@@ -595,7 +751,7 @@ const styles = StyleSheet.create({
   },
   emptyLetterText: {
     fontSize: 16,
-    color: '#64748B',
+    color: '#6B7280',
     textAlign: 'center',
   },
 });
