@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     STT_TIMEOUT_SECONDS: int = 30
     STT_LANGUAGE: str = "ko"
     STT_PROMPT: str | None = None
+    TTS_PROVIDER: str = "stub"
+    TTS_MODEL: str = "gpt-4o-mini-tts"
+    TTS_TIMEOUT_SECONDS: int = 30
+    TTS_VOICE: str = "alloy"
+    TTS_RESPONSE_FORMAT: str = "mp3"
+    TTS_INSTRUCTIONS: str | None = None
+    AGENT_SESSION_TTL_MINUTES: int = 15
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -96,6 +103,34 @@ class Settings(BaseSettings):
     @property
     def stt_prompt(self) -> str | None:
         return self.STT_PROMPT
+
+    @property
+    def tts_provider(self) -> str:
+        return self.TTS_PROVIDER
+
+    @property
+    def tts_model(self) -> str:
+        return self.TTS_MODEL
+
+    @property
+    def tts_timeout_seconds(self) -> int:
+        return self.TTS_TIMEOUT_SECONDS
+
+    @property
+    def tts_voice(self) -> str:
+        return self.TTS_VOICE
+
+    @property
+    def tts_response_format(self) -> str:
+        return self.TTS_RESPONSE_FORMAT
+
+    @property
+    def tts_instructions(self) -> str | None:
+        return self.TTS_INSTRUCTIONS
+
+    @property
+    def agent_session_ttl_minutes(self) -> int:
+        return self.AGENT_SESSION_TTL_MINUTES
 
 
 settings = Settings()

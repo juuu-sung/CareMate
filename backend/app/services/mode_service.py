@@ -82,13 +82,19 @@ def update_mode(db: Session, payload: CareModeUpdateRequest) -> CareModeResponse
     return get_current_mode(db)
 
 
+def change_mode_from_agent(db: Session, mode: str) -> CareModeResponse:
+    current = get_current_mode(db)
+    payload = CareModeUpdateRequest(mode=mode, options=current.options)
+    return update_mode(db, payload)
+
+
 def _get_primary_senior_id(db: Session):
     senior = db.execute(
         text(
             """
             SELECT id
             FROM users
-            WHERE role = 'senior'
+            WHERE role = 'elder'
             ORDER BY created_at ASC
             LIMIT 1
             """

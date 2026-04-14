@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.models.guardian_link import GuardianLink
@@ -26,12 +28,15 @@ def send_letter_from_guardian(
     if link.guardian_user_id != guardian_user_id:
         raise ValueError("해당 연동 코드는 현재 보호자 계정과 연결되어 있지 않습니다.")
 
+    now = datetime.now(timezone.utc)
+
     new_letter = Letter(
         link_code=link.link_code,
         guardian_user_id=link.guardian_user_id,
         elder_user_id=link.elder_user_id,
         sender_role="guardian",
         content=payload.content,
+        created_at=now,
     )
 
     db.add(new_letter)
@@ -60,12 +65,15 @@ def send_letter_from_elder(
     if not link.guardian_user_id:
         raise ValueError("아직 보호자가 연결되지 않았습니다.")
 
+    now = datetime.now(timezone.utc)
+
     new_letter = Letter(
         link_code=link.link_code,
         guardian_user_id=link.guardian_user_id,
         elder_user_id=link.elder_user_id,
         sender_role="elder",
         content=payload.content,
+        created_at=now,
     )
 
     db.add(new_letter)

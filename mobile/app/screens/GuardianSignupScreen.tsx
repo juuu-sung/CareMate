@@ -11,7 +11,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getParentByCode, guardianSignup } from '../../lib/api';
+import { guardianSignup } from '@/services/guardian';
+import { getParentByCode } from '@/services/parents';
 
 const relationOptions = ['아들', '딸', '며느리', '사위', '손주', '기타'];
 

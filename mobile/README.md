@@ -2,8 +2,14 @@
 
 Expo Router 기반 모바일 앱 골격입니다.
 
-- `(user)`: 노인 사용자용 화면
-- `(guardian)`: 보호자용 화면
+현재 앱 구조:
+
+- `index`: 가입 유형 선택
+- `parent-*`: 부모님 가입 및 AI 에이전트 온보딩
+- `guardian-*`: 보호자 가입 및 부모님 정보 확인
+- `home`: 부모님 홈
+- `guardian-home`: 보호자 홈
+- `chat`, `calendar`: 후속 API 연결용 기본 화면
 - `components/common`: 공통 UI
 - `services`: API 호출 계층
 - `types`: 공통 타입

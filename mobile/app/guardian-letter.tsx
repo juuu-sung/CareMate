@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { sendLetterFromGuardian } from '../lib/letter';
+import { sendLetterFromGuardian } from '@/services/letters';
 
 export default function GuardianLetterScreen() {
   const router = useRouter();

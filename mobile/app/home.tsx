@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -12,7 +12,10 @@ import {
   Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { fetchLettersForElder } from '../lib/letter';
+import { useFocusEffect } from '@react-navigation/native';
+import { fetchLettersForElder } from '@/services/letters';
+import { getMedications, MedicationItem } from '@/services/medications';
+import { getSchedules, ScheduleItem } from '@/services/schedules';
 
 type LetterItem = {
   guardian_user_id: string;
@@ -43,16 +46,21 @@ export default function HomeScreen() {
       ''
   );
 
-  const [isRecording, setIsRecording] = useState(false);
   const [latestLetter, setLatestLetter] = useState<LetterItem | null>(null);
   const [letters, setLetters] = useState<LetterItem[]>([]);
   const [loadingLetter, setLoadingLetter] = useState(true);
   const [isLetterModalVisible, setIsLetterModalVisible] = useState(false);
+  const [medications, setMedications] = useState<MedicationItem[]>([]);
+  const [isLoadingMedications, setIsLoadingMedications] = useState(true);
+  const [medicationError, setMedicationError] = useState<string | null>(null);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleMicPress = () => {
-    setIsRecording((prev) => !prev);
+    router.push('/chat?input=voice&autostart=1');
   };
 
   const formatToYearMonthDayHour = (dateString: string) => {
@@ -159,8 +167,40 @@ export default function HomeScreen() {
     }
   };
 
+  const loadMedications = async () => {
+    try {
+      setIsLoadingMedications(true);
+      setMedicationError(null);
+      const items = await getMedications();
+      setMedications(items);
+    } catch (error) {
+      console.log('복약 조회 오류:', error);
+      setMedications([]);
+      setMedicationError('복약 상태를 불러오지 못했습니다.');
+    } finally {
+      setIsLoadingMedications(false);
+    }
+  };
+
+  const loadSchedules = async () => {
+    try {
+      setIsLoadingSchedules(true);
+      setScheduleError(null);
+      const items = await getSchedules();
+      setSchedules(items);
+    } catch (error) {
+      console.log('일정 조회 오류:', error);
+      setSchedules([]);
+      setScheduleError('일정을 불러오지 못했습니다.');
+    } finally {
+      setIsLoadingSchedules(false);
+    }
+  };
+
   useEffect(() => {
     loadLetters(true);
+    void loadMedications();
+    void loadSchedules();
 
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
@@ -179,6 +219,16 @@ export default function HomeScreen() {
       }
     };
   }, [elderUserId, linkCode]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadLetters(false);
+      void loadMedications();
+      void loadSchedules();
+
+      return undefined;
+    }, [elderUserId, linkCode])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -228,15 +278,94 @@ export default function HomeScreen() {
           )}
         </View>
 
+        <View style={styles.medicationCard}>
+          <View style={styles.medicationTopRow}>
+            <View style={styles.messageLeftArea}>
+              <Text style={styles.messageTitle}>복약 상태</Text>
+              <Text style={styles.messageSubInfo}>최근 복약 기록이 반영된 목록입니다</Text>
+            </View>
+          </View>
+
+          {isLoadingMedications ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size="small" />
+              <Text style={styles.loadingText}>복약 상태를 불러오는 중입니다</Text>
+            </View>
+          ) : null}
+
+          {!isLoadingMedications && medicationError ? (
+            <Text style={styles.medicationErrorText}>{medicationError}</Text>
+          ) : null}
+
+          {!isLoadingMedications && !medicationError && medications.length === 0 ? (
+            <Text style={styles.messageText}>등록된 복약 정보가 없습니다.</Text>
+          ) : null}
+
+          {!isLoadingMedications && !medicationError
+            ? medications.slice(0, 3).map((medication, index) => (
+                <View key={`${medication.name}-${medication.time}-${index}`} style={styles.medicationItem}>
+                  <View style={styles.medicationHeader}>
+                    <Text style={styles.medicationName}>{medication.name}</Text>
+                    <View style={[styles.medicationBadge, getMedicationBadgeStyle(medication.status)]}>
+                      <Text style={styles.medicationBadgeText}>{medication.status_label}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.medicationScheduleText}>복약 시간: {medication.time}</Text>
+                  {medication.last_recorded_at ? (
+                    <Text style={styles.medicationMetaText}>
+                      최근 기록: {formatMedicationRecord(medication)}
+                    </Text>
+                  ) : null}
+                </View>
+              ))
+            : null}
+        </View>
+
+        <View style={styles.scheduleCard}>
+          <View style={styles.medicationTopRow}>
+            <View style={styles.messageLeftArea}>
+              <Text style={styles.messageTitle}>오늘 일정</Text>
+              <Text style={styles.messageSubInfo}>등록된 일정과 방금 추가한 일정이 반영됩니다</Text>
+            </View>
+          </View>
+
+          {isLoadingSchedules ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size="small" />
+              <Text style={styles.loadingText}>일정을 불러오는 중입니다</Text>
+            </View>
+          ) : null}
+
+          {!isLoadingSchedules && scheduleError ? (
+            <Text style={styles.medicationErrorText}>{scheduleError}</Text>
+          ) : null}
+
+          {!isLoadingSchedules && !scheduleError && schedules.length === 0 ? (
+            <Text style={styles.messageText}>등록된 일정이 없습니다.</Text>
+          ) : null}
+
+          {!isLoadingSchedules && !scheduleError
+            ? schedules.slice(0, 3).map((schedule, index) => (
+                <View key={`${schedule.date}-${schedule.time}-${schedule.title}-${index}`} style={styles.scheduleItem}>
+                  <View style={styles.scheduleHeader}>
+                    <Text style={styles.scheduleItemTitle}>{schedule.title}</Text>
+                    <Text style={styles.scheduleItemStatus}>{formatScheduleStatus(schedule.status)}</Text>
+                  </View>
+                  <Text style={styles.scheduleItemMeta}>
+                    {schedule.date} · {schedule.time}
+                  </Text>
+                </View>
+              ))
+            : null}
+        </View>
+
         <View style={styles.micWrap}>
           <TouchableOpacity
-            style={[styles.micButton, isRecording && styles.micActive]}
+            style={styles.micButton}
             onPress={handleMicPress}
           >
             <Text style={styles.micIcon}>🎤</Text>
-            <Text style={styles.micText}>
-              {isRecording ? '말씀하세요' : '눌러서 말하기'}
-            </Text>
+            <Text style={styles.micText}>눌러서 말하기</Text>
           </TouchableOpacity>
         </View>
 
@@ -361,6 +490,28 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
+  medicationCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  scheduleCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
   messageTopRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -424,6 +575,82 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontWeight: '600',
   },
+  medicationTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  medicationItem: {
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingTop: 14,
+    marginTop: 14,
+  },
+  medicationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  medicationName: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  medicationScheduleText: {
+    marginTop: 8,
+    fontSize: 15,
+    color: '#475569',
+  },
+  medicationMetaText: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#64748B',
+  },
+  medicationBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  medicationBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  medicationErrorText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#B91C1C',
+  },
+  scheduleItem: {
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingTop: 14,
+    marginTop: 14,
+  },
+  scheduleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  scheduleItemTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  scheduleItemStatus: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#315EDE',
+  },
+  scheduleItemMeta: {
+    marginTop: 8,
+    fontSize: 15,
+    color: '#475569',
+  },
 
   micWrap: {
     alignItems: 'center',
@@ -441,9 +668,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 16,
     elevation: 8,
-  },
-  micActive: {
-    backgroundColor: '#7DA2FF',
   },
   micIcon: {
     fontSize: 60,
@@ -599,3 +823,41 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+function formatMedicationRecord(medication: MedicationItem) {
+  if (!medication.last_recorded_at) {
+    return medication.status_label;
+  }
+
+  const date = new Date(medication.last_recorded_at);
+  if (Number.isNaN(date.getTime())) {
+    return `${medication.last_time_scope ?? medication.time} · ${medication.status_label}`;
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const timeScope = medication.last_time_scope ? `${medication.last_time_scope} · ` : '';
+  return `${timeScope}${month}.${day} ${hours}:${minutes}`;
+}
+
+function getMedicationBadgeStyle(status: MedicationItem['status']) {
+  if (status === 'taken') {
+    return { backgroundColor: '#16A34A' };
+  }
+  if (status === 'missed') {
+    return { backgroundColor: '#DC2626' };
+  }
+  return { backgroundColor: '#64748B' };
+}
+
+function formatScheduleStatus(status: string) {
+  if (status === 'scheduled') {
+    return '예정';
+  }
+  if (status === 'completed') {
+    return '완료';
+  }
+  return status;
+}

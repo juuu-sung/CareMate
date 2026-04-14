@@ -14,7 +14,7 @@ export function SeniorScreen({
   title,
   subtitle,
   showBackButton = true,
-  backHref = "/(user)/home",
+  backHref = "/home",
 }: SeniorScreenProps) {
   const router = useRouter();
 

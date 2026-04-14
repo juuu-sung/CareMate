@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { updateParentCareInfo } from '../lib/api';
+import { updateParentCareInfo } from '@/services/parents';
 
 export default function GuardianParentInfoScreen() {
   const router = useRouter();

@@ -7,4 +7,5 @@
 - MVP 범위
 - 확장 기능 범위
 - 기대 효과
-
+- 사용자 시나리오: `user-scenarios.md`
+- 노인특화 AI 에이전트 역할 정의: `senior-ai-agent-definition.md`
