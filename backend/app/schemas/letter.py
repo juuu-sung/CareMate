@@ -1,6 +1,10 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 
+class LetterCreateRequest(BaseModel):
+    link_code: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1, max_length=1000)
+
 class SendLetterRequest(BaseModel):
     elder_user_id: str = Field(..., min_length=1)
     link_code: str = Field(..., min_length=1)

@@ -1,12 +1,11 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
 
-# 모델 import 반드시 필요
 from app.models.user import User
 from app.models.elder_profile import ElderProfile
 from app.models.guardian_link import GuardianLink
@@ -17,10 +16,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# alembic.ini 대신 실제 .env의 DATABASE_URL 사용
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-
-# 핵심
 target_metadata = Base.metadata
 
 

@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { parentSignup } from '../../lib/api';
+import { parentSignup } from '@/services/parents';
 
 export default function ParentSignupScreen() {
   const router = useRouter();

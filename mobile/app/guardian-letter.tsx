@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { sendLetterFromGuardian } from '../lib/letter';
+import { sendLetterFromGuardian } from '@/services/letters';
 
 export default function GuardianLetterScreen() {
   const router = useRouter();

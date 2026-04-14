@@ -213,6 +213,7 @@ CareMate/
 - 사용자 앱 구조: [docs/architecture/feature-structure.md](docs/architecture/feature-structure.md)
 - API 명세: [docs/api-spec/README.md](docs/api-spec/README.md)
 - DB 스키마 초안: [docs/architecture/database-schema.md](docs/architecture/database-schema.md)
+- 개발 체크리스트: [docs/project-management/development-checklist.md](docs/project-management/development-checklist.md)
 - 테스트 시나리오: [docs/test-scenarios/README.md](docs/test-scenarios/README.md)
 
 ## Quick Start
@@ -228,9 +229,13 @@ npx expo start
 ### Backend
 
 ```bash
+docker compose up -d db
 cd backend
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
 ## Environment Variables
@@ -238,7 +243,19 @@ uvicorn app.main:app --reload
 ```env
 APP_NAME=CareMate
 API_PREFIX=/api/v1
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-5.4-mini
+LLM_TIMEOUT_SECONDS=20
+STT_PROVIDER=openai
+STT_MODEL=gpt-4o-mini-transcribe
+STT_TIMEOUT_SECONDS=30
+STT_LANGUAGE=ko
+TTS_PROVIDER=openai
+TTS_MODEL=gpt-4o-mini-tts
+TTS_TIMEOUT_SECONDS=30
+TTS_VOICE=alloy
+TTS_RESPONSE_FORMAT=mp3
 OPENAI_API_KEY=your_openai_key
 GEMINI_API_KEY=your_gemini_key
 STT_API_KEY=your_stt_key
@@ -246,6 +263,19 @@ TTS_API_KEY=your_tts_key
 MAP_API_KEY=your_map_key
 LOCATION_RETENTION_DAYS=30
 ```
+
+비고:
+
+- `OPENAI_API_KEY`만 설정되어 있어도 현재 백엔드는 OpenAI를 우선 사용합니다.
+- `LLM_PROVIDER`를 명시하면 해당 provider를 우선 사용합니다.
+- `STT_PROVIDER=openai`이면 `/chat/speech`가 OpenAI `gpt-4o-mini-transcribe`를 사용합니다.
+- `TTS_PROVIDER=openai`이면 `/chat/tts`가 OpenAI `gpt-4o-mini-tts`를 사용합니다.
+
+## Collaboration
+
+- 개발 체크리스트: [docs/project-management/development-checklist.md](docs/project-management/development-checklist.md)
+- 기여 가이드: [CONTRIBUTING.md](CONTRIBUTING.md)
+- 라이선스: [LICENSE](LICENSE)
 
 ## Roadmap
 

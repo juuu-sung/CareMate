@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -13,9 +13,12 @@ import {
   ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchLettersForElder } from '../lib/letter';
-import { fetchGuardianContact } from '../lib/guardian';
+
+import { fetchLettersForElder } from '@/services/letters';
+import { getMedications, MedicationItem } from '@/services/medications';
+import { getSchedules, ScheduleItem } from '@/services/schedules';
 
 type LetterItem = {
   guardian_user_id: string;
@@ -36,20 +39,29 @@ export default function HomeScreen() {
   const linkCode = String(
     params.linkCode || params.link_code || params.code || ''
   );
+  const guardianPhone = String(
+    params.guardianPhone ||
+      params.guardian_phone ||
+      params.phone ||
+      params.guardianPhoneNumber ||
+      ''
+  );
 
-  const [isRecording, setIsRecording] = useState(false);
   const [latestLetter, setLatestLetter] = useState<LetterItem | null>(null);
   const [letters, setLetters] = useState<LetterItem[]>([]);
   const [loadingLetter, setLoadingLetter] = useState(true);
   const [isLetterModalVisible, setIsLetterModalVisible] = useState(false);
-
-  const [guardianPhone, setGuardianPhone] = useState('');
-  const [guardianName, setGuardianName] = useState('');
+  const [medications, setMedications] = useState<MedicationItem[]>([]);
+  const [isLoadingMedications, setIsLoadingMedications] = useState(true);
+  const [medicationError, setMedicationError] = useState<string | null>(null);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleMicPress = () => {
-    setIsRecording((prev) => !prev);
+    router.push('/chat?input=voice&autostart=1');
   };
 
   const formatToYearMonthDayHour = (dateString: string) => {
@@ -117,7 +129,7 @@ export default function HomeScreen() {
     }
   };
 
-  const loadLetters = async (showLoading: boolean = false) => {
+  const loadLetters = async (showLoading = false) => {
     if (!elderUserId || !linkCode) {
       setLatestLetter(null);
       setLetters([]);
@@ -148,42 +160,48 @@ export default function HomeScreen() {
     }
   };
 
-  const loadGuardianContact = async () => {
+  const loadMedications = async () => {
     try {
-      if (!linkCode) return;
+      setIsLoadingMedications(true);
+      setMedicationError(null);
+      const items = await getMedications();
+      setMedications(items);
+    } catch (error) {
+      console.log('복약 조회 오류:', error);
+      setMedications([]);
+      setMedicationError('복약 상태를 불러오지 못했습니다.');
+    } finally {
+      setIsLoadingMedications(false);
+    }
+  };
 
-      const data = await fetchGuardianContact(linkCode);
-
-      if (data?.guardian_phone) {
-        setGuardianPhone(data.guardian_phone);
-      }
-
-      if (data?.guardian_name) {
-        setGuardianName(data.guardian_name);
-      }
-    } catch (error: any) {
-      console.log('보호자 연락처 조회 오류:', error?.message);
+  const loadSchedules = async () => {
+    try {
+      setIsLoadingSchedules(true);
+      setScheduleError(null);
+      const items = await getSchedules();
+      setSchedules(items);
+    } catch (error) {
+      console.log('일정 조회 오류:', error);
+      setSchedules([]);
+      setScheduleError('일정을 불러오지 못했습니다.');
+    } finally {
+      setIsLoadingSchedules(false);
     }
   };
 
   useEffect(() => {
     loadLetters(true);
-  }, [elderUserId, linkCode]);
+    void loadMedications();
+    void loadSchedules();
 
-  useEffect(() => {
-    if (linkCode) {
-      loadGuardianContact();
-    }
-  }, [linkCode]);
-
-  useEffect(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
     }
 
     if (elderUserId && linkCode) {
       pollingRef.current = setInterval(() => {
-        loadLetters(false);
+        void loadLetters(false);
       }, 100000);
     }
 
@@ -194,6 +212,15 @@ export default function HomeScreen() {
       }
     };
   }, [elderUserId, linkCode]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadLetters(false);
+      void loadMedications();
+      void loadSchedules();
+      return undefined;
+    }, [elderUserId, linkCode])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -213,7 +240,11 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>무엇을 도와드릴까요?</Text>
         </View>
 
-        <View style={styles.middleSection}>
+        <ScrollView
+          style={styles.middleSection}
+          contentContainerStyle={styles.middleSectionContent}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.messageCard}>
             <View style={styles.messageTopRow}>
               <View style={styles.messageLeftArea}>
@@ -256,22 +287,95 @@ export default function HomeScreen() {
             )}
           </View>
 
+          <View style={styles.infoCard}>
+            <View style={styles.infoCardHeader}>
+              <Text style={styles.messageTitle}>복약 상태</Text>
+              <Text style={styles.messageSubInfo}>최근 복약 기록이 반영된 목록입니다</Text>
+            </View>
+
+            {isLoadingMedications ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingText}>복약 상태를 불러오는 중입니다</Text>
+              </View>
+            ) : null}
+
+            {!isLoadingMedications && medicationError ? (
+              <Text style={styles.errorText}>{medicationError}</Text>
+            ) : null}
+
+            {!isLoadingMedications && !medicationError && medications.length === 0 ? (
+              <Text style={styles.emptyMessageText}>등록된 복약 정보가 없습니다.</Text>
+            ) : null}
+
+            {!isLoadingMedications && !medicationError
+              ? medications.slice(0, 3).map((medication, index) => (
+                  <View key={`${medication.name}-${medication.time}-${index}`} style={styles.infoItem}>
+                    <View style={styles.infoItemHeader}>
+                      <Text style={styles.infoItemTitle}>{medication.name}</Text>
+                      <View style={[styles.statusBadge, getMedicationBadgeStyle(medication.status)]}>
+                        <Text style={styles.statusBadgeText}>{medication.status_label}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.infoItemMeta}>복약 시간: {medication.time}</Text>
+                    {medication.last_recorded_at ? (
+                      <Text style={styles.infoItemSubMeta}>
+                        최근 기록: {formatMedicationRecord(medication)}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))
+              : null}
+          </View>
+
+          <View style={styles.infoCard}>
+            <View style={styles.infoCardHeader}>
+              <Text style={styles.messageTitle}>오늘 일정</Text>
+              <Text style={styles.messageSubInfo}>등록된 일정과 방금 추가한 일정이 반영됩니다</Text>
+            </View>
+
+            {isLoadingSchedules ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingText}>일정을 불러오는 중입니다</Text>
+              </View>
+            ) : null}
+
+            {!isLoadingSchedules && scheduleError ? (
+              <Text style={styles.errorText}>{scheduleError}</Text>
+            ) : null}
+
+            {!isLoadingSchedules && !scheduleError && schedules.length === 0 ? (
+              <Text style={styles.emptyMessageText}>등록된 일정이 없습니다.</Text>
+            ) : null}
+
+            {!isLoadingSchedules && !scheduleError
+              ? schedules.slice(0, 3).map((schedule, index) => (
+                  <View key={`${schedule.date}-${schedule.time}-${schedule.title}-${index}`} style={styles.infoItem}>
+                    <View style={styles.infoItemHeader}>
+                      <Text style={styles.infoItemTitle}>{schedule.title}</Text>
+                      <Text style={styles.scheduleStatusText}>{formatScheduleStatus(schedule.status)}</Text>
+                    </View>
+                    <Text style={styles.infoItemMeta}>
+                      {schedule.date} · {schedule.time}
+                    </Text>
+                  </View>
+                ))
+              : null}
+          </View>
+
           <View style={styles.micWrap}>
             <TouchableOpacity
-              style={[styles.micButton, isRecording && styles.micActive]}
+              style={styles.micButton}
               onPress={handleMicPress}
               activeOpacity={0.9}
             >
-              <View style={[styles.micIconWrap, isRecording && styles.micIconWrapActive]}>
+              <View style={styles.micIconWrap}>
                 <Ionicons name="mic" size={32} color="#FFFFFF" />
               </View>
 
-              <Text style={styles.micText}>
-                {isRecording ? '말씀하세요' : '눌러서 말하기'}
-              </Text>
-              <Text style={styles.micSubText}>
-                {isRecording ? '음성을 듣고 있습니다' : '터치하면 바로 시작됩니다'}
-              </Text>
+              <Text style={styles.micText}>눌러서 말하기</Text>
+              <Text style={styles.micSubText}>터치하면 바로 시작됩니다</Text>
             </TouchableOpacity>
           </View>
 
@@ -300,7 +404,7 @@ export default function HomeScreen() {
               <Text style={styles.cardSubText}>오늘 일정을 확인합니다</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
 
         <View style={styles.bottomSection}>
           <TouchableOpacity
@@ -323,11 +427,7 @@ export default function HomeScreen() {
             <View style={styles.emergencyLeft}>
               <Text style={styles.sosLabel}>보호자 긴급 연락</Text>
               <Text style={styles.sosText}>
-                {guardianName
-                  ? `${guardianName}님께 연락`
-                  : guardianPhone
-                  ? guardianPhone
-                  : 'SOS 긴급 연락'}
+                {guardianPhone ? guardianPhone : 'SOS 긴급 연락'}
               </Text>
             </View>
             <Ionicons name="warning" size={24} color="#FFFFFF" />
@@ -400,26 +500,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F7FB',
   },
-
   container: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 18,
-    justifyContent: 'space-between',
   },
-
   topSection: {
     paddingTop: 4,
+    marginBottom: 12,
   },
   middleSection: {
     flex: 1,
-    justifyContent: 'space-evenly',
+  },
+  middleSectionContent: {
+    paddingBottom: 20,
+    gap: 12,
   },
   bottomSection: {
     paddingTop: 8,
+    gap: 12,
   },
-
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -437,7 +538,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontWeight: '500',
   },
-
   linkCodeChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -460,13 +560,22 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.4,
   },
-
   messageCard: {
     backgroundColor: '#FFFFFF',
     padding: 18,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: '#EAECEF',
+  },
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#EAECEF',
+  },
+  infoCardHeader: {
+    marginBottom: 8,
   },
   messageTopRow: {
     flexDirection: 'row',
@@ -533,66 +642,108 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontWeight: '700',
   },
-
+  infoItem: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 14,
+    marginTop: 14,
+  },
+  infoItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  infoItemTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  infoItemMeta: {
+    marginTop: 8,
+    fontSize: 15,
+    color: '#475569',
+  },
+  infoItemSubMeta: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#64748B',
+  },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  scheduleStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  errorText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#B91C1C',
+  },
   micWrap: {
     alignItems: 'center',
-    marginVertical: 6,
+    marginTop: 4,
   },
   micButton: {
     width: '100%',
-    backgroundColor: '#111827',
-    borderRadius: 32,
-    paddingVertical: 24,
+    borderRadius: 28,
+    paddingVertical: 26,
     paddingHorizontal: 20,
+    backgroundColor: '#2563EB',
     alignItems: 'center',
-  },
-  micActive: {
-    backgroundColor: '#1D4ED8',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
   },
   micIconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
-  micIconWrapActive: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
   micText: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -0.3,
   },
   micSubText: {
-    marginTop: 8,
-    color: 'rgba(255,255,255,0.78)',
-    fontSize: 15,
-    fontWeight: '500',
+    color: '#DBEAFE',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 6,
   },
-
   grid: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 2,
   },
   card: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    alignItems: 'flex-start',
     borderWidth: 1,
     borderColor: '#EAECEF',
+    padding: 18,
   },
   cardIconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     backgroundColor: '#EEF4FF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -608,60 +759,64 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     color: '#6B7280',
-    fontWeight: '500',
+    fontWeight: '600',
   },
-
   callButton: {
-    marginTop: 10,
-    backgroundColor: '#DC2626',
+    backgroundColor: '#FF3B30',
     paddingVertical: 18,
     paddingHorizontal: 18,
     borderRadius: 22,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  sosButton: {
+    backgroundColor: '#FF9500',
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#FF9500',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  emergencyLeft: {
+    flex: 1,
   },
   callLabel: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.82)',
-    fontWeight: '800',
+    fontWeight: '700',
+    color: '#FFE2E0',
     marginBottom: 4,
   },
   callText: {
     color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '900',
-  },
-
-  sosButton: {
-    marginTop: 12,
-    backgroundColor: '#F59E0B',
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    borderRadius: 22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    fontSize: 20,
+    fontWeight: '800',
   },
   sosLabel: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.82)',
-    fontWeight: '800',
+    fontWeight: '700',
+    color: '#FFE7CC',
     marginBottom: 4,
   },
   sosText: {
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '900',
+    fontSize: 18,
+    fontWeight: '800',
   },
-  emergencyLeft: {
-    flex: 1,
-    paddingRight: 10,
-  },
-
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(17, 24, 39, 0.28)',
+    backgroundColor: 'rgba(15, 23, 42, 0.35)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
@@ -674,12 +829,12 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   modalHandle: {
-    width: 52,
-    height: 5,
+    width: 56,
+    height: 6,
     borderRadius: 999,
     backgroundColor: '#D1D5DB',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -688,7 +843,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '800',
     color: '#111827',
   },
@@ -699,12 +854,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   closeButton: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#EEF4FF',
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   closeButtonText: {
     fontSize: 14,
@@ -715,12 +868,12 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   letterItem: {
-    backgroundColor: '#FAFAFA',
-    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 18,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#EEEEEE',
+    borderColor: '#E5EDF8',
   },
   letterItemTopRow: {
     flexDirection: 'row',
@@ -731,18 +884,17 @@ const styles = StyleSheet.create({
   },
   letterSender: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#2563EB',
   },
   letterItemContent: {
     fontSize: 16,
     color: '#111827',
-    lineHeight: 25,
-    fontWeight: '600',
+    lineHeight: 24,
   },
   letterItemTime: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#64748B',
     fontWeight: '600',
   },
   emptyBox: {
@@ -751,7 +903,45 @@ const styles = StyleSheet.create({
   },
   emptyLetterText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#64748B',
     textAlign: 'center',
   },
 });
+
+function formatMedicationRecord(medication: MedicationItem) {
+  if (!medication.last_recorded_at) {
+    return medication.status_label;
+  }
+
+  const date = new Date(medication.last_recorded_at);
+  if (Number.isNaN(date.getTime())) {
+    return `${medication.last_time_scope ?? medication.time} · ${medication.status_label}`;
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const timeScope = medication.last_time_scope ? `${medication.last_time_scope} · ` : '';
+  return `${timeScope}${month}.${day} ${hours}:${minutes}`;
+}
+
+function getMedicationBadgeStyle(status: MedicationItem['status']) {
+  if (status === 'taken') {
+    return { backgroundColor: '#16A34A' };
+  }
+  if (status === 'missed') {
+    return { backgroundColor: '#DC2626' };
+  }
+  return { backgroundColor: '#64748B' };
+}
+
+function formatScheduleStatus(status: string) {
+  if (status === 'scheduled') {
+    return '예정';
+  }
+  if (status === 'completed') {
+    return '완료';
+  }
+  return status;
+}
