@@ -8,11 +8,12 @@ import {
   Text,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   Alert,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { sendLetterFromGuardian } from '@/services/letters';
 
 export default function GuardianLetterScreen() {
@@ -36,7 +37,7 @@ export default function GuardianLetterScreen() {
   const [loading, setLoading] = useState(false);
 
   const trimmedLetter = useMemo(() => letter.trim(), [letter]);
-  const maxLength = 200;
+  const maxLength = 50;
 
   const handleSend = async () => {
     if (!trimmedLetter) {
@@ -90,37 +91,68 @@ export default function GuardianLetterScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F1F1F1" />
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.header}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>💌 사랑의 편지</Text>
+        <View style={styles.container}>
+
+          {/* 상단 심플 헤더 */}
+          <View style={styles.topBar}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="chevron-back" size={22} color="#111827" />
+            </TouchableOpacity>
+
+            <Text style={styles.topTitle}>편지 쓰기</Text>
+
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* 프로필 */}
+          <View style={styles.profileCard}>
+            <View style={styles.profileLeft}>
+              <View style={styles.avatarWrap}>
+                <Text style={styles.avatarText}>
+                  {parentName?.trim()?.charAt(0) || '부'}
+                </Text>
+              </View>
+
+              <View>
+                <Text style={styles.profileName}>{parentName} 님</Text>
+                <Text style={styles.profileMeta}>
+                  {[
+                    parentAge ? `${parentAge}세` : '',
+                    parentGender || '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || '편지 보내기'}
+                </Text>
+              </View>
             </View>
 
-            <Text style={styles.title}>{parentName} 님께 편지 쓰기</Text>
-            <Text style={styles.subtitle}>
-              따뜻한 한마디가 부모님께 큰 힘이 됩니다.
+            <View style={styles.linkCodeBadge}>
+              <Feather name="link" size={14} color="#05B547" />
+              <Text style={styles.linkCodeText}>{linkCode || '-'}</Text>
+            </View>
+          </View>
+
+          {/* 안내 */}
+          <View style={styles.tipCard}>
+            <MaterialCommunityIcons name="heart-outline" size={18} color="#05B547" />
+            <Text style={styles.tipText}>
+              짧은 한마디도 충분합니다. 마음을 전해보세요.
             </Text>
           </View>
 
-          <View style={styles.previewCard}>
-            <Text style={styles.previewLabel}>전달 안내</Text>
-            <Text style={styles.previewText}>
-              작성한 편지는 데이터베이스에 저장되고 부모님 홈 화면에 표시됩니다.
-            </Text>
-            <Text style={styles.previewMeta}>연동 코드: {linkCode || '-'}</Text>
-          </View>
-
-          <View style={styles.letterCard}>
-            <View style={styles.cardTopRow}>
-              <Text style={styles.cardTitle}>편지 내용</Text>
+          {/* 입력 */}
+          <View style={styles.editorCard}>
+            <View style={styles.editorTopRow}>
+              <Text style={styles.editorTitle}>메시지</Text>
               <Text style={styles.countText}>
                 {letter.length}/{maxLength}
               </Text>
@@ -128,35 +160,36 @@ export default function GuardianLetterScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="부모님께 편지 한통 써보세요"
-              placeholderTextColor="#9CA3AF"
+              placeholder="예: 오늘도 건강 잘 챙기세요!"
+              placeholderTextColor="#98A2B3"
               multiline
               maxLength={maxLength}
               value={letter}
               onChangeText={setLetter}
               textAlignVertical="top"
             />
-
-            <View style={styles.tipBox}>
-              <Text style={styles.tipText}>
-                예시: 엄마, 오늘도 건강하게 좋은 하루 보내세요.
-              </Text>
-            </View>
           </View>
 
+          {/* 버튼 */}
           <TouchableOpacity
-            style={[styles.button, (!trimmedLetter || loading) && styles.buttonDisabled]}
+            style={[
+              styles.sendButton,
+              (!trimmedLetter || loading) && styles.sendButtonDisabled,
+            ]}
             onPress={handleSend}
-            activeOpacity={0.85}
             disabled={!trimmedLetter || loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.buttonText}>전송하기</Text>
+              <View style={styles.sendButtonContent}>
+                <Ionicons name="paper-plane-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.sendButtonText}>편지 보내기</Text>
+              </View>
             )}
           </TouchableOpacity>
-        </ScrollView>
+
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -164,78 +197,167 @@ export default function GuardianLetterScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  safeArea: { flex: 1, backgroundColor: '#EEF4FF' },
-  container: { padding: 20, paddingBottom: 36 },
-  header: { marginBottom: 20 },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#DCE8FF',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F1F1F1',
+  },
+
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 24,
+  },
+
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 14,
   },
-  badgeText: { fontSize: 14, fontWeight: '700', color: '#315EDE' },
-  title: { fontSize: 28, fontWeight: '800', color: '#0F172A' },
-  subtitle: { marginTop: 8, fontSize: 16, lineHeight: 24, color: '#64748B' },
-  previewCard: {
+
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: '#DCE8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  previewLabel: { fontSize: 14, fontWeight: '700', color: '#4F7CFF', marginBottom: 6 },
-  previewText: { fontSize: 15, lineHeight: 22, color: '#334155' },
-  previewMeta: { marginTop: 10, fontSize: 13, color: '#64748B', fontWeight: '600' },
-  letterCard: {
+
+  topTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+
+  profileCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#DCE8FF',
-  },
-  cardTopRow: {
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
   },
-  cardTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
-  countText: { fontSize: 13, fontWeight: '700', color: '#94A3B8' },
-  input: {
-    minHeight: 240,
-    borderRadius: 18,
-    backgroundColor: '#F8FAFF',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 17,
-    lineHeight: 26,
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#E5EDFF',
-  },
-  tipBox: {
-    marginTop: 14,
-    backgroundColor: '#F8FAFF',
-    borderRadius: 16,
-    padding: 14,
-  },
-  tipText: { fontSize: 14, lineHeight: 21, color: '#64748B' },
-  button: {
-    marginTop: 22,
-    backgroundColor: '#4F7CFF',
-    paddingVertical: 18,
-    borderRadius: 18,
+
+  profileLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  buttonDisabled: {
-    backgroundColor: '#AFC4FF',
+
+  avatarWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#05D34E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  buttonText: {
+
+  avatarText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 20,
+    fontWeight: '800',
+  },
+
+  profileName: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  profileMeta: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+
+  linkCodeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEFDF3',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+
+  linkCodeText: {
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#05B547',
+  },
+
+  tipCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+  },
+
+  tipText: {
+    marginLeft: 6,
+    fontSize: 13,
+    color: '#4B5563',
+  },
+
+  editorCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+  },
+
+  editorTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+
+  editorTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  countText: {
+    fontSize: 13,
+    color: '#98A2B3',
+  },
+
+  input: {
+    flex: 1,
+    minHeight: 220,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 15,
+  },
+
+  sendButton: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#05B547',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sendButtonDisabled: {
+    backgroundColor: '#A7DDB9',
+  },
+
+  sendButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  sendButtonText: {
+    marginLeft: 6,
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '800',
   },
 });

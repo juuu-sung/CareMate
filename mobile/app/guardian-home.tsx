@@ -8,6 +8,31 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  Ionicons,
+  MaterialCommunityIcons,
+  Feather,
+  FontAwesome6,
+} from '@expo/vector-icons';
+
+type StatItem = {
+  label: string;
+  value: string;
+  iconType: 'Ionicons' | 'MaterialCommunityIcons' | 'Feather' | 'FontAwesome6';
+  iconName: string;
+};
+
+type MenuItem = {
+  title: string;
+  subtitle: string;
+  iconType: 'Ionicons' | 'MaterialCommunityIcons' | 'Feather' | 'FontAwesome6';
+  iconName: string;
+};
+
+type AlertItem = {
+  title: string;
+  time: string;
+};
 
 export default function GuardianHomeScreen() {
   const router = useRouter();
@@ -26,23 +51,73 @@ export default function GuardianHomeScreen() {
   const memo = String(params.memo || '');
   const allergies = String(params.allergies || '');
 
-  const quickStats = [
-    { label: '오늘 대화', value: '12회', emoji: '💬' },
-    { label: '건강 점수', value: '85점', emoji: '📊' },
-    { label: '다음 일정', value: '내일 병원', emoji: '📅' },
-    { label: '현재 위치', value: '확인 가능', emoji: '📍' },
+  const quickStats: StatItem[] = [
+    {
+      label: '오늘 대화',
+      value: '12회',
+      iconType: 'Ionicons',
+      iconName: 'chatbubble-ellipses-outline',
+    },
+    {
+      label: '건강 점수',
+      value: '85점',
+      iconType: 'MaterialCommunityIcons',
+      iconName: 'heart-pulse',
+    },
+    {
+      label: '다음 일정',
+      value: '내일 병원',
+      iconType: 'Ionicons',
+      iconName: 'calendar-outline',
+    },
+    {
+      label: '현재 위치',
+      value: '확인 가능',
+      iconType: 'Ionicons',
+      iconName: 'location-outline',
+    },
   ];
 
-  const menuItems = [
-    { title: '대화 요약', subtitle: '오늘 나눈 대화를 확인해요', emoji: '📝' },
-    { title: '건강 상태', subtitle: '건강 기록과 상태를 봐요', emoji: '🩺' },
-    { title: '편지 쓰기', subtitle: '부모님께 메시지를 보내요', emoji: '💌' },
-    { title: '병원 일정', subtitle: '다가오는 일정을 관리해요', emoji: '🏥' },
-    { title: '위치 확인', subtitle: '현재 위치를 확인해요', emoji: '🗺️' },
-    { title: '정보 수정', subtitle: '부모님 정보를 수정해요', emoji: '⚙️' },
+  const menuItems: MenuItem[] = [
+    {
+      title: '대화 요약',
+      subtitle: '오늘 나눈 대화를 확인해요',
+      iconType: 'Ionicons',
+      iconName: 'document-text-outline',
+    },
+    {
+      title: '건강 상태',
+      subtitle: '건강 기록과 상태를 봐요',
+      iconType: 'MaterialCommunityIcons',
+      iconName: 'stethoscope',
+    },
+    {
+      title: '편지 쓰기',
+      subtitle: '부모님께 메시지를 보내요',
+      iconType: 'Ionicons',
+      iconName: 'mail-outline',
+    },
+    {
+      title: '병원 일정',
+      subtitle: '다가오는 일정을 관리해요',
+      iconType: 'Ionicons',
+      iconName: 'medical-outline',
+    },
+    {
+      title: '위치 확인',
+      subtitle: '현재 위치를 확인해요',
+      iconType: 'Feather',
+      iconName: 'map-pin',
+    },
+    {
+      title: '정보 수정',
+      subtitle: '부모님 정보를 수정해요',
+      iconType: 'Ionicons',
+      iconName: 'settings-outline',
+    },
   ];
 
-  const alerts = [
+  const alerts: AlertItem[] = [
     { title: '오늘 12회의 대화를 나누셨어요', time: '10분 전' },
     { title: '건강 상태가 전반적으로 안정적이에요', time: '1시간 전' },
     { title: '내일 오후 2시 병원 일정이 있어요', time: '2시간 전' },
@@ -105,11 +180,13 @@ export default function GuardianHomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.headerCard}>
           <View style={styles.headerTopRow}>
             <View>
-              <Text style={styles.headerTitle}>보호자 홈</Text>
               <Text style={styles.headerSubtitle}>부모님 케어를 시작했어요</Text>
             </View>
           </View>
@@ -128,6 +205,7 @@ export default function GuardianHomeScreen() {
             </View>
 
             <View style={styles.scoreBox}>
+              <MaterialCommunityIcons name="heart-pulse" size={20} color="#05B547" />
               <Text style={styles.scoreValue}>85</Text>
               <Text style={styles.scoreLabel}>건강 점수</Text>
             </View>
@@ -137,7 +215,14 @@ export default function GuardianHomeScreen() {
         <View style={styles.statsGrid}>
           {quickStats.map((item) => (
             <View key={item.label} style={styles.statCard}>
-              <Text style={styles.statEmoji}>{item.emoji}</Text>
+              <View style={styles.statIconWrap}>
+                <AppIcon
+                  type={item.iconType}
+                  name={item.iconName}
+                  size={22}
+                  color="#05B547"
+                />
+              </View>
               <Text style={styles.statLabel}>{item.label}</Text>
               <Text style={styles.statValue}>{item.value}</Text>
             </View>
@@ -146,19 +231,52 @@ export default function GuardianHomeScreen() {
 
         <Text style={styles.sectionTitle}>부모님 기본 정보</Text>
         <View style={styles.infoCard}>
-          <InfoRow label="연동 코드" value={linkCode || '-'} />
+          <InfoRow
+            icon={<Feather name="link" size={16} color="#05B547" />}
+            label="연동 코드"
+            value={linkCode || '-'}
+          />
           <Divider />
-          <InfoRow label="복용 중인 약" value={medications || '-'} multiline />
+          <InfoRow
+            icon={<MaterialCommunityIcons name="pill" size={16} color="#05B547" />}
+            label="복용 중인 약"
+            value={medications || '-'}
+            multiline
+          />
           <Divider />
-          <InfoRow label="보유 질환" value={diseases || '-'} multiline />
+          <InfoRow
+            icon={<FontAwesome6 name="virus" size={14} color="#05B547" />}
+            label="보유 질환"
+            value={diseases || '-'}
+            multiline
+          />
           <Divider />
-          <InfoRow label="알레르기" value={allergies || '-'} multiline />
+          <InfoRow
+            icon={<MaterialCommunityIcons name="alert-circle-outline" size={16} color="#05B547" />}
+            label="알레르기"
+            value={allergies || '-'}
+            multiline
+          />
           <Divider />
-          <InfoRow label="주치의 / 병원" value={hospital || '-'} multiline />
+          <InfoRow
+            icon={<Ionicons name="medical-outline" size={16} color="#05B547" />}
+            label="주치의 / 병원"
+            value={hospital || '-'}
+            multiline
+          />
           <Divider />
-          <InfoRow label="비상 연락처" value={doctorContact || '-'} />
+          <InfoRow
+            icon={<Ionicons name="call-outline" size={16} color="#05B547" />}
+            label="비상 연락처"
+            value={doctorContact || '-'}
+          />
           <Divider />
-          <InfoRow label="추가 메모" value={memo || '-'} multiline />
+          <InfoRow
+            icon={<Feather name="edit-3" size={16} color="#05B547" />}
+            label="추가 메모"
+            value={memo || '-'}
+            multiline
+          />
         </View>
 
         <Text style={styles.sectionTitle}>주요 기능</Text>
@@ -170,7 +288,14 @@ export default function GuardianHomeScreen() {
               activeOpacity={0.85}
               onPress={() => handleMenuPress(item.title)}
             >
-              <Text style={styles.menuEmoji}>{item.emoji}</Text>
+              <View style={styles.menuIconWrap}>
+                <AppIcon
+                  type={item.iconType}
+                  name={item.iconName}
+                  size={24}
+                  color="#05B547"
+                />
+              </View>
               <Text style={styles.menuTitle}>{item.title}</Text>
               <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
             </TouchableOpacity>
@@ -183,7 +308,7 @@ export default function GuardianHomeScreen() {
             <View key={index}>
               <View style={styles.alertRow}>
                 <View style={styles.alertIconWrap}>
-                  <Text style={styles.alertIcon}>🔔</Text>
+                  <Ionicons name="notifications-outline" size={18} color="#05B547" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.alertTitle}>{item.title}</Text>
@@ -199,18 +324,46 @@ export default function GuardianHomeScreen() {
   );
 }
 
+function AppIcon({
+  type,
+  name,
+  size,
+  color,
+}: {
+  type: 'Ionicons' | 'MaterialCommunityIcons' | 'Feather' | 'FontAwesome6';
+  name: string;
+  size: number;
+  color: string;
+}) {
+  if (type === 'Ionicons') {
+    return <Ionicons name={name as any} size={size} color={color} />;
+  }
+  if (type === 'MaterialCommunityIcons') {
+    return <MaterialCommunityIcons name={name as any} size={size} color={color} />;
+  }
+  if (type === 'Feather') {
+    return <Feather name={name as any} size={size} color={color} />;
+  }
+  return <FontAwesome6 name={name as any} size={size} color={color} />;
+}
+
 function InfoRow({
+  icon,
   label,
   value,
   multiline = false,
 }: {
+  icon: React.ReactNode;
   label: string;
   value: string;
   multiline?: boolean;
 }) {
   return (
     <View style={[styles.infoRow, multiline && { alignItems: 'flex-start' }]}>
-      <Text style={styles.infoLabel}>{label}</Text>
+      <View style={styles.infoLabelWrap}>
+        <View style={styles.infoIcon}>{icon}</View>
+        <Text style={styles.infoLabel}>{label}</Text>
+      </View>
       <Text style={[styles.infoValue, multiline && { flex: 1, textAlign: 'right' }]}>
         {value}
       </Text>
@@ -235,7 +388,8 @@ const styles = StyleSheet.create({
   headerCard: {
     backgroundColor: '#05D34E',
     borderRadius: 24,
-    padding: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     marginBottom: 18,
   },
   headerTopRow: {
@@ -243,18 +397,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
   headerSubtitle: {
-    marginTop: 6,
-    fontSize: 14,
+    fontSize: 15,
     color: '#E8FFF0',
+    fontWeight: '700',
   },
   parentSummaryCard: {
-    marginTop: 18,
+    marginTop: 10,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 18,
@@ -291,16 +440,18 @@ const styles = StyleSheet.create({
   scoreBox: {
     width: 90,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   scoreValue: {
     fontSize: 36,
     fontWeight: '800',
     color: '#05B547',
+    marginTop: 4,
   },
   scoreLabel: {
     fontSize: 13,
     color: '#6B7280',
-    marginTop: 4,
+    marginTop: 2,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -317,8 +468,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  statEmoji: {
-    fontSize: 24,
+  statIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#EEFDF3',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 10,
   },
   statLabel: {
@@ -354,17 +510,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  infoLabelWrap: {
+    width: '42%',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoIcon: {
+    width: 22,
+    alignItems: 'center',
+    marginRight: 8,
+  },
   infoLabel: {
     fontSize: 15,
     color: '#6B7280',
     fontWeight: '700',
-    width: '38%',
+    flexShrink: 1,
   },
   infoValue: {
     fontSize: 15,
     color: '#111827',
     fontWeight: '700',
-    width: '58%',
+    width: '54%',
     textAlign: 'right',
   },
   divider: {
@@ -385,11 +551,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    minHeight: 128,
+    minHeight: 132,
   },
-  menuEmoji: {
-    fontSize: 28,
-    marginBottom: 10,
+  menuIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: '#EEFDF3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   menuTitle: {
     fontSize: 17,
@@ -424,9 +595,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-  },
-  alertIcon: {
-    fontSize: 16,
   },
   alertTitle: {
     fontSize: 15,

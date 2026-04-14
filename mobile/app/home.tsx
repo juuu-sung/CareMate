@@ -5,14 +5,17 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
   Modal,
   Alert,
   Linking,
+  StatusBar,
+  ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+
 import { fetchLettersForElder } from '@/services/letters';
 import { getMedications, MedicationItem } from '@/services/medications';
 import { getSchedules, ScheduleItem } from '@/services/schedules';
@@ -36,8 +39,6 @@ export default function HomeScreen() {
   const linkCode = String(
     params.linkCode || params.link_code || params.code || ''
   );
-
-  // 보호자 전화번호 파라미터
   const guardianPhone = String(
     params.guardianPhone ||
       params.guardian_phone ||
@@ -128,14 +129,8 @@ export default function HomeScreen() {
     }
   };
 
-  const loadLetters = async (showLoading: boolean = false) => {
-    console.log('부모님 홈 params:', params);
-    console.log('elderUserId:', elderUserId);
-    console.log('linkCode:', linkCode);
-    console.log('guardianPhone:', guardianPhone);
-
+  const loadLetters = async (showLoading = false) => {
     if (!elderUserId || !linkCode) {
-      console.log('편지 조회 중단: elderUserId 또는 linkCode 없음');
       setLatestLetter(null);
       setLetters([]);
       setLoadingLetter(false);
@@ -148,8 +143,6 @@ export default function HomeScreen() {
       }
 
       const data = await fetchLettersForElder(elderUserId, linkCode);
-
-      console.log('편지 조회 응답:', JSON.stringify(data, null, 2));
 
       if (data?.letters && Array.isArray(data.letters) && data.letters.length > 0) {
         setLetters(data.letters);
@@ -208,7 +201,7 @@ export default function HomeScreen() {
 
     if (elderUserId && linkCode) {
       pollingRef.current = setInterval(() => {
-        loadLetters(false);
+        void loadLetters(false);
       }, 100000);
     }
 
@@ -222,192 +215,236 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadLetters(false);
+      void loadLetters(false);
       void loadMedications();
       void loadSchedules();
-
       return undefined;
     }, [elderUserId, linkCode])
   );
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>안녕하세요</Text>
+      <StatusBar barStyle="dark-content" backgroundColor="#F5F7FB" />
+
+      <View style={styles.container}>
+        <View style={styles.topSection}>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>안녕하세요</Text>
+
+            <View style={styles.linkCodeChip}>
+              <Text style={styles.linkCodeLabel}>연동코드</Text>
+              <Text style={styles.linkCodeValue}>{linkCode || '없음'}</Text>
+            </View>
+          </View>
+
           <Text style={styles.subtitle}>무엇을 도와드릴까요?</Text>
         </View>
 
-        <View style={styles.messageCard}>
-          <View style={styles.messageTopRow}>
-            <View style={styles.messageLeftArea}>
-              <Text style={styles.messageTitle}>보호자 메시지</Text>
-              {letters.length > 0 ? (
+        <ScrollView
+          style={styles.middleSection}
+          contentContainerStyle={styles.middleSectionContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.messageCard}>
+            <View style={styles.messageTopRow}>
+              <View style={styles.messageLeftArea}>
+                <Text style={styles.messageTitle}>보호자 메시지</Text>
                 <Text style={styles.messageSubInfo}>
-                  총 {letters.length}개의 메시지
+                  {letters.length > 0
+                    ? `총 ${letters.length}개의 메시지`
+                    : '최근 도착한 메시지를 확인하세요'}
                 </Text>
-              ) : null}
+              </View>
+
+              <TouchableOpacity
+                style={styles.simpleMessageButton}
+                onPress={() => setIsLetterModalVisible(true)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.simpleMessageButtonText}>전체보기</Text>
+                <Ionicons name="chevron-forward" size={16} color="#2563EB" />
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.simpleMessageButton}
-              onPress={() => setIsLetterModalVisible(true)}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.simpleMessageButtonText}>전체보기</Text>
-              <Text style={styles.simpleMessageButtonArrow}>›</Text>
-            </TouchableOpacity>
+            {loadingLetter ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingText}>메시지를 불러오는 중입니다</Text>
+              </View>
+            ) : latestLetter ? (
+              <>
+                <Text style={styles.messageText} numberOfLines={3}>
+                  {latestLetter.content}
+                </Text>
+                <Text style={styles.messageTime}>
+                  {formatToYearMonthDayHour(latestLetter.created_at)}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.emptyMessageText}>
+                도착한 보호자 메시지가 없습니다.
+              </Text>
+            )}
           </View>
 
-          {loadingLetter ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="small" />
-              <Text style={styles.loadingText}>메시지를 불러오는 중입니다</Text>
-            </View>
-          ) : latestLetter ? (
-            <>
-              <Text style={styles.messageText}>{latestLetter.content}</Text>
-              <Text style={styles.messageTime}>
-                {formatToYearMonthDayHour(latestLetter.created_at)}
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.messageText}>
-              도착한 보호자 메시지가 없습니다.
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.medicationCard}>
-          <View style={styles.medicationTopRow}>
-            <View style={styles.messageLeftArea}>
+          <View style={styles.infoCard}>
+            <View style={styles.infoCardHeader}>
               <Text style={styles.messageTitle}>복약 상태</Text>
               <Text style={styles.messageSubInfo}>최근 복약 기록이 반영된 목록입니다</Text>
             </View>
+
+            {isLoadingMedications ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingText}>복약 상태를 불러오는 중입니다</Text>
+              </View>
+            ) : null}
+
+            {!isLoadingMedications && medicationError ? (
+              <Text style={styles.errorText}>{medicationError}</Text>
+            ) : null}
+
+            {!isLoadingMedications && !medicationError && medications.length === 0 ? (
+              <Text style={styles.emptyMessageText}>등록된 복약 정보가 없습니다.</Text>
+            ) : null}
+
+            {!isLoadingMedications && !medicationError
+              ? medications.slice(0, 3).map((medication, index) => (
+                  <View key={`${medication.name}-${medication.time}-${index}`} style={styles.infoItem}>
+                    <View style={styles.infoItemHeader}>
+                      <Text style={styles.infoItemTitle}>{medication.name}</Text>
+                      <View style={[styles.statusBadge, getMedicationBadgeStyle(medication.status)]}>
+                        <Text style={styles.statusBadgeText}>{medication.status_label}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.infoItemMeta}>복약 시간: {medication.time}</Text>
+                    {medication.last_recorded_at ? (
+                      <Text style={styles.infoItemSubMeta}>
+                        최근 기록: {formatMedicationRecord(medication)}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))
+              : null}
           </View>
 
-          {isLoadingMedications ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="small" />
-              <Text style={styles.loadingText}>복약 상태를 불러오는 중입니다</Text>
-            </View>
-          ) : null}
-
-          {!isLoadingMedications && medicationError ? (
-            <Text style={styles.medicationErrorText}>{medicationError}</Text>
-          ) : null}
-
-          {!isLoadingMedications && !medicationError && medications.length === 0 ? (
-            <Text style={styles.messageText}>등록된 복약 정보가 없습니다.</Text>
-          ) : null}
-
-          {!isLoadingMedications && !medicationError
-            ? medications.slice(0, 3).map((medication, index) => (
-                <View key={`${medication.name}-${medication.time}-${index}`} style={styles.medicationItem}>
-                  <View style={styles.medicationHeader}>
-                    <Text style={styles.medicationName}>{medication.name}</Text>
-                    <View style={[styles.medicationBadge, getMedicationBadgeStyle(medication.status)]}>
-                      <Text style={styles.medicationBadgeText}>{medication.status_label}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.medicationScheduleText}>복약 시간: {medication.time}</Text>
-                  {medication.last_recorded_at ? (
-                    <Text style={styles.medicationMetaText}>
-                      최근 기록: {formatMedicationRecord(medication)}
-                    </Text>
-                  ) : null}
-                </View>
-              ))
-            : null}
-        </View>
-
-        <View style={styles.scheduleCard}>
-          <View style={styles.medicationTopRow}>
-            <View style={styles.messageLeftArea}>
+          <View style={styles.infoCard}>
+            <View style={styles.infoCardHeader}>
               <Text style={styles.messageTitle}>오늘 일정</Text>
               <Text style={styles.messageSubInfo}>등록된 일정과 방금 추가한 일정이 반영됩니다</Text>
             </View>
+
+            {isLoadingSchedules ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingText}>일정을 불러오는 중입니다</Text>
+              </View>
+            ) : null}
+
+            {!isLoadingSchedules && scheduleError ? (
+              <Text style={styles.errorText}>{scheduleError}</Text>
+            ) : null}
+
+            {!isLoadingSchedules && !scheduleError && schedules.length === 0 ? (
+              <Text style={styles.emptyMessageText}>등록된 일정이 없습니다.</Text>
+            ) : null}
+
+            {!isLoadingSchedules && !scheduleError
+              ? schedules.slice(0, 3).map((schedule, index) => (
+                  <View key={`${schedule.date}-${schedule.time}-${schedule.title}-${index}`} style={styles.infoItem}>
+                    <View style={styles.infoItemHeader}>
+                      <Text style={styles.infoItemTitle}>{schedule.title}</Text>
+                      <Text style={styles.scheduleStatusText}>{formatScheduleStatus(schedule.status)}</Text>
+                    </View>
+                    <Text style={styles.infoItemMeta}>
+                      {schedule.date} · {schedule.time}
+                    </Text>
+                  </View>
+                ))
+              : null}
           </View>
 
-          {isLoadingSchedules ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="small" />
-              <Text style={styles.loadingText}>일정을 불러오는 중입니다</Text>
-            </View>
-          ) : null}
+          <View style={styles.micWrap}>
+            <TouchableOpacity
+              style={styles.micButton}
+              onPress={handleMicPress}
+              activeOpacity={0.9}
+            >
+              <View style={styles.micIconWrap}>
+                <Ionicons name="mic" size={32} color="#FFFFFF" />
+              </View>
 
-          {!isLoadingSchedules && scheduleError ? (
-            <Text style={styles.medicationErrorText}>{scheduleError}</Text>
-          ) : null}
+              <Text style={styles.micText}>눌러서 말하기</Text>
+              <Text style={styles.micSubText}>터치하면 바로 시작됩니다</Text>
+            </TouchableOpacity>
+          </View>
 
-          {!isLoadingSchedules && !scheduleError && schedules.length === 0 ? (
-            <Text style={styles.messageText}>등록된 일정이 없습니다.</Text>
-          ) : null}
+          <View style={styles.grid}>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => router.push('/chat')}
+              activeOpacity={0.88}
+            >
+              <View style={styles.cardIconWrap}>
+                <Ionicons name="chatbubble-ellipses-outline" size={24} color="#2563EB" />
+              </View>
+              <Text style={styles.cardText}>대화 보기</Text>
+              <Text style={styles.cardSubText}>대화 내용을 확인합니다</Text>
+            </TouchableOpacity>
 
-          {!isLoadingSchedules && !scheduleError
-            ? schedules.slice(0, 3).map((schedule, index) => (
-                <View key={`${schedule.date}-${schedule.time}-${schedule.title}-${index}`} style={styles.scheduleItem}>
-                  <View style={styles.scheduleHeader}>
-                    <Text style={styles.scheduleItemTitle}>{schedule.title}</Text>
-                    <Text style={styles.scheduleItemStatus}>{formatScheduleStatus(schedule.status)}</Text>
-                  </View>
-                  <Text style={styles.scheduleItemMeta}>
-                    {schedule.date} · {schedule.time}
-                  </Text>
-                </View>
-              ))
-            : null}
-        </View>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => router.push('/calendar')}
+              activeOpacity={0.88}
+            >
+              <View style={styles.cardIconWrap}>
+                <Ionicons name="calendar-outline" size={24} color="#2563EB" />
+              </View>
+              <Text style={styles.cardText}>일정 보기</Text>
+              <Text style={styles.cardSubText}>오늘 일정을 확인합니다</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
 
-        <View style={styles.micWrap}>
+        <View style={styles.bottomSection}>
           <TouchableOpacity
-            style={styles.micButton}
-            onPress={handleMicPress}
+            style={styles.callButton}
+            onPress={handleCall119}
+            activeOpacity={0.9}
           >
-            <Text style={styles.micIcon}>🎤</Text>
-            <Text style={styles.micText}>눌러서 말하기</Text>
+            <View style={styles.emergencyLeft}>
+              <Text style={styles.callLabel}>응급 상황</Text>
+              <Text style={styles.callText}>119 전화하기</Text>
+            </View>
+            <Ionicons name="call" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.sosButton}
+            onPress={handleGuardianEmergencyCall}
+            activeOpacity={0.9}
+          >
+            <View style={styles.emergencyLeft}>
+              <Text style={styles.sosLabel}>보호자 긴급 연락</Text>
+              <Text style={styles.sosText}>
+                {guardianPhone ? guardianPhone : 'SOS 긴급 연락'}
+              </Text>
+            </View>
+            <Ionicons name="warning" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-
-        <View style={styles.grid}>
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/chat')}>
-            <Text style={styles.cardIcon}>💬</Text>
-            <Text style={styles.cardText}>대화 보기</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.card} onPress={() => router.push('/calendar')}>
-            <Text style={styles.cardIcon}>📅</Text>
-            <Text style={styles.cardText}>일정 보기</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 119 버튼을 위로 */}
-        <TouchableOpacity
-          style={styles.callButton}
-          onPress={handleCall119}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.callText}>119 전화하기</Text>
-        </TouchableOpacity>
-
-        {/* SOS 버튼을 아래로 + 보호자 전화 연결 */}
-        <TouchableOpacity
-          style={styles.sosButton}
-          onPress={handleGuardianEmergencyCall}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.sosText}>SOS 긴급 연락</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       <Modal
         visible={isLetterModalVisible}
         animationType="slide"
-        transparent={true}
+        transparent
         onRequestClose={() => setIsLetterModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
+            <View style={styles.modalHandle} />
+
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>메시지함</Text>
@@ -426,7 +463,10 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={styles.modalScrollContent}>
+            <ScrollView
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
               {letters.length > 0 ? (
                 letters.map((letter, index) => (
                   <View key={`${letter.created_at}-${index}`} style={styles.letterItem}>
@@ -458,287 +498,322 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#EEF4FF',
+    backgroundColor: '#F5F7FB',
   },
   container: {
-    padding: 20,
-    paddingBottom: 28,
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 18,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  subtitle: {
-    fontSize: 20,
-    color: '#64748B',
-    marginTop: 6,
-  },
-
-  messageCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  medicationCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 20,
+  topSection: {
+    paddingTop: 4,
     marginBottom: 12,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
   },
-  scheduleCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 8,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+  middleSection: {
+    flex: 1,
   },
-  messageTopRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    marginBottom: 8,
+  middleSectionContent: {
+    paddingBottom: 20,
     gap: 12,
   },
-  messageLeftArea: {
-    flex: 2,
-    justifyContent: 'center',
+  bottomSection: {
+    paddingTop: 8,
+    gap: 12,
   },
-  messageTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  messageSubInfo: {
-    marginTop: 2,
-    fontSize: 13,
-    color: '#94A3B8',
-  },
-  simpleMessageButton: {
-    flex: 1,
-    minHeight: 56,
-    borderRadius: 14,
-    backgroundColor: '#F4F7FF',
-    borderWidth: 1,
-    borderColor: '#DCE7FF',
-    paddingHorizontal: 12,
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  simpleMessageButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#315EDE',
+  title: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
   },
-  simpleMessageButtonArrow: {
+  subtitle: {
+    fontSize: 18,
+    color: '#6B7280',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  linkCodeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 8,
+  },
+  linkCodeLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '700',
+  },
+  linkCodeValue: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  messageCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#EAECEF',
+  },
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#EAECEF',
+  },
+  infoCardHeader: {
+    marginBottom: 8,
+  },
+  messageTopRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginBottom: 10,
+    gap: 10,
+  },
+  messageLeftArea: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  messageTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#315EDE',
+    color: '#111827',
+  },
+  messageSubInfo: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  simpleMessageButton: {
+    minHeight: 48,
+    minWidth: 106,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  simpleMessageButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#2563EB',
   },
   loadingWrap: {
     alignItems: 'center',
     paddingVertical: 8,
   },
   loadingText: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 14,
-    color: '#64748B',
+    color: '#6B7280',
   },
   messageText: {
     fontSize: 18,
-    color: '#0F172A',
-    lineHeight: 27,
-    marginTop: 2,
-  },
-  messageTime: {
-    marginTop: 8,
-    fontSize: 13,
-    color: '#94A3B8',
+    color: '#111827',
+    lineHeight: 28,
     fontWeight: '600',
   },
-  medicationTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+  emptyMessageText: {
+    fontSize: 17,
+    color: '#6B7280',
+    lineHeight: 26,
   },
-  medicationItem: {
+  messageTime: {
+    marginTop: 10,
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '700',
+  },
+  infoItem: {
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#E5E7EB',
     paddingTop: 14,
     marginTop: 14,
   },
-  medicationHeader: {
+  infoItemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
-  medicationName: {
+  infoItemTitle: {
     flex: 1,
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#111827',
   },
-  medicationScheduleText: {
+  infoItemMeta: {
     marginTop: 8,
     fontSize: 15,
     color: '#475569',
   },
-  medicationMetaText: {
+  infoItemSubMeta: {
     marginTop: 6,
     fontSize: 14,
     color: '#64748B',
   },
-  medicationBadge: {
+  statusBadge: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  medicationBadgeText: {
+  statusBadgeText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  medicationErrorText: {
+  scheduleStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  errorText: {
     fontSize: 15,
     lineHeight: 22,
     color: '#B91C1C',
   },
-  scheduleItem: {
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingTop: 14,
-    marginTop: 14,
-  },
-  scheduleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  scheduleItemTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  scheduleItemStatus: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#315EDE',
-  },
-  scheduleItemMeta: {
-    marginTop: 8,
-    fontSize: 15,
-    color: '#475569',
-  },
-
   micWrap: {
     alignItems: 'center',
-    marginVertical: 20,
+    marginTop: 4,
   },
   micButton: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: '#4F7CFF',
-    justifyContent: 'center',
+    width: '100%',
+    borderRadius: 28,
+    paddingVertical: 26,
+    paddingHorizontal: 20,
+    backgroundColor: '#2563EB',
     alignItems: 'center',
-    shadowColor: '#4F7CFF',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
   },
-  micIcon: {
-    fontSize: 60,
+  micIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   micText: {
-    marginTop: 10,
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
   },
-
+  micSubText: {
+    color: '#DBEAFE',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 6,
+  },
   grid: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 20,
   },
   card: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 20,
-    alignItems: 'center',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#EAECEF',
+    padding: 18,
   },
-  cardIcon: {
-    fontSize: 28,
-    marginBottom: 8,
+  cardIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#EEF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   cardText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0F172A',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827',
   },
-
-  // 119 = 위 / 빨간색
+  cardSubText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
   callButton: {
-    marginTop: 30,
     backgroundColor: '#FF3B30',
     paddingVertical: 18,
-    borderRadius: 20,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     shadowColor: '#FF3B30',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.14,
     shadowRadius: 12,
     elevation: 4,
+  },
+  sosButton: {
+    backgroundColor: '#FF9500',
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#FF9500',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  emergencyLeft: {
+    flex: 1,
+  },
+  callLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFE2E0',
+    marginBottom: 4,
   },
   callText: {
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '800',
   },
-
-  // SOS = 아래 / 주황색
-  sosButton: {
-    marginTop: 12,
-    backgroundColor: '#FF9500',
-    paddingVertical: 16,
-    borderRadius: 20,
-    alignItems: 'center',
-    shadowColor: '#FF9500',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 4,
+  sosLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFE7CC',
+    marginBottom: 4,
   },
   sosText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
   },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.35)',
@@ -747,11 +822,19 @@ const styles = StyleSheet.create({
   modalContainer: {
     height: '74%',
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 30,
+  },
+  modalHandle: {
+    width: 56,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginBottom: 14,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -762,15 +845,16 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 21,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#111827',
   },
   modalSubTitle: {
     marginTop: 4,
     fontSize: 13,
-    color: '#94A3B8',
+    color: '#9CA3AF',
+    fontWeight: '600',
   },
   closeButton: {
-    backgroundColor: '#EAF1FF',
+    backgroundColor: '#EEF4FF',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
@@ -778,7 +862,7 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#315EDE',
+    color: '#2563EB',
   },
   modalScrollContent: {
     paddingBottom: 20,
@@ -801,11 +885,11 @@ const styles = StyleSheet.create({
   letterSender: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#315EDE',
+    color: '#2563EB',
   },
   letterItemContent: {
     fontSize: 16,
-    color: '#0F172A',
+    color: '#111827',
     lineHeight: 24,
   },
   letterItemTime: {

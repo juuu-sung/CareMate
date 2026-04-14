@@ -9,6 +9,7 @@ from app.api.routers.letter import router as letter_router
 from app.api.routers.medication import router as medication_router
 from app.api.routers.modes import router as modes_router
 from app.api.routers.schedule import router as schedule_router
+from app.api.routers.guardian_link import router as guardian_link_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
@@ -20,3 +21,4 @@ api_router.include_router(alerts_router, prefix="/alerts", tags=["alerts"])
 api_router.include_router(parent_router)
 api_router.include_router(guardian_router)
 api_router.include_router(letter_router)
+api_router.include_router(guardian_link_router)
