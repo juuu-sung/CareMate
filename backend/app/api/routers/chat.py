@@ -4,9 +4,18 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Respon
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas.chat import ChatHistoryResponse, ChatMessageRequest, ChatMessageResponse, ChatSpeechRequest, ChatSpeechResponse
+from app.schemas.chat import (
+    ChatHistoryResponse,
+    ChatMessageRequest,
+    ChatMessageResponse,
+    ChatPlaceStatusRequest,
+    ChatPlaceStatusResponse,
+    ChatSpeechRequest,
+    ChatSpeechResponse,
+)
 from app.services.llm_service import build_chat_response, build_speech_response
 from app.services.chat_log_service import list_chat_logs
+from app.services.openai_service import OpenAIServiceError, generate_place_status_summary
 from app.services.openai_tts_service import OpenAITTSServiceError, synthesize_speech
 
 router = APIRouter()
@@ -22,6 +31,21 @@ def get_history(limit: int = Query(50, ge=1, le=100), db: Session = Depends(get_
     return ChatHistoryResponse(items=list_chat_logs(db, limit=limit))
 
 
+@router.post("/place-status", response_model=ChatPlaceStatusResponse)
+def get_place_status(payload: ChatPlaceStatusRequest) -> ChatPlaceStatusResponse:
+    try:
+        answer, sources = generate_place_status_summary(
+            place_name=payload.place_name,
+            address=payload.address,
+            phone=payload.phone,
+            place_url=payload.place_url,
+        )
+    except OpenAIServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return ChatPlaceStatusResponse(answer=answer, sources=sources)
+
+
 @router.post("/speech", response_model=ChatSpeechResponse)
 async def send_speech(
     db: Session = Depends(get_db),
@@ -32,6 +56,8 @@ async def send_speech(
     client_message_id: str | None = Form(default=None),
     session_id: str | None = Form(default=None),
     transcript_visibility: str = Form("on_low_confidence"),
+    latitude: float | None = Form(default=None),
+    longitude: float | None = Form(default=None),
 ) -> ChatSpeechResponse:
     audio_bytes = await audio_file.read()
     payload = ChatSpeechRequest(
@@ -41,6 +67,8 @@ async def send_speech(
         client_message_id=client_message_id,
         session_id=session_id,
         transcript_visibility=transcript_visibility,
+        latitude=latitude,
+        longitude=longitude,
     )
     return build_speech_response(
         db,

@@ -260,7 +260,8 @@ OPENAI_API_KEY=your_openai_key
 GEMINI_API_KEY=your_gemini_key
 STT_API_KEY=your_stt_key
 TTS_API_KEY=your_tts_key
-MAP_API_KEY=your_map_key
+MAP_API_KEY=your_kakao_rest_api_key
+PUBLIC_DATA_API_KEY=your_data_go_kr_service_key
 LOCATION_RETENTION_DAYS=30
 ```
 
@@ -270,6 +271,9 @@ LOCATION_RETENTION_DAYS=30
 - `LLM_PROVIDER`를 명시하면 해당 provider를 우선 사용합니다.
 - `STT_PROVIDER=openai`이면 `/chat/speech`가 OpenAI `gpt-4o-mini-transcribe`를 사용합니다.
 - `TTS_PROVIDER=openai`이면 `/chat/tts`가 OpenAI `gpt-4o-mini-tts`를 사용합니다.
+- `MAP_API_KEY`는 주변 병원 검색용 Kakao Local REST API 키 기준입니다.
+- `PUBLIC_DATA_API_KEY`는 응급실 실시간 가용병상 조회용 공공데이터포털 서비스키 기준입니다.
+- `MAP_API_KEY`가 없거나 Kakao 호출이 실패하면, 개발용 fallback으로 OpenStreetMap Overpass 검색을 시도합니다.
 
 ## Collaboration
 

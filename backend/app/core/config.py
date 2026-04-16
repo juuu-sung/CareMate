@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     STT_API_KEY: str | None = None
     TTS_API_KEY: str | None = None
     MAP_API_KEY: str | None = None
+    PUBLIC_DATA_API_KEY: str | None = None
     LOCATION_RETENTION_DAYS: int = 30
     LLM_PROVIDER: str = "stub"
     LLM_MODEL: str = "gpt-5.4-mini"
@@ -67,6 +68,10 @@ class Settings(BaseSettings):
     @property
     def map_api_key(self) -> str:
         return self.MAP_API_KEY or ""
+
+    @property
+    def public_data_api_key(self) -> str:
+        return self.PUBLIC_DATA_API_KEY or ""
 
     @property
     def location_retention_days(self) -> int:

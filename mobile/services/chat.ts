@@ -7,6 +7,24 @@ export type ChatMessageRequest = {
   context_source: "text";
   client_message_id?: string;
   session_id?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+export type ChatPlaceItem = {
+  name: string;
+  distance_meters: number;
+  latitude: number;
+  longitude: number;
+  address?: string | null;
+  phone?: string | null;
+  place_url?: string | null;
+  available_beds?: number | null;
+};
+
+export type ChatSourceItem = {
+  title: string;
+  url: string;
 };
 
 export type ChatMessageResponse = {
@@ -22,6 +40,7 @@ export type ChatMessageResponse = {
   awaiting_confirmation?: boolean;
   missing_slots?: string[];
   executed_action?: string | null;
+  places?: ChatPlaceItem[];
   llm_latency_ms?: number | null;
   total_latency_ms?: number | null;
 };
@@ -38,6 +57,8 @@ export type ChatSpeechRequest = {
   clientMessageId?: string;
   sessionId?: string;
   transcriptVisibility: TranscriptVisibility;
+  latitude?: number;
+  longitude?: number;
 };
 
 export type ChatSpeechResponse = {
@@ -55,6 +76,7 @@ export type ChatSpeechResponse = {
   awaiting_confirmation?: boolean;
   missing_slots?: string[];
   executed_action?: string | null;
+  places?: ChatPlaceItem[];
   stt_latency_ms?: number | null;
   llm_latency_ms?: number | null;
   total_latency_ms?: number | null;
@@ -69,6 +91,20 @@ export type ChatHistoryItem = {
 
 type ChatHistoryResponse = {
   items: ChatHistoryItem[];
+};
+
+export type ChatPlaceStatusRequest = {
+  place_name: string;
+  address?: string | null;
+  phone?: string | null;
+  place_url?: string | null;
+  latitude?: number;
+  longitude?: number;
+};
+
+export type ChatPlaceStatusResponse = {
+  answer: string;
+  sources: ChatSourceItem[];
 };
 
 export function sendChatMessage(payload: ChatMessageRequest) {
@@ -103,11 +139,23 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
 
   formData.append("transcript_visibility", payload.transcriptVisibility);
 
+  if (payload.latitude !== undefined) {
+    formData.append("latitude", String(payload.latitude));
+  }
+
+  if (payload.longitude !== undefined) {
+    formData.append("longitude", String(payload.longitude));
+  }
+
   return apiPostForm<ChatSpeechResponse>("/chat/speech", formData);
 }
 
 export function getChatHistory(limit = 50) {
   return apiGet<ChatHistoryResponse>(`/chat/history?limit=${limit}`);
+}
+
+export function getPlaceStatus(payload: ChatPlaceStatusRequest) {
+  return apiPost<ChatPlaceStatusResponse>("/chat/place-status", payload);
 }
 
 export function buildChatTtsUrl(text: string, mode: CareMode) {

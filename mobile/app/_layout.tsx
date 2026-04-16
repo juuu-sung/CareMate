@@ -13,6 +13,7 @@ export default function RootLayout() {
       <Stack.Screen name="home" />
       <Stack.Screen name="chat" />
       <Stack.Screen name="calendar" />
+      <Stack.Screen name="settings" />
       <Stack.Screen name="guardian-login" />
       <Stack.Screen name="guardian-signup" />
       <Stack.Screen name="guardian-parent-info" />

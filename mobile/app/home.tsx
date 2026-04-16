@@ -404,6 +404,21 @@ export default function HomeScreen() {
               <Text style={styles.cardSubText}>오늘 일정을 확인합니다</Text>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            style={styles.settingsShortcutCard}
+            onPress={() => router.push('/settings')}
+            activeOpacity={0.88}
+          >
+            <View style={styles.settingsShortcutIconWrap}>
+              <Ionicons name="settings-outline" size={24} color="#2563EB" />
+            </View>
+            <View style={styles.settingsShortcutContent}>
+              <Text style={styles.cardText}>설정</Text>
+              <Text style={styles.cardSubText}>위치 권한과 앱 사용 설정을 확인합니다</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+          </TouchableOpacity>
         </ScrollView>
 
         <View style={styles.bottomSection}>
@@ -760,6 +775,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#6B7280',
     fontWeight: '600',
+  },
+  settingsShortcutCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#EAECEF',
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  settingsShortcutIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#EEF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsShortcutContent: {
+    flex: 1,
   },
   callButton: {
     backgroundColor: '#FF3B30',
