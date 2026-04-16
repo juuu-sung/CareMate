@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.chat import CareMode
+from app.schemas.chat import CareMode, ChatIntent
 
 AgentAction = Literal[
     "lookup_schedule",
@@ -12,6 +12,9 @@ AgentAction = Literal[
     "send_guardian_message",
     "mark_medication_taken",
     "change_mode",
+    "hospital_visit_support",
+    "nearby_hospital_request",
+    "symptom_support",
     "small_talk",
     "general_support",
     "needs_clarification",
@@ -33,7 +36,7 @@ class AgentSlots(BaseModel):
 
 class AgentPlan(BaseModel):
     action: AgentAction
-    intent: str
+    intent: ChatIntent
     slots: AgentSlots = Field(default_factory=AgentSlots)
     missing_slots: list[str] = Field(default_factory=list)
     requires_confirmation: bool = False

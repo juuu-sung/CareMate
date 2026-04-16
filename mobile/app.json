@@ -10,6 +10,12 @@
         {
           "microphonePermission": "CareMate가 음성을 인식해 일정과 복약을 도와드리기 위해 마이크 접근이 필요합니다."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "CareMate가 가까운 병원을 찾기 위해 현재 위치 접근이 필요합니다."
+        }
       ]
     ],
     "experiments": {

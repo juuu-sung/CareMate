@@ -1,3 +1,4 @@
+from functools import lru_cache
 import json
 from urllib import error, request
 
@@ -23,12 +24,36 @@ def synthesize_speech(text: str, mode: CareMode) -> tuple[bytes, str]:
         raise OpenAITTSServiceError("TTS input text is empty.")
 
     response_format = settings.tts_response_format or DEFAULT_OPENAI_TTS_FORMAT
+    model = settings.tts_model or DEFAULT_OPENAI_TTS_MODEL
+    voice = settings.tts_voice or DEFAULT_OPENAI_TTS_VOICE
+    instructions = settings.tts_instructions or _build_tts_instructions(mode)
+
+    return _synthesize_speech_cached(
+        normalized_text=normalized_text,
+        mode=mode,
+        model=model,
+        voice=voice,
+        response_format=response_format,
+        instructions=instructions,
+    )
+
+
+@lru_cache(maxsize=128)
+def _synthesize_speech_cached(
+    *,
+    normalized_text: str,
+    mode: CareMode,
+    model: str,
+    voice: str,
+    response_format: str,
+    instructions: str,
+) -> tuple[bytes, str]:
     payload = {
-        "model": settings.tts_model or DEFAULT_OPENAI_TTS_MODEL,
-        "voice": settings.tts_voice or DEFAULT_OPENAI_TTS_VOICE,
+        "model": model,
+        "voice": voice,
         "input": normalized_text,
         "response_format": response_format,
-        "instructions": settings.tts_instructions or _build_tts_instructions(mode),
+        "instructions": instructions,
     }
 
     req = request.Request(

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.schemas.agent import AgentPlan, AgentSessionState
 from app.schemas.chat import (
+    ChatPlaceItem,
     ChatIntent,
     ChatMessageRequest,
     ChatMessageResponse,
@@ -14,13 +15,14 @@ from app.schemas.chat import (
     ChatSpeechResponse,
 )
 from app.services.agent_confirmation_service import build_confirmation_question
-from app.services.agent_service import build_agent_plan
+from app.services.agent_service import action_to_intent, build_agent_plan
 from app.services.agent_slot_service import extract_agent_slots, find_missing_slots, merge_agent_slots
 from app.services.agent_tool_service import execute_agent_action
 from app.services.chat_log_service import append_chat_log
 from app.services.agent_session_service import clear_expired_sessions, clear_session, get_session, save_session
 from app.services.openai_audio_service import OpenAIAudioServiceError, transcribe_audio
 from app.services.openai_service import OpenAIServiceError, generate_chat_text
+from app.services.response_policy_service import build_response_policy
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +33,12 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
     session_id = payload.session_id or payload.client_message_id or f"session-{uuid4().hex[:12]}"
     append_chat_log(db, role="user", content=payload.text, mode=payload.mode)
     agent_plan = _build_effective_agent_plan(db=db, session_id=session_id, text=payload.text, mode=payload.mode)
-    answer, clarification_question, llm_latency_ms = _build_answer(
+    answer, clarification_question, llm_latency_ms, places = _build_answer(
         agent_plan=agent_plan,
         text=payload.text,
         mode=payload.mode,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
     )
     provider = _get_effective_llm_provider()
     total_latency_ms = _elapsed_ms(started_at)
@@ -64,6 +68,7 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
         awaiting_confirmation=agent_plan.awaiting_confirmation,
         missing_slots=agent_plan.missing_slots,
         executed_action=agent_plan.executed_action,
+        places=places,
         llm_latency_ms=llm_latency_ms,
         total_latency_ms=total_latency_ms,
     )
@@ -125,10 +130,12 @@ def build_speech_response(
         )
 
     agent_plan = _build_effective_agent_plan(db=db, session_id=session_id, text=transcript, mode=payload.mode)
-    answer, clarification_question, llm_latency_ms = _build_answer(
+    answer, clarification_question, llm_latency_ms, places = _build_answer(
         agent_plan=agent_plan,
         text=transcript,
         mode=payload.mode,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
     )
     total_latency_ms = _elapsed_ms(started_at)
 
@@ -162,67 +169,50 @@ def build_speech_response(
         awaiting_confirmation=agent_plan.awaiting_confirmation,
         missing_slots=agent_plan.missing_slots,
         executed_action=agent_plan.executed_action,
+        places=places,
         stt_latency_ms=stt_latency_ms,
         llm_latency_ms=llm_latency_ms,
         total_latency_ms=total_latency_ms,
     )
 
 
-def _build_answer(agent_plan: AgentPlan, text: str, mode: str) -> tuple[str, str | None, int | None]:
+def _build_answer(
+    agent_plan: AgentPlan,
+    text: str,
+    mode: str,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> tuple[str, str | None, int | None, list[ChatPlaceItem]]:
     if agent_plan.intent == "needs_clarification":
-        return "", agent_plan.clarification_question or "무슨 뜻인지 다시 한 번 말씀해 주세요.", None
+        return "", agent_plan.clarification_question or "무슨 뜻인지 다시 한 번 말씀해 주세요.", None, []
 
     if agent_plan.missing_slots:
-        return "", agent_plan.clarification_question, None
+        return "", agent_plan.clarification_question, None, []
 
     if agent_plan.awaiting_confirmation:
-        return "", agent_plan.clarification_question, None
+        return "", agent_plan.clarification_question, None, []
 
     if agent_plan.executed_action:
-        return agent_plan.clarification_question or "", None, None
+        return agent_plan.clarification_question or "", None, None, []
 
-    intent = agent_plan.intent
+    policy = build_response_policy(
+        agent_plan=agent_plan,
+        text=text,
+        mode=mode,
+        latitude=latitude,
+        longitude=longitude,
+    )
 
-    if intent == "schedule_lookup":
-        grounded_hint = _build_schedule_answer(mode)
-        answer, llm_latency_ms = _generate_llm_answer(
-            intent=intent,
-            text=text,
-            mode=mode,
-            grounded_hint=grounded_hint,
-        )
-        return answer, None, llm_latency_ms
-    if intent == "medication_lookup":
-        grounded_hint = _build_medication_answer(mode)
-        answer, llm_latency_ms = _generate_llm_answer(
-            intent=intent,
-            text=text,
-            mode=mode,
-            grounded_hint=grounded_hint,
-        )
-        return answer, None, llm_latency_ms
-    if intent == "small_talk":
-        answer, llm_latency_ms = _generate_llm_answer(intent=intent, text=text, mode=mode)
-        return answer, None, llm_latency_ms
+    if policy.answer:
+        return policy.answer, None, None, policy.places or []
 
-    answer, llm_latency_ms = _generate_llm_answer(intent=intent, text=text, mode=mode)
-    return answer, None, llm_latency_ms
-
-
-def _build_schedule_answer(mode: str) -> str:
-    if mode == "cognitive_support":
-        return "오늘 3시에 병원 가요. 아직 시간 있어요."
-    if mode == "health_support":
-        return "오늘 오후 3시에 병원 일정이 있어요. 약 복용 일정도 함께 확인해드릴까요?"
-    return "오늘 오후 3시에 병원 일정이 있어요."
-
-
-def _build_medication_answer(mode: str) -> str:
-    if mode == "cognitive_support":
-        return "다음 약은 저녁 8시에 드시면 돼요."
-    if mode == "health_support":
-        return "다음 약은 저녁 8시에 드시면 돼요. 복용 확인도 같이 도와드릴까요?"
-    return "다음 약은 저녁 8시에 드시면 돼요."
+    answer, llm_latency_ms = _generate_llm_answer(
+        intent=agent_plan.intent,
+        text=text,
+        mode=mode,
+        grounded_hint=policy.grounded_hint,
+    )
+    return answer, None, llm_latency_ms, []
 
 
 def _generate_llm_answer(
@@ -324,7 +314,7 @@ def _build_effective_agent_plan(db: Session, session_id: str, text: str, mode: s
                 clear_session(db, session_id)
                 return AgentPlan(
                     action=active_session.pending_action,
-                    intent=_action_to_intent(active_session.pending_action),
+                    intent=action_to_intent(active_session.pending_action),
                     slots=active_session.slots,
                     missing_slots=[],
                     requires_confirmation=True,
@@ -344,7 +334,7 @@ def _build_effective_agent_plan(db: Session, session_id: str, text: str, mode: s
                 )
             return AgentPlan(
                 action=active_session.pending_action,
-                intent=_action_to_intent(active_session.pending_action),
+                intent=action_to_intent(active_session.pending_action),
                 slots=active_session.slots,
                 missing_slots=[],
                 requires_confirmation=True,
@@ -354,12 +344,21 @@ def _build_effective_agent_plan(db: Session, session_id: str, text: str, mode: s
                 executed_action=None,
             )
 
+        fresh_plan = build_agent_plan(normalized, mode)
+        if fresh_plan.action != active_session.pending_action and fresh_plan.action not in {
+            "general_support",
+            "needs_clarification",
+        }:
+            clear_session(db, session_id)
+            _persist_agent_plan_session(db, session_id, mode, fresh_plan)
+            return fresh_plan
+
         new_slots = extract_agent_slots(active_session.pending_action, normalized)
         merged_slots = merge_agent_slots(active_session.slots, new_slots)
         missing_slots = find_missing_slots(active_session.pending_action, merged_slots)
-        updated_plan = build_agent_plan(normalized, mode)
+        updated_plan = fresh_plan
         updated_plan.action = active_session.pending_action
-        updated_plan.intent = _action_to_intent(active_session.pending_action)
+        updated_plan.intent = action_to_intent(active_session.pending_action)
         updated_plan.slots = merged_slots
         updated_plan.missing_slots = missing_slots
         updated_plan.pending_action = active_session.pending_action
@@ -404,19 +403,7 @@ def _build_effective_agent_plan(db: Session, session_id: str, text: str, mode: s
         return updated_plan
 
     agent_plan = build_agent_plan(normalized, mode)
-    if agent_plan.pending_action:
-        save_session(
-            db,
-            AgentSessionState(
-                session_id=session_id,
-                mode=mode,
-                pending_action=agent_plan.pending_action,
-                slots=agent_plan.slots,
-                awaiting_confirmation=agent_plan.awaiting_confirmation,
-            )
-        )
-    else:
-        clear_session(db, session_id)
+    _persist_agent_plan_session(db, session_id, mode, agent_plan)
     return agent_plan
 
 
@@ -432,16 +419,31 @@ def _is_negative(text: str) -> bool:
     return normalized in {"아니", "아니오", "취소", "하지마", "안 해", "괜찮아"}
 
 
-def _action_to_intent(action: str) -> ChatIntent:
-    return {
-        "lookup_schedule": "schedule_lookup",
-        "lookup_medication": "medication_lookup",
-        "check_mode": "general_support",
-        "create_schedule": "general_support",
-        "send_guardian_message": "general_support",
-        "mark_medication_taken": "medication_lookup",
-        "change_mode": "general_support",
-        "small_talk": "small_talk",
-        "general_support": "general_support",
-        "needs_clarification": "needs_clarification",
-    }[action]
+def _persist_agent_plan_session(db: Session, session_id: str, mode: str, agent_plan: AgentPlan) -> None:
+    if agent_plan.missing_slots:
+        save_session(
+            db,
+            AgentSessionState(
+                session_id=session_id,
+                mode=mode,
+                pending_action=agent_plan.action,
+                slots=agent_plan.slots,
+                awaiting_confirmation=False,
+            )
+        )
+        return
+
+    if agent_plan.pending_action:
+        save_session(
+            db,
+            AgentSessionState(
+                session_id=session_id,
+                mode=mode,
+                pending_action=agent_plan.pending_action,
+                slots=agent_plan.slots,
+                awaiting_confirmation=agent_plan.awaiting_confirmation,
+            )
+        )
+        return
+
+    clear_session(db, session_id)

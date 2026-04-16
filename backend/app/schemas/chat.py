@@ -6,6 +6,9 @@ CareMode = Literal["basic", "cognitive_support", "health_support"]
 ChatIntent = Literal[
     "schedule_lookup",
     "medication_lookup",
+    "hospital_visit_support",
+    "nearby_hospital_request",
+    "symptom_support",
     "small_talk",
     "general_support",
     "needs_clarification",
@@ -19,6 +22,38 @@ class ChatMessageRequest(BaseModel):
     context_source: Literal["text"] = "text"
     client_message_id: str | None = None
     session_id: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+
+class ChatPlaceItem(BaseModel):
+    name: str
+    distance_meters: int = Field(ge=0)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    address: str | None = None
+    phone: str | None = None
+    place_url: str | None = None
+    available_beds: int | None = Field(default=None, ge=0)
+
+
+class ChatSourceItem(BaseModel):
+    title: str
+    url: str
+
+
+class ChatPlaceStatusRequest(BaseModel):
+    place_name: str
+    address: str | None = None
+    phone: str | None = None
+    place_url: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+
+class ChatPlaceStatusResponse(BaseModel):
+    answer: str
+    sources: list[ChatSourceItem] = Field(default_factory=list)
 
 
 class ChatResponseBase(BaseModel):
@@ -33,6 +68,7 @@ class ChatResponseBase(BaseModel):
     awaiting_confirmation: bool = False
     missing_slots: list[str] = Field(default_factory=list)
     executed_action: str | None = None
+    places: list[ChatPlaceItem] = Field(default_factory=list)
 
 
 class ChatMessageResponse(ChatResponseBase):
@@ -48,6 +84,8 @@ class ChatSpeechRequest(BaseModel):
     client_message_id: str | None = None
     session_id: str | None = None
     transcript_visibility: TranscriptVisibility = "on_low_confidence"
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 
 class ChatSpeechResponse(ChatResponseBase):
