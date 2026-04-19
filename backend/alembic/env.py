@@ -11,6 +11,7 @@ from app.models.elder_profile import ElderProfile
 from app.models.guardian_link import GuardianLink
 from app.models.letter import Letter
 
+
 config = context.config
 
 if config.config_file_name is not None:

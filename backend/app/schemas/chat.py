@@ -22,6 +22,7 @@ class ChatMessageRequest(BaseModel):
     context_source: Literal["text"] = "text"
     client_message_id: str | None = None
     session_id: str | None = None
+    elder_user_id: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
 
@@ -83,6 +84,7 @@ class ChatSpeechRequest(BaseModel):
     audio_duration_ms: int | None = Field(default=None, ge=0)
     client_message_id: str | None = None
     session_id: str | None = None
+    elder_user_id: str | None = None
     transcript_visibility: TranscriptVisibility = "on_low_confidence"
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
