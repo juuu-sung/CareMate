@@ -24,6 +24,7 @@ from app.services.agent_session_service import clear_expired_sessions, clear_ses
 from app.services.openai_audio_service import OpenAIAudioServiceError, transcribe_audio
 from app.services.openai_service import OpenAIServiceError, generate_chat_text, generate_web_search_answer
 from app.services.response_policy_service import build_response_policy
+from app.services.elder_profile_service import get_elder_profile_context
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +41,16 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
         senior_user_id=payload.elder_user_id,
     )
     agent_plan = _build_effective_agent_plan(db=db, session_id=session_id, text=payload.text, mode=payload.mode)
+    elder_profile_context = _resolve_elder_profile_context(payload=payload, db=db)
     answer, clarification_question, llm_latency_ms, places, sources = _build_answer(
         agent_plan=agent_plan,
         text=payload.text,
         mode=payload.mode,
         latitude=payload.latitude,
         longitude=payload.longitude,
+        elder_profile_context=elder_profile_context,
     )
+
     provider = _get_effective_llm_provider()
     total_latency_ms = _elapsed_ms(started_at)
 
@@ -98,6 +102,7 @@ def build_speech_response(
     started_at = perf_counter()
     clear_expired_sessions(db)
     session_id = payload.session_id or payload.client_message_id or f"session-{uuid4().hex[:12]}"
+
     stt_started_at = perf_counter()
     transcript = _build_transcript(
         audio_filename=audio_filename,
@@ -156,13 +161,16 @@ def build_speech_response(
         )
 
     agent_plan = _build_effective_agent_plan(db=db, session_id=session_id, text=transcript, mode=payload.mode)
+    elder_profile_context = _resolve_elder_profile_context(payload=payload, db=db)
     answer, clarification_question, llm_latency_ms, places, sources = _build_answer(
         agent_plan=agent_plan,
         text=transcript,
         mode=payload.mode,
         latitude=payload.latitude,
         longitude=payload.longitude,
+        elder_profile_context=elder_profile_context,
     )
+
     total_latency_ms = _elapsed_ms(started_at)
 
     logger.info(
@@ -215,6 +223,7 @@ def _build_answer(
     mode: str,
     latitude: float | None = None,
     longitude: float | None = None,
+    elder_profile_context: str | None = None,
 ) -> tuple[str, str | None, int | None, list[ChatPlaceItem], list[ChatSourceItem]]:
     if agent_plan.intent == "needs_clarification":
         return "", agent_plan.clarification_question or "무슨 뜻인지 다시 한 번 말씀해 주세요.", None, [], []
@@ -244,6 +253,7 @@ def _build_answer(
         text=text,
         mode=mode,
         grounded_hint=policy.grounded_hint,
+        elder_profile_context=elder_profile_context,
     )
     return answer, None, llm_latency_ms, [], sources
 
@@ -253,6 +263,7 @@ def _generate_llm_answer(
     text: str,
     mode: str,
     grounded_hint: str | None = None,
+    elder_profile_context: str | None = None,
 ) -> tuple[str, int | None, list[ChatSourceItem]]:
     started_at = perf_counter()
     if _get_effective_llm_provider() == "openai":
@@ -260,7 +271,13 @@ def _generate_llm_answer(
             if intent == "web_search_support":
                 answer, sources = generate_web_search_answer(user_text=text, mode=mode)
                 return answer, _elapsed_ms(started_at), sources
-            answer = generate_chat_text(intent=intent, user_text=text, mode=mode, grounded_hint=grounded_hint)
+            answer = generate_chat_text(
+                intent=intent,
+                user_text=text,
+                mode=mode,
+                grounded_hint=grounded_hint,
+                elder_profile_context=elder_profile_context,
+            )
             return answer, _elapsed_ms(started_at), []
         except OpenAIServiceError:
             return (
@@ -270,6 +287,17 @@ def _generate_llm_answer(
             )
 
     return _build_stub_answer(intent=intent, text=text, mode=mode, grounded_hint=grounded_hint), None, []
+
+def _resolve_elder_profile_context(payload, db: Session) -> str | None:
+    elder_user_id = getattr(payload, "elder_user_id", None) or getattr(payload, "user_id", None)
+    if not elder_user_id:
+        return None
+
+    try:
+        return get_elder_profile_context(elder_user_id, db)
+    except Exception:
+        logger.exception("failed to load elder profile context elder_user_id=%s", elder_user_id)
+        return None
 
 
 def _build_stub_answer(intent: ChatIntent, text: str, mode: str, grounded_hint: str | None = None) -> str:

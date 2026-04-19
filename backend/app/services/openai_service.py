@@ -12,17 +12,30 @@ class OpenAIServiceError(RuntimeError):
     pass
 
 
-def generate_chat_text(intent: ChatIntent, user_text: str, mode: CareMode, grounded_hint: str | None = None) -> str:
+def generate_chat_text(
+    intent: ChatIntent,
+    user_text: str,
+    mode: CareMode,
+    grounded_hint: str | None = None,
+    elder_profile_context: str | None = None,
+) -> str:
     if not settings.openai_api_key:
         raise OpenAIServiceError("OPENAI_API_KEY is not configured.")
 
     model = settings.llm_model or DEFAULT_OPENAI_MODEL
+    developer_prompt = _build_developer_prompt(
+        intent=intent,
+        mode=mode,
+        grounded_hint=grounded_hint,
+        elder_profile_context=elder_profile_context,
+    )
+
     payload = {
         "model": model,
         "input": [
             {
                 "role": "developer",
-                "content": _build_developer_prompt(intent=intent, mode=mode, grounded_hint=grounded_hint),
+                "content": developer_prompt,
             },
             {
                 "role": "user",
@@ -93,6 +106,7 @@ def generate_place_status_summary(
             f"장소 링크: {place_url or '없음'}",
         ]
     )
+
     payload = {
         "model": model,
         "input": [
@@ -133,7 +147,12 @@ def generate_place_status_summary(
     return output_text.strip(), _extract_url_citations(body)
 
 
-def _build_developer_prompt(intent: ChatIntent, mode: CareMode, grounded_hint: str | None) -> str:
+def _build_developer_prompt(
+    intent: ChatIntent,
+    mode: CareMode,
+    grounded_hint: str | None,
+    elder_profile_context: str | None = None,
+) -> str:
     mode_instruction = {
         "basic": "짧고 자연스럽게 답변합니다.",
         "cognitive_support": "더 짧고 쉬운 문장으로 한 번에 한 가지 정보만 답변합니다.",
@@ -146,8 +165,16 @@ def _build_developer_prompt(intent: ChatIntent, mode: CareMode, grounded_hint: s
         "문장은 짧고 쉬워야 합니다.",
         "의료 진단이나 응급 판정은 하지 않습니다.",
         "확실하지 않으면 단정하지 말고 짧게 안내합니다.",
+        "사용자 프로필 정보는 참고용으로만 사용합니다.",
+        "사용자가 직접 묻지 않은 개인정보를 매 답변마다 반복해서 드러내지 않습니다.",
+        "증상, 약, 건강 상태, 병원 관련 질문에서는 프로필 정보를 우선 참고합니다.",
         mode_instruction,
     ]
+
+    if elder_profile_context:
+        base_rules.append("")
+        base_rules.append("[어르신 프로필 정보]")
+        base_rules.append(elder_profile_context)
 
     if mode == "health_support":
         base_rules.extend(
@@ -234,6 +261,7 @@ def _extract_output_text(body: dict) -> str:
     for item in body.get("output", []):
         if item.get("type") != "message":
             continue
+
         for content in item.get("content", []):
             if content.get("type") == "output_text" and isinstance(content.get("text"), str):
                 return content["text"]

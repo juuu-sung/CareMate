@@ -56,6 +56,8 @@ export default function HomeScreen() {
       params.guardianPhoneNumber ||
       ''
   );
+  const selectedVoice = String(params.selectedVoice || '');
+  const agentName = String(params.agentName || '');
 
   const [latestLetter, setLatestLetter] = useState<LetterItem | null>(null);
   const [letters, setLetters] = useState<LetterItem[]>([]);
@@ -78,6 +80,25 @@ export default function HomeScreen() {
         input: 'voice',
         autostart: '1',
         elderUserId,
+        elder_user_id: elderUserId,
+        linkCode,
+        link_code: linkCode,
+        selectedVoice,
+        agentName,
+      },
+    });
+  };
+
+  const handleOpenChatHistory = () => {
+    router.push({
+      pathname: '/chat',
+      params: {
+        elderUserId,
+        elder_user_id: elderUserId,
+        linkCode,
+        link_code: linkCode,
+        selectedVoice,
+        agentName,
       },
     });
   };
@@ -291,7 +312,7 @@ export default function HomeScreen() {
   }, [elderUserId, guardianPhone, linkCode, parentName]);
 
   useEffect(() => {
-    loadLetters(true);
+    void loadLetters(true);
     void loadMedications();
     void loadSchedules();
     void syncLocation();
@@ -344,15 +365,15 @@ export default function HomeScreen() {
       <View style={styles.container}>
         <View style={styles.topSection}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>안녕하세요</Text>
+            <Text style={styles.title}>
+              무엇을 도와드릴까요?
+            </Text>
 
             <View style={styles.linkCodeChip}>
               <Text style={styles.linkCodeLabel}>연동코드</Text>
               <Text style={styles.linkCodeValue}>{linkCode || '없음'}</Text>
             </View>
           </View>
-
-          <Text style={styles.subtitle}>무엇을 도와드릴까요?</Text>
         </View>
 
         <ScrollView
@@ -497,14 +518,7 @@ export default function HomeScreen() {
           <View style={styles.grid}>
             <TouchableOpacity
               style={styles.card}
-              onPress={() =>
-                router.push({
-                  pathname: '/chat',
-                  params: {
-                    elderUserId,
-                  },
-                })
-              }
+              onPress={handleOpenChatHistory}
               activeOpacity={0.88}
             >
               <View style={styles.cardIconWrap}>
@@ -664,10 +678,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
+    flex: 1,
     fontSize: 30,
     fontWeight: '800',
     color: '#111827',
     letterSpacing: -0.5,
+    marginRight: 12,
   },
   subtitle: {
     fontSize: 18,

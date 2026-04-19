@@ -67,6 +67,7 @@ async def send_speech(
     longitude: float | None = Form(default=None),
 ) -> ChatSpeechResponse:
     audio_bytes = await audio_file.read()
+
     payload = ChatSpeechRequest(
         mode=mode,
         audio_format=audio_format,
@@ -78,6 +79,9 @@ async def send_speech(
         latitude=latitude,
         longitude=longitude,
     )
+
+    print("DEBUG /speech payload:", payload.model_dump())
+
     return build_speech_response(
         db,
         payload,
@@ -91,9 +95,14 @@ async def send_speech(
 def stream_tts(
     text: str = Query(..., min_length=1, max_length=500),
     mode: str = Query("basic"),
+    voice: str | None = Query(default=None),
 ) -> Response:
     try:
-        audio_bytes, media_type = synthesize_speech(unquote(text), mode=mode)
+        audio_bytes, media_type = synthesize_speech(
+            unquote(text),
+            mode=mode,
+            voice=voice,
+        )
     except OpenAITTSServiceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
