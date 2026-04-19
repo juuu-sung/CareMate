@@ -18,6 +18,9 @@ class ElderProfile(Base):
     doctor_contact = Column(String, nullable=True, default="")
     memo = Column(String, nullable=True, default="")
 
+    agent_name = Column(String, nullable=True, default="")
+    agent_voice = Column(String, nullable=True, default="")
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
         DateTime,
