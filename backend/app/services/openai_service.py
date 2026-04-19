@@ -34,30 +34,45 @@ def generate_chat_text(intent: ChatIntent, user_text: str, mode: CareMode, groun
     if model.startswith(("gpt-5", "o3", "o4")):
         payload["reasoning"] = {"effort": "low"}
 
-    req = request.Request(
-        OPENAI_API_URL,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {settings.openai_api_key}",
-        },
-        method="POST",
-    )
-
-    try:
-        with request.urlopen(req, timeout=settings.llm_timeout_seconds) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        raise OpenAIServiceError(f"OpenAI request failed with status {exc.code}: {detail}") from exc
-    except error.URLError as exc:
-        raise OpenAIServiceError(f"OpenAI request failed: {exc.reason}") from exc
+    body = _post_responses_api(payload, failure_prefix="OpenAI request failed")
 
     output_text = _extract_output_text(body)
     if not output_text:
         raise OpenAIServiceError("OpenAI response did not include output text.")
 
     return output_text.strip()
+
+
+def generate_web_search_answer(user_text: str, mode: CareMode) -> tuple[str, list[ChatSourceItem]]:
+    if not settings.openai_api_key:
+        raise OpenAIServiceError("OPENAI_API_KEY is not configured.")
+
+    model = settings.llm_model or DEFAULT_OPENAI_MODEL
+    payload = {
+        "model": model,
+        "input": [
+            {
+                "role": "developer",
+                "content": _build_web_search_prompt(mode),
+            },
+            {
+                "role": "user",
+                "content": user_text,
+            },
+        ],
+        "tools": [{"type": "web_search_preview"}],
+    }
+
+    if model.startswith(("gpt-5", "o3", "o4")):
+        payload["reasoning"] = {"effort": "low"}
+
+    body = _post_responses_api(payload, failure_prefix="OpenAI web search request failed")
+    output_text = _extract_output_text(body)
+
+    if not output_text:
+        raise OpenAIServiceError("OpenAI web search response did not include output text.")
+
+    return output_text.strip(), _extract_url_citations(body)
 
 
 def generate_place_status_summary(
@@ -109,24 +124,7 @@ def generate_place_status_summary(
     if model.startswith(("gpt-5", "o3", "o4")):
         payload["reasoning"] = {"effort": "low"}
 
-    req = request.Request(
-        OPENAI_API_URL,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {settings.openai_api_key}",
-        },
-        method="POST",
-    )
-
-    try:
-        with request.urlopen(req, timeout=settings.llm_timeout_seconds) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        raise OpenAIServiceError(f"OpenAI web search request failed with status {exc.code}: {detail}") from exc
-    except error.URLError as exc:
-        raise OpenAIServiceError(f"OpenAI web search request failed: {exc.reason}") from exc
+    body = _post_responses_api(payload, failure_prefix="OpenAI web search request failed")
 
     output_text = _extract_output_text(body)
     if not output_text:
@@ -184,6 +182,48 @@ def _build_developer_prompt(intent: ChatIntent, mode: CareMode, grounded_hint: s
         base_rules.append(f"사실: {grounded_hint}")
 
     return "\n".join(base_rules)
+
+
+def _build_web_search_prompt(mode: CareMode) -> str:
+    mode_instruction = {
+        "basic": "답변은 2문장 또는 3문장으로 짧게 요약합니다.",
+        "cognitive_support": "더 짧고 쉬운 단어로 2문장 이내로 답합니다.",
+        "health_support": "건강 관련 검색은 의료 진단처럼 말하지 말고 2문장 또는 3문장으로 보수적으로 답합니다.",
+    }[mode]
+
+    return "\n".join(
+        [
+            "당신은 CareMate 웹 검색 도우미입니다.",
+            "항상 한국어로만 답합니다.",
+            "최신 웹 정보를 바탕으로 사용자의 질문에 바로 답합니다.",
+            "첫 문장에는 결론이나 핵심 정보만 짧게 말합니다.",
+            "둘째 문장에는 근거 또는 다음 확인 포인트를 짧게 덧붙입니다.",
+            "확실하지 않으면 단정하지 말고 확인이 어렵다고 분명히 말합니다.",
+            "출처 링크는 응답 본문에 길게 나열하지 않습니다.",
+            mode_instruction,
+        ]
+    )
+
+
+def _post_responses_api(payload: dict, failure_prefix: str) -> dict:
+    req = request.Request(
+        OPENAI_API_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {settings.openai_api_key}",
+        },
+        method="POST",
+    )
+
+    try:
+        with request.urlopen(req, timeout=settings.llm_timeout_seconds) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise OpenAIServiceError(f"{failure_prefix} with status {exc.code}: {detail}") from exc
+    except error.URLError as exc:
+        raise OpenAIServiceError(f"{failure_prefix}: {exc.reason}") from exc
 
 
 def _extract_output_text(body: dict) -> str:

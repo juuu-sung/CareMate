@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Linking,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -13,8 +15,27 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { clearAuthSession } from '@/services/authSession';
 
 type PermissionStatusLabel = '허용됨' | '한 번만 허용됨' | '허용 안 됨' | '확인 필요';
+
+const siriSteps = [
+  '1. 앱을 한 번 실행한 뒤 Siri를 켜주세요.',
+  '2. "시리야, 케어 대화 시작"이라고 말해보세요.',
+  '3. 처음엔 Shortcuts 앱에서 "케어"를 검색해 직접 실행하는 편이 더 잘 잡힐 수 있어요.',
+];
+
+const widgetSteps = [
+  '1. 홈 화면 또는 잠금 화면을 길게 눌러 위젯 편집으로 들어가세요.',
+  '2. 위젯 추가에서 "CareMate" 또는 "케어 대화"를 찾아 추가하세요.',
+  '3. 위젯을 한 번 누르면 바로 음성 대화 화면으로 들어갑니다.',
+];
+
+const voiceControlSteps = [
+  '1. 설정 > 손쉬운 사용 > 음성 명령으로 이동하세요.',
+  '2. 명령 사용자화에서 새 명령을 만들고 문구를 "케어야"로 등록하세요.',
+  '3. 동작은 "단축어 실행" 또는 케어 열기 흐름으로 연결하세요.',
+];
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -68,6 +89,43 @@ export default function SettingsPage() {
     }
   };
 
+  const handleOpenShortcutsApp = async () => {
+    try {
+      if (Platform.OS === 'ios') {
+        await Linking.openURL('shortcuts://');
+        return;
+      }
+
+      setError('단축어 앱 열기는 iPhone에서만 사용할 수 있습니다.');
+    } catch {
+      setError('단축어 앱을 열지 못했습니다.');
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert('로그아웃', '현재 로그인 정보를 지우고 처음 화면으로 돌아갈까요?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '로그아웃',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await clearAuthSession();
+              router.replace('/');
+            } catch (logoutError) {
+              setError(
+                logoutError instanceof Error
+                  ? logoutError.message
+                  : '로그아웃 중 오류가 발생했습니다.'
+              );
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -114,7 +172,114 @@ export default function SettingsPage() {
           </Text>
         </View>
 
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconWrap, styles.siriIconWrap]}>
+              <Ionicons name="sparkles-outline" size={22} color="#7C3AED" />
+            </View>
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>Siri 단축어</Text>
+              <Text style={styles.permissionLabel}>앱이 꺼져 있어도 실행 가능</Text>
+              <Text style={styles.permissionDescription}>
+                가장 안정적인 방법은 Siri 단축어입니다. "시리야, 케어 대화 시작"으로 바로 음성 대화를 열 수 있어요.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.stepList}>
+            {siriSteps.map((step) => (
+              <Text key={step} style={styles.stepText}>
+                {step}
+              </Text>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.primaryButton} onPress={() => void handleOpenShortcutsApp()}>
+            <Text style={styles.primaryButtonText}>단축어 앱 열기</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.helperText}>
+            Siri가 바로 못 알아들으면 앱을 한 번 실행한 뒤 다시 말해보세요.
+          </Text>
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconWrap, styles.widgetIconWrap]}>
+              <Ionicons name="mic-circle-outline" size={22} color="#C2410C" />
+            </View>
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>홈 화면 위젯</Text>
+              <Text style={styles.permissionLabel}>한 번 눌러 바로 음성 대화</Text>
+              <Text style={styles.permissionDescription}>
+                홈 화면이나 잠금 화면에 위젯을 올려두면 앱을 찾지 않아도 바로 음성 대화 화면으로 들어갈 수 있습니다.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.stepList}>
+            {widgetSteps.map((step) => (
+              <Text key={step} style={styles.stepText}>
+                {step}
+              </Text>
+            ))}
+          </View>
+
+          <Text style={styles.helperText}>
+            위젯은 한 번 추가해두면 가장 빠른 실행 방법입니다. 잠금 화면 위젯은 화면을 깨운 뒤 바로 눌러 진입할 수 있습니다.
+          </Text>
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconWrap, styles.voiceControlIconWrap]}>
+              <Ionicons name="mic-outline" size={22} color="#0F766E" />
+            </View>
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>음성 명령 우회</Text>
+              <Text style={styles.permissionLabel}>사용자가 직접 설정해야 함</Text>
+              <Text style={styles.permissionDescription}>
+                iPhone 접근성의 음성 명령을 이용해 "케어야" 같은 문구를 직접 등록할 수 있습니다.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.stepList}>
+            {voiceControlSteps.map((step) => (
+              <Text key={step} style={styles.stepText}>
+                {step}
+              </Text>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => void handleOpenDeviceSettings()}>
+            <Text style={styles.secondaryButtonText}>기기 설정 열기</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.helperText}>
+            이 방법은 앱 기능이 아니라 iPhone 설정 기능입니다. 기기 언어와 지원 상태에 따라 동작이 제한될 수 있습니다.
+          </Text>
+        </View>
+
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconWrap, styles.logoutIconWrap]}>
+              <Ionicons name="log-out-outline" size={22} color="#DC2626" />
+            </View>
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>로그아웃</Text>
+              <Text style={styles.permissionDescription}>
+                현재 기기에 저장된 로그인 정보를 지우고 처음 화면으로 돌아갑니다.
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>로그아웃</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>이전으로</Text>
@@ -171,6 +336,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
     padding: 20,
+    marginBottom: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -187,6 +353,18 @@ const styles = StyleSheet.create({
   },
   sectionHeaderText: {
     flex: 1,
+  },
+  siriIconWrap: {
+    backgroundColor: '#EDE9FE',
+  },
+  voiceControlIconWrap: {
+    backgroundColor: '#CCFBF1',
+  },
+  widgetIconWrap: {
+    backgroundColor: '#FFEDD5',
+  },
+  logoutIconWrap: {
+    backgroundColor: '#FEE2E2',
   },
   sectionTitle: {
     fontSize: 18,
@@ -243,14 +421,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#334155',
   },
+  logoutButton: {
+    marginTop: 18,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: '#DC2626',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
   helperText: {
     marginTop: 14,
     fontSize: 14,
     lineHeight: 22,
     color: '#64748B',
   },
-  errorText: {
+  stepList: {
     marginTop: 16,
+    gap: 8,
+  },
+  stepText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#334155',
+  },
+  errorText: {
+    marginTop: 4,
     fontSize: 15,
     lineHeight: 22,
     color: '#DC2626',

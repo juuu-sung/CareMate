@@ -5,6 +5,8 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.guardian_link import GuardianLink
 from app.schemas.guardian_contact import GuardianContactResponse
+from app.schemas.guardian_location import GuardianLatestLocationResponse
+from app.services.guardian_location_service import get_latest_elder_location
 
 router = APIRouter(
     prefix="/guardian-link",
@@ -53,3 +55,15 @@ def get_guardian_contact(
         guardian_name=guardian.name or "",
         guardian_phone=guardian.phone or "",
     )
+
+
+@router.get("/latest-location", response_model=GuardianLatestLocationResponse)
+def get_latest_location(
+    elder_user_id: str = Query(...),
+    link_code: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        return get_latest_elder_location(db, elder_user_id=elder_user_id, link_code=link_code)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

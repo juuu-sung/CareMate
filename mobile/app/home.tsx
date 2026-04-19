@@ -16,7 +16,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { createGuardianEventAlert } from '@/services/alerts';
+import {
+  buildParentAuthSession,
+  saveAuthSession,
+} from '@/services/authSession';
 import { fetchLettersForElder } from '@/services/letters';
+import {
+  syncCurrentElderLocation,
+  syncRequestedElderLocation,
+} from '@/services/locationTask';
 import { getMedications, MedicationItem } from '@/services/medications';
 import { getSchedules, ScheduleItem } from '@/services/schedules';
 
@@ -36,6 +45,7 @@ export default function HomeScreen() {
   const elderUserId = String(
     params.elderUserId || params.elder_user_id || params.parentId || ''
   );
+  const parentName = String(params.parentName || '');
   const linkCode = String(
     params.linkCode || params.link_code || params.code || ''
   );
@@ -59,9 +69,17 @@ export default function HomeScreen() {
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const locationRequestPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleMicPress = () => {
-    router.push('/chat?input=voice&autostart=1');
+    router.push({
+      pathname: '/chat',
+      params: {
+        input: 'voice',
+        autostart: '1',
+        elderUserId,
+      },
+    });
   };
 
   const formatToYearMonthDayHour = (dateString: string) => {
@@ -83,6 +101,30 @@ export default function HomeScreen() {
     return phone.replace(/[^0-9+]/g, '');
   };
 
+  const notifyGuardianEvent = (type: string, message: string, severity: 'low' | 'medium' | 'high') => {
+    if (!elderUserId || !linkCode) {
+      return;
+    }
+
+    void createGuardianEventAlert({
+      elder_user_id: elderUserId,
+      link_code: linkCode,
+      type,
+      message,
+      severity,
+    }).catch((error) => {
+      console.log('보호자 이벤트 알림 생성 오류:', error);
+    });
+
+    void syncCurrentElderLocation({
+      elderUserId,
+      linkCode,
+      force: true,
+    }).catch((error) => {
+      console.log('긴급 위치 동기화 오류:', error);
+    });
+  };
+
   const handleCall119 = async () => {
     try {
       const url = 'tel:119';
@@ -93,6 +135,11 @@ export default function HomeScreen() {
         return;
       }
 
+      notifyGuardianEvent(
+        'emergency_call',
+        '부모님이 119 긴급 연락을 시도했어요. 위치 확인이 필요할 수 있어요.',
+        'high'
+      );
       await Linking.openURL(url);
     } catch (error) {
       console.log('119 전화 연결 오류:', error);
@@ -122,6 +169,11 @@ export default function HomeScreen() {
         return;
       }
 
+      notifyGuardianEvent(
+        'guardian_call',
+        '부모님이 보호자에게 긴급 연락을 시도했어요.',
+        'high'
+      );
       await Linking.openURL(url);
     } catch (error) {
       console.log('보호자 전화 연결 오류:', error);
@@ -190,25 +242,86 @@ export default function HomeScreen() {
     }
   };
 
+  const syncLocation = async () => {
+    if (!elderUserId || !linkCode) {
+      return;
+    }
+
+    try {
+      await syncCurrentElderLocation({
+        elderUserId,
+        linkCode,
+      });
+    } catch (error) {
+      console.log('위치 동기화 오류:', error);
+    }
+  };
+
+  const syncRequestedLocation = async () => {
+    if (!elderUserId || !linkCode) {
+      return;
+    }
+
+    try {
+      await syncRequestedElderLocation({
+        elderUserId,
+        linkCode,
+      });
+    } catch (error) {
+      console.log('위치 요청 처리 오류:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!elderUserId || !linkCode) {
+      return;
+    }
+
+    void saveAuthSession(
+      buildParentAuthSession({
+        parentId: elderUserId,
+        elderUserId,
+        parentName,
+        linkCode,
+        guardianPhone,
+      })
+    ).catch((error) => {
+      console.log('부모님 홈 세션 동기화 오류:', error);
+    });
+  }, [elderUserId, guardianPhone, linkCode, parentName]);
+
   useEffect(() => {
     loadLetters(true);
     void loadMedications();
     void loadSchedules();
+    void syncLocation();
+    void syncRequestedLocation();
 
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
+    }
+    if (locationRequestPollingRef.current) {
+      clearInterval(locationRequestPollingRef.current);
     }
 
     if (elderUserId && linkCode) {
       pollingRef.current = setInterval(() => {
         void loadLetters(false);
-      }, 100000);
+      }, 10000);
+
+      locationRequestPollingRef.current = setInterval(() => {
+        void syncRequestedLocation();
+      }, 10000);
     }
 
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
+      }
+      if (locationRequestPollingRef.current) {
+        clearInterval(locationRequestPollingRef.current);
+        locationRequestPollingRef.current = null;
       }
     };
   }, [elderUserId, linkCode]);
@@ -218,6 +331,8 @@ export default function HomeScreen() {
       void loadLetters(false);
       void loadMedications();
       void loadSchedules();
+      void syncLocation();
+      void syncRequestedLocation();
       return undefined;
     }, [elderUserId, linkCode])
   );
@@ -382,7 +497,14 @@ export default function HomeScreen() {
           <View style={styles.grid}>
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push('/chat')}
+              onPress={() =>
+                router.push({
+                  pathname: '/chat',
+                  params: {
+                    elderUserId,
+                  },
+                })
+              }
               activeOpacity={0.88}
             >
               <View style={styles.cardIconWrap}>

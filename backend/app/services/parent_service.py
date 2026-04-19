@@ -6,7 +6,11 @@ from app.models.user import User
 from app.models.elder_profile import ElderProfile
 from app.models.guardian_link import GuardianLink
 from app.rules.code_generator import generate_link_code
-from app.schemas.parent import ParentSignupRequest, ParentCareInfoUpdateRequest
+from app.schemas.parent import (
+    ParentCareInfoUpdateRequest,
+    ParentLoginRequest,
+    ParentSignupRequest,
+)
 
 
 def calculate_age_from_birth(birth: str | None) -> int | None:
@@ -32,6 +36,34 @@ def _generate_unique_link_code(db: Session) -> str:
         exists = db.query(GuardianLink).filter(GuardianLink.link_code == code).first()
         if not exists:
             return code
+
+
+def _normalize_phone(value: str | None) -> str:
+    if not value:
+        return ""
+    digits = "".join(ch for ch in value if ch.isdigit())
+    return digits or value.strip()
+
+
+def _normalize_birth(value: str | None) -> str:
+    if not value:
+        return ""
+    return "".join(ch for ch in value if ch.isdigit())
+
+
+def _find_parent_user(db: Session, payload: ParentLoginRequest) -> User | None:
+    normalized_phone = _normalize_phone(payload.phone)
+    normalized_birth = _normalize_birth(payload.birth)
+
+    users = db.query(User).filter(User.role == "elder").all()
+    for user in users:
+        if (
+            _normalize_phone(user.phone) == normalized_phone
+            and _normalize_birth(user.birth) == normalized_birth
+        ):
+            return user
+
+    return None
 
 
 def create_parent(db: Session, payload: ParentSignupRequest):
@@ -84,6 +116,35 @@ def create_parent(db: Session, payload: ParentSignupRequest):
         "parent_id": new_user.id,
         "parent_name": new_user.name,
         "link_code": link_code,
+    }
+
+
+def login_parent(db: Session, payload: ParentLoginRequest):
+    parent_user = _find_parent_user(db, payload)
+    if not parent_user:
+        raise ValueError("전화번호 또는 생년월일이 올바르지 않습니다.")
+
+    link = (
+        db.query(GuardianLink)
+        .filter(GuardianLink.elder_user_id == parent_user.id)
+        .order_by(GuardianLink.created_at.desc())
+        .first()
+    )
+    if not link:
+        raise ValueError("연동 코드를 찾을 수 없습니다.")
+
+    guardian_phone = ""
+    if link.guardian_user_id:
+        guardian_user = db.query(User).filter(User.id == link.guardian_user_id).first()
+        if guardian_user and guardian_user.phone:
+            guardian_phone = guardian_user.phone
+
+    return {
+        "message": "부모님 로그인이 완료되었습니다.",
+        "parent_id": parent_user.id,
+        "parent_name": parent_user.name,
+        "link_code": link.link_code,
+        "guardian_phone": guardian_phone,
     }
 
 

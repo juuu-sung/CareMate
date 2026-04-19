@@ -216,13 +216,60 @@ CareMate/
 - 개발 체크리스트: [docs/project-management/development-checklist.md](docs/project-management/development-checklist.md)
 - 테스트 시나리오: [docs/test-scenarios/README.md](docs/test-scenarios/README.md)
 
+## Verified Install Versions
+
+아래 버전은 현재 로컬에서 실제로 설치되어 동작을 확인한 기준입니다.
+팀원은 이 기준으로 설치하면 됩니다.
+
+### Runtime
+
+- Node.js `20.19.5`
+- npm `11.7.0`
+- Python `3.11.9`
+
+### Mobile
+
+모바일은 `mobile/package-lock.json` 기준으로 고정 설치합니다.
+반드시 `npm install` 대신 `npm ci`를 사용합니다.
+
+| 패키지 | 설치 버전 |
+| --- | --- |
+| expo | `54.0.33` |
+| expo-router | `6.0.23` |
+| expo-audio | `1.1.1` |
+| expo-constants | `18.0.13` |
+| expo-linking | `8.0.11` |
+| expo-location | `55.1.8` |
+| react | `19.1.0` |
+| react-native | `0.81.5` |
+| react-native-maps | `1.20.1` |
+| react-native-safe-area-context | `5.6.2` |
+| react-native-screens | `4.16.0` |
+| @expo/vector-icons | `15.1.1` |
+| @types/react | `19.1.17` |
+| typescript | `5.9.3` |
+
+### Backend
+
+백엔드는 `backend/requirements.txt` 기준으로 고정 설치합니다.
+
+| 패키지 | 설치 버전 |
+| --- | --- |
+| fastapi | `0.115.0` |
+| uvicorn[standard] | `0.30.6` |
+| pydantic-settings | `2.5.2` |
+| sqlalchemy | `2.0.36` |
+| alembic | `1.14.0` |
+| psycopg[binary] | `3.2.3` |
+| python-multipart | `0.0.24` |
+
 ## Quick Start
 
 ### Frontend
 
 ```bash
 cd mobile
-npm install
+npm ci
 npx expo start
 ```
 

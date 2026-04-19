@@ -39,6 +39,9 @@ def classify_agent_action(text: str) -> AgentAction:
             return "create_schedule"
         return "lookup_schedule"
 
+    if _looks_like_web_search_request(normalized):
+        return "web_search_request"
+
     if any(keyword in normalized for keyword in ("심심", "적적", "외롭", "말동무")):
         return "small_talk"
 
@@ -128,3 +131,17 @@ def _looks_like_symptom_support_request(text: str) -> bool:
         "떨려",
     )
     return any(keyword in text for keyword in symptom_keywords)
+
+
+def _looks_like_web_search_request(text: str) -> bool:
+    search_keywords = (
+        "검색해",
+        "검색해줘",
+        "검색해 줄래",
+        "알아봐",
+        "알아봐줘",
+        "찾아줘",
+        "찾아봐",
+        "찾아보",
+    )
+    return any(keyword in text for keyword in search_keywords)

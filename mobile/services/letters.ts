@@ -6,16 +6,18 @@ export type SendLetterPayload = {
   content: string;
 };
 
+export type LetterItem = {
+  guardian_user_id: string;
+  elder_user_id: string;
+  content: string;
+  created_at: string;
+  link_code: string;
+  sender_role: string;
+};
+
 type LetterListResponse = {
   success: boolean;
-  letters: Array<{
-    guardian_user_id: string;
-    elder_user_id: string;
-    content: string;
-    created_at: string;
-    link_code: string;
-    sender_role: string;
-  }>;
+  letters: LetterItem[];
 };
 
 export function sendLetterFromGuardian(payload: SendLetterPayload) {

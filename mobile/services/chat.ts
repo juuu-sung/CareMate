@@ -7,6 +7,7 @@ export type ChatMessageRequest = {
   context_source: "text";
   client_message_id?: string;
   session_id?: string;
+  elder_user_id?: string;
   latitude?: number;
   longitude?: number;
 };
@@ -41,6 +42,7 @@ export type ChatMessageResponse = {
   missing_slots?: string[];
   executed_action?: string | null;
   places?: ChatPlaceItem[];
+  sources?: ChatSourceItem[];
   llm_latency_ms?: number | null;
   total_latency_ms?: number | null;
 };
@@ -56,6 +58,7 @@ export type ChatSpeechRequest = {
   audioDurationMs?: number;
   clientMessageId?: string;
   sessionId?: string;
+  elderUserId?: string;
   transcriptVisibility: TranscriptVisibility;
   latitude?: number;
   longitude?: number;
@@ -77,6 +80,7 @@ export type ChatSpeechResponse = {
   missing_slots?: string[];
   executed_action?: string | null;
   places?: ChatPlaceItem[];
+  sources?: ChatSourceItem[];
   stt_latency_ms?: number | null;
   llm_latency_ms?: number | null;
   total_latency_ms?: number | null;
@@ -137,6 +141,10 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
     formData.append("session_id", payload.sessionId);
   }
 
+  if (payload.elderUserId) {
+    formData.append("elder_user_id", payload.elderUserId);
+  }
+
   formData.append("transcript_visibility", payload.transcriptVisibility);
 
   if (payload.latitude !== undefined) {
@@ -150,8 +158,16 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
   return apiPostForm<ChatSpeechResponse>("/chat/speech", formData);
 }
 
-export function getChatHistory(limit = 50) {
-  return apiGet<ChatHistoryResponse>(`/chat/history?limit=${limit}`);
+export function getChatHistory(limit = 50, elderUserId?: string) {
+  const searchParams = new URLSearchParams({
+    limit: String(limit),
+  });
+
+  if (elderUserId) {
+    searchParams.append("elder_user_id", elderUserId);
+  }
+
+  return apiGet<ChatHistoryResponse>(`/chat/history?${searchParams.toString()}`);
 }
 
 export function getPlaceStatus(payload: ChatPlaceStatusRequest) {

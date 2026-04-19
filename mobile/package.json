@@ -5,26 +5,35 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "postinstall": "node ./scripts/patch-react-native-ios-encoding.js",
+    "prebuild:ios": "expo prebuild --platform ios",
+    "dev:ios": "expo run:ios --device"
   },
   "dependencies": {
+    "@expo/ui": "55.0.11",
     "@expo/vector-icons": "^15.1.1",
-    "expo": "~54.0.0",
-    "expo-audio": "~1.1.1",
-    "expo-constants": "~18.0.13",
-    "expo-linking": "~8.0.11",
+    "expo": "^55.0.0",
+    "expo-audio": "~55.0.13",
+    "expo-constants": "~55.0.14",
+    "expo-dev-client": "~55.0.27",
+    "expo-linking": "~55.0.13",
     "expo-location": "^55.1.8",
-    "expo-router": "~6.0.0",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-maps": "1.20.1",
+    "expo-router": "~55.0.12",
+    "expo-speech-recognition": "^3.1.2",
+    "expo-widgets": "^55.0.13",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.4",
+    "react-native-maps": "1.27.2",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "4.16.0"
+    "react-native-screens": "~4.23.0",
+    "react-native-web": "^0.21.0"
   },
   "devDependencies": {
-    "@types/react": "~19.1.10",
+    "@types/react": "~19.2.10",
     "typescript": "^5.4.0"
   }
 }

@@ -8,6 +8,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import {
+  buildParentAuthSession,
+  saveAuthSession,
+} from '@/services/authSession';
 
 export default function ParentAgentNameSetupScreen() {
   const router = useRouter();
@@ -89,7 +93,7 @@ export default function ParentAgentNameSetupScreen() {
     }
   };
 
-  const handleGoHome = () => {
+  const handleGoHome = async () => {
     console.log('홈으로 이동 params:', {
       elderUserId: parentId,
       parentName,
@@ -97,6 +101,19 @@ export default function ParentAgentNameSetupScreen() {
       selectedVoice,
       agentName: recognizedName,
     });
+
+    try {
+      await saveAuthSession(
+        buildParentAuthSession({
+          parentId,
+          elderUserId: parentId,
+          parentName,
+          linkCode,
+        })
+      );
+    } catch (sessionError) {
+      console.log('부모님 가입 세션 저장 오류:', sessionError);
+    }
 
     router.replace({
       pathname: '/home',

@@ -6,6 +6,7 @@ from app.api.routers.parent import router as parent_router
 from app.api.routers.guardian import router as guardian_router
 from app.api.routers.health import router as health_router
 from app.api.routers.letter import router as letter_router
+from app.api.routers.location import router as location_router
 from app.api.routers.medication import router as medication_router
 from app.api.routers.modes import router as modes_router
 from app.api.routers.schedule import router as schedule_router
@@ -22,3 +23,4 @@ api_router.include_router(parent_router)
 api_router.include_router(guardian_router)
 api_router.include_router(letter_router)
 api_router.include_router(guardian_link_router)
+api_router.include_router(location_router)

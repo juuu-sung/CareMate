@@ -3,12 +3,60 @@
     "name": "CareMate",
     "slug": "caremate",
     "scheme": "caremate",
+    "ios": {
+      "bundleIdentifier": "com.hongjusung.caremate",
+      "jsEngine": "jsc"
+    },
     "plugins": [
       "expo-router",
       [
+        "./plugins/withCareSiriShortcuts",
+        {
+          "appSynonym": "케어",
+          "spokenName": "케어"
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "CareQuickStartWidget",
+              "displayName": "케어 대화",
+              "description": "한 번 눌러 바로 음성 대화를 시작합니다.",
+              "supportedFamilies": [
+                "systemSmall",
+                "accessoryCircular",
+                "accessoryRectangular"
+              ],
+              "contentMarginsDisabled": false
+            }
+          ]
+        }
+      ],
+      "./plugins/withCareWidgetsPodsFix",
+      [
+        "./plugins/withCareWidgetUrls",
+        {
+          "widgets": [
+            {
+              "name": "CareQuickStartWidget",
+              "url": "caremate:///chat?input=voice&autostart=1&source=widget"
+            }
+          ]
+        }
+      ],
+      [
         "expo-audio",
         {
-          "microphonePermission": "CareMate가 음성을 인식해 일정과 복약을 도와드리기 위해 마이크 접근이 필요합니다."
+          "microphonePermission": "CareMate가 음성 대화와 웨이크워드를 위해 마이크 접근이 필요합니다."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "CareMate가 음성 대화와 웨이크워드를 위해 마이크 접근이 필요합니다.",
+          "speechRecognitionPermission": "CareMate가 '케어'를 인식해 바로 대화를 시작하려면 음성 인식 접근이 필요합니다."
         }
       ],
       [

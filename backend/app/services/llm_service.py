@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.schemas.agent import AgentPlan, AgentSessionState
 from app.schemas.chat import (
     ChatPlaceItem,
+    ChatSourceItem,
     ChatIntent,
     ChatMessageRequest,
     ChatMessageResponse,
@@ -21,7 +22,7 @@ from app.services.agent_tool_service import execute_agent_action
 from app.services.chat_log_service import append_chat_log
 from app.services.agent_session_service import clear_expired_sessions, clear_session, get_session, save_session
 from app.services.openai_audio_service import OpenAIAudioServiceError, transcribe_audio
-from app.services.openai_service import OpenAIServiceError, generate_chat_text
+from app.services.openai_service import OpenAIServiceError, generate_chat_text, generate_web_search_answer
 from app.services.response_policy_service import build_response_policy
 
 logger = logging.getLogger(__name__)
@@ -31,9 +32,15 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
     started_at = perf_counter()
     clear_expired_sessions(db)
     session_id = payload.session_id or payload.client_message_id or f"session-{uuid4().hex[:12]}"
-    append_chat_log(db, role="user", content=payload.text, mode=payload.mode)
+    append_chat_log(
+        db,
+        role="user",
+        content=payload.text,
+        mode=payload.mode,
+        senior_user_id=payload.elder_user_id,
+    )
     agent_plan = _build_effective_agent_plan(db=db, session_id=session_id, text=payload.text, mode=payload.mode)
-    answer, clarification_question, llm_latency_ms, places = _build_answer(
+    answer, clarification_question, llm_latency_ms, places, sources = _build_answer(
         agent_plan=agent_plan,
         text=payload.text,
         mode=payload.mode,
@@ -53,7 +60,13 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
     )
 
     assistant_content = clarification_question or answer
-    append_chat_log(db, role="assistant", content=assistant_content, mode=payload.mode)
+    append_chat_log(
+        db,
+        role="assistant",
+        content=assistant_content,
+        mode=payload.mode,
+        senior_user_id=payload.elder_user_id,
+    )
 
     return ChatMessageResponse(
         answer=answer,
@@ -69,6 +82,7 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
         missing_slots=agent_plan.missing_slots,
         executed_action=agent_plan.executed_action,
         places=places,
+        sources=sources,
         llm_latency_ms=llm_latency_ms,
         total_latency_ms=total_latency_ms,
     )
@@ -90,7 +104,13 @@ def build_speech_response(
         audio_bytes=audio_bytes,
         audio_content_type=audio_content_type,
     )
-    append_chat_log(db, role="user", content=transcript, mode=payload.mode)
+    append_chat_log(
+        db,
+        role="user",
+        content=transcript,
+        mode=payload.mode,
+        senior_user_id=payload.elder_user_id,
+    )
     stt_latency_ms = _elapsed_ms(stt_started_at)
     stt_confidence = _estimate_confidence(payload.audio_duration_ms, transcript)
     llm_provider = _get_effective_llm_provider()
@@ -108,7 +128,13 @@ def build_speech_response(
             None,
             total_latency_ms,
         )
-        append_chat_log(db, role="assistant", content="다시 한 번 천천히 말씀해 주세요.", mode=payload.mode)
+        append_chat_log(
+            db,
+            role="assistant",
+            content="다시 한 번 천천히 말씀해 주세요.",
+            mode=payload.mode,
+            senior_user_id=payload.elder_user_id,
+        )
         return ChatSpeechResponse(
             transcript=transcript,
             stt_confidence=stt_confidence,
@@ -130,7 +156,7 @@ def build_speech_response(
         )
 
     agent_plan = _build_effective_agent_plan(db=db, session_id=session_id, text=transcript, mode=payload.mode)
-    answer, clarification_question, llm_latency_ms, places = _build_answer(
+    answer, clarification_question, llm_latency_ms, places, sources = _build_answer(
         agent_plan=agent_plan,
         text=transcript,
         mode=payload.mode,
@@ -152,7 +178,13 @@ def build_speech_response(
     )
 
     assistant_content = clarification_question or answer
-    append_chat_log(db, role="assistant", content=assistant_content, mode=payload.mode)
+    append_chat_log(
+        db,
+        role="assistant",
+        content=assistant_content,
+        mode=payload.mode,
+        senior_user_id=payload.elder_user_id,
+    )
 
     return ChatSpeechResponse(
         transcript=transcript,
@@ -170,6 +202,7 @@ def build_speech_response(
         missing_slots=agent_plan.missing_slots,
         executed_action=agent_plan.executed_action,
         places=places,
+        sources=sources,
         stt_latency_ms=stt_latency_ms,
         llm_latency_ms=llm_latency_ms,
         total_latency_ms=total_latency_ms,
@@ -182,18 +215,18 @@ def _build_answer(
     mode: str,
     latitude: float | None = None,
     longitude: float | None = None,
-) -> tuple[str, str | None, int | None, list[ChatPlaceItem]]:
+) -> tuple[str, str | None, int | None, list[ChatPlaceItem], list[ChatSourceItem]]:
     if agent_plan.intent == "needs_clarification":
-        return "", agent_plan.clarification_question or "무슨 뜻인지 다시 한 번 말씀해 주세요.", None, []
+        return "", agent_plan.clarification_question or "무슨 뜻인지 다시 한 번 말씀해 주세요.", None, [], []
 
     if agent_plan.missing_slots:
-        return "", agent_plan.clarification_question, None, []
+        return "", agent_plan.clarification_question, None, [], []
 
     if agent_plan.awaiting_confirmation:
-        return "", agent_plan.clarification_question, None, []
+        return "", agent_plan.clarification_question, None, [], []
 
     if agent_plan.executed_action:
-        return agent_plan.clarification_question or "", None, None, []
+        return agent_plan.clarification_question or "", None, None, [], []
 
     policy = build_response_policy(
         agent_plan=agent_plan,
@@ -204,15 +237,15 @@ def _build_answer(
     )
 
     if policy.answer:
-        return policy.answer, None, None, policy.places or []
+        return policy.answer, None, None, policy.places or [], []
 
-    answer, llm_latency_ms = _generate_llm_answer(
+    answer, llm_latency_ms, sources = _generate_llm_answer(
         intent=agent_plan.intent,
         text=text,
         mode=mode,
         grounded_hint=policy.grounded_hint,
     )
-    return answer, None, llm_latency_ms, []
+    return answer, None, llm_latency_ms, [], sources
 
 
 def _generate_llm_answer(
@@ -220,18 +253,23 @@ def _generate_llm_answer(
     text: str,
     mode: str,
     grounded_hint: str | None = None,
-) -> tuple[str, int | None]:
+) -> tuple[str, int | None, list[ChatSourceItem]]:
     started_at = perf_counter()
     if _get_effective_llm_provider() == "openai":
         try:
+            if intent == "web_search_support":
+                answer, sources = generate_web_search_answer(user_text=text, mode=mode)
+                return answer, _elapsed_ms(started_at), sources
             answer = generate_chat_text(intent=intent, user_text=text, mode=mode, grounded_hint=grounded_hint)
-            return answer, _elapsed_ms(started_at)
+            return answer, _elapsed_ms(started_at), []
         except OpenAIServiceError:
-            return _build_stub_answer(intent=intent, text=text, mode=mode, grounded_hint=grounded_hint), _elapsed_ms(
-                started_at
+            return (
+                _build_stub_answer(intent=intent, text=text, mode=mode, grounded_hint=grounded_hint),
+                _elapsed_ms(started_at),
+                [],
             )
 
-    return _build_stub_answer(intent=intent, text=text, mode=mode, grounded_hint=grounded_hint), None
+    return _build_stub_answer(intent=intent, text=text, mode=mode, grounded_hint=grounded_hint), None, []
 
 
 def _build_stub_answer(intent: ChatIntent, text: str, mode: str, grounded_hint: str | None = None) -> str:
@@ -239,6 +277,8 @@ def _build_stub_answer(intent: ChatIntent, text: str, mode: str, grounded_hint: 
         return grounded_hint
     if intent == "medication_lookup" and grounded_hint:
         return grounded_hint
+    if intent == "web_search_support":
+        return f"'{text}'는 지금 바로 웹에서 확인하지 못했어요. 잠시 후 다시 말씀해 주세요."
     if intent == "small_talk":
         return "심심하실 수 있어요. 잠깐 같이 이야기해볼까요?"
     return f"'{text}'에 대한 기본 응답입니다. 실제 LLM 연동 전까지 사용하는 임시 응답입니다."

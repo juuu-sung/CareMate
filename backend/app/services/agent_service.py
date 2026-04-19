@@ -15,6 +15,7 @@ ACTION_TO_INTENT: dict[str, ChatIntent] = {
     "hospital_visit_support": "hospital_visit_support",
     "nearby_hospital_request": "nearby_hospital_request",
     "symptom_support": "symptom_support",
+    "web_search_request": "web_search_support",
     "small_talk": "small_talk",
     "general_support": "general_support",
     "needs_clarification": "needs_clarification",

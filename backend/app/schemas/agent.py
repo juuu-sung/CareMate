@@ -15,6 +15,7 @@ AgentAction = Literal[
     "hospital_visit_support",
     "nearby_hospital_request",
     "symptom_support",
+    "web_search_request",
     "small_talk",
     "general_support",
     "needs_clarification",

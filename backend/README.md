@@ -8,6 +8,23 @@ FastAPI 기반 서버 골격입니다.
 - `schemas`: 요청 및 응답 스키마
 - `core`: 설정과 데이터베이스 연결
 
+## Verified Install Versions
+
+팀원이 같은 백엔드 환경으로 받으려면 아래 기준으로 설치합니다.
+
+- Python `3.11.9`
+- 기준 파일: `requirements.txt`
+
+현재 확인한 설치 버전:
+
+- `fastapi` `0.115.0`
+- `uvicorn[standard]` `0.30.6`
+- `pydantic-settings` `2.5.2`
+- `sqlalchemy` `2.0.36`
+- `alembic` `1.14.0`
+- `psycopg[binary]` `3.2.3`
+- `python-multipart` `0.0.24`
+
 ## Local Run
 
 ```bash
