@@ -32,6 +32,7 @@ import {
   getPlaceStatus,
   sendChatMessage,
   sendChatSpeech,
+  TtsVoiceId,
 } from '@/services/chat';
 import { getCoordinatesForTextTurn, getCoordinatesForVoiceTurn } from '@/services/locationService';
 import { getCurrentMode } from '@/services/modes';
@@ -51,14 +52,26 @@ type VoiceUiState = 'idle' | 'listening' | 'processing' | 'needs_clarification' 
 
 export default function ChatPage() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ input?: string; autostart?: string }>();
+  const params = useLocalSearchParams<{
+    input?: string;
+    autostart?: string;
+    selectedVoice?: string;
+    agentName?: string;
+    elderUserId?: string;
+  }>();
+
   const isVoiceMode = params.input === 'voice';
+  const selectedVoice = String(params.selectedVoice || '') as TtsVoiceId | '';
+  const agentName = String(params.agentName || '');
+  const elderUserId = String(params.elderUserId || '');
+
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
   const player = useAudioPlayer(null, { downloadFirst: true });
   const playerStatus = useAudioPlayerStatus(player);
   const hasAttemptedAutoRecordingRef = useRef(false);
   const pendingTtsRequestRef = useRef<{ messageId: string; text: string } | null>(null);
+
   const [mode, setMode] = useState<CareMode>('basic');
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -73,13 +86,16 @@ export default function ChatPage() {
   const [voiceUiState, setVoiceUiState] = useState<VoiceUiState>('idle');
   const [showQuickConfirmation, setShowQuickConfirmation] = useState(false);
   const [selectedHistoryDay, setSelectedHistoryDay] = useState<string>('all');
+
   const [messages, setMessages] = useState<ChatBubble[]>(() =>
     isVoiceMode
       ? [
           {
             id: 'welcome',
             role: 'assistant',
-            text: '안녕하세요. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.',
+            text: agentName
+              ? `${agentName}입니다. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.`
+              : '안녕하세요. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.',
             meta: '기본 안내',
           },
         ]
@@ -119,9 +135,7 @@ export default function ChatPage() {
     return () => {
       try {
         player.pause();
-      } catch {
-        // `useAudioPlayer` cleanup can release the native object before this callback runs.
-      }
+      } catch {}
       void setAudioModeAsync({ allowsRecording: false });
     };
   }, [player]);
@@ -148,9 +162,7 @@ export default function ChatPage() {
     pendingTtsRequestRef.current = null;
     void setIsAudioActiveAsync(true)
       .then(() => {
-        player.seekTo(0).catch(() => {
-          // Some sources may not support seeking immediately after load.
-        });
+        player.seekTo(0).catch(() => {});
         player.play();
       })
       .catch((playbackError) => {
@@ -264,11 +276,16 @@ export default function ChatPage() {
         shouldPlayInBackground: false,
         shouldRouteThroughEarpiece: false,
       });
+
       const status = recorder.getStatus();
       const fileUri = status.url;
 
       if (!fileUri) {
         throw new Error('녹음 파일을 찾을 수 없습니다.');
+      }
+
+      if (!elderUserId) {
+        throw new Error('어르신 정보가 없습니다. 이전 화면에서 다시 들어와 주세요.');
       }
 
       const voiceCoordinates = await getCoordinatesForVoiceTurn();
@@ -282,8 +299,10 @@ export default function ChatPage() {
         clientMessageId: `voice-${Date.now()}`,
         sessionId: sessionId ?? undefined,
         transcriptVisibility: 'on_low_confidence',
+        elder_user_id: elderUserId,
         ...(voiceCoordinates ?? {}),
       });
+
       setSessionId(response.session_id ?? null);
 
       const transcriptBubble: ChatBubble = {
@@ -338,6 +357,10 @@ export default function ChatPage() {
     }
 
     try {
+      if (!elderUserId) {
+        throw new Error('어르신 정보가 없습니다. 이전 화면에서 다시 들어와 주세요.');
+      }
+
       const coordinates = await getCoordinatesForTextTurn(trimmedText);
       const response = await sendChatMessage({
         text: trimmedText,
@@ -345,8 +368,10 @@ export default function ChatPage() {
         context_source: 'text',
         client_message_id: `mobile-${Date.now()}`,
         session_id: sessionId ?? undefined,
+        elder_user_id: elderUserId,
         ...(coordinates ?? {}),
       });
+
       setSessionId(response.session_id ?? null);
 
       const assistantMessage: ChatBubble = {
@@ -361,9 +386,11 @@ export default function ChatPage() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
       if (isVoiceMode) {
         applyVoiceResponseState(response);
       }
+
       await playTtsForMessage(assistantMessage.id, assistantMessage.text);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : '대화 요청 중 오류가 발생했습니다.');
@@ -427,7 +454,7 @@ export default function ChatPage() {
       });
       await setIsAudioActiveAsync(true);
       pendingTtsRequestRef.current = { messageId, text: trimmedText };
-      player.replace(buildChatTtsUrl(trimmedText, mode));
+      player.replace(buildChatTtsUrl(trimmedText, mode, selectedVoice || undefined));
       player.play();
     } catch (ttsError) {
       pendingTtsRequestRef.current = null;
@@ -452,7 +479,7 @@ export default function ChatPage() {
   };
 
   const handleCallPlace = async (place: ChatPlaceItem) => {
-    const phone = (place.phone ?? "").trim();
+    const phone = (place.phone ?? '').trim();
 
     if (!phone) {
       setError('전화번호 정보가 없습니다.');
@@ -481,6 +508,7 @@ export default function ChatPage() {
     try {
       setCheckingPlaceKey(placeKey);
       setError(null);
+
       const response = await getPlaceStatus({
         place_name: place.name,
         address: place.address,
@@ -524,7 +552,7 @@ export default function ChatPage() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>대화하기</Text>
+        <Text style={styles.title}>{agentName ? `${agentName}와 대화하기` : '대화하기'}</Text>
         <Text style={styles.description}>
           {isVoiceMode
             ? '홈에서 바로 넘어왔습니다. 말씀하시면 전사와 답변을 이어서 확인할 수 있습니다.'
@@ -595,6 +623,7 @@ export default function ChatPage() {
                 <Text style={styles.messageLabel}>{getRoleLabel(message.role)}</Text>
                 <Text style={styles.messageText}>{message.text}</Text>
                 {message.meta ? <Text style={styles.messageMeta}>{message.meta}</Text> : null}
+
                 {message.places && message.places.length > 0 ? (
                   <View style={styles.placeButtonGroup}>
                     {message.places.map((place, placeIndex) => (
@@ -609,6 +638,7 @@ export default function ChatPage() {
                             : ''}
                           {place.phone ? ` · ${place.phone}` : ''}
                         </Text>
+
                         <View style={styles.placeActionRow}>
                           <TouchableOpacity
                             style={[styles.placeButton, styles.placeStatusButton]}
@@ -621,18 +651,22 @@ export default function ChatPage() {
                                 : '영업중 확인'}
                             </Text>
                           </TouchableOpacity>
+
                           <TouchableOpacity
                             style={styles.placeButton}
                             onPress={() => void handleOpenDirections(place)}
                           >
                             <Text style={styles.placeButtonActionText}>길안내</Text>
                           </TouchableOpacity>
+
                           {place.phone ? (
                             <TouchableOpacity
                               style={[styles.placeButton, styles.placeCallButton]}
                               onPress={() => void handleCallPlace(place)}
                             >
-                              <Text style={[styles.placeButtonActionText, styles.placeCallButtonText]}>전화하기</Text>
+                              <Text style={[styles.placeButtonActionText, styles.placeCallButtonText]}>
+                                전화하기
+                              </Text>
                             </TouchableOpacity>
                           ) : null}
                         </View>
@@ -640,6 +674,7 @@ export default function ChatPage() {
                     ))}
                   </View>
                 ) : null}
+
                 {message.sources && message.sources.length > 0 ? (
                   <View style={styles.sourceButtonGroup}>
                     {message.sources.map((source, sourceIndex) => (
@@ -653,6 +688,7 @@ export default function ChatPage() {
                     ))}
                   </View>
                 ) : null}
+
                 {message.role !== 'user' && message.text.trim() ? (
                   <TouchableOpacity
                     style={[styles.ttsButton, ttsMessageId === message.id && styles.ttsButtonActive]}
@@ -690,6 +726,7 @@ export default function ChatPage() {
         {isVoiceMode ? (
           <View style={styles.voiceCard}>
             <Text style={styles.inputLabel}>음성 대화</Text>
+
             <View style={[styles.voiceStatusCard, getVoiceStatusTone(voiceUiState).containerStyle]}>
               <Text style={[styles.voiceStatusTitle, getVoiceStatusTone(voiceUiState).titleStyle]}>
                 {getVoiceStatusTitle(voiceUiState)}
@@ -734,6 +771,7 @@ export default function ChatPage() {
                 >
                   <Text style={styles.confirmationButtonText}>네</Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
                   style={[styles.confirmationButton, styles.confirmNoButton]}
                   onPress={() => void submitTextTurn('아니오')}
@@ -1111,26 +1149,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: '#475569',
   },
-  voiceDescription: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: '#475569',
-  },
-  voiceMetaRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  voiceMetaLabel: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  voiceMetaValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
   voiceButton: {
     marginTop: 14,
     height: 54,
@@ -1358,7 +1376,7 @@ function getVoiceStatusDescription({
     return `${formatDuration(durationMillis)} 동안 듣고 있어요. 말씀을 마치면 아래 버튼으로 전송해 주세요.`;
   }
   if (voiceUiState === 'processing') {
-    return '전사와 답변을 확인하고 있어요. 잠시만 기다려 주세요.';
+    return '전사와 답변을 확인하고 있어요.';
   }
   if (voiceUiState === 'awaiting_confirmation') {
     return latestPrompt ?? '내용이 맞으면 네, 아니면 아니오를 눌러 주세요.';

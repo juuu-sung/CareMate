@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPostForm, buildApiUrl } from "@/services/api";
+import { apiGet, apiPatch, apiPost, apiPostForm, buildApiUrl } from "@/services/api";
 import { CareMode } from "@/types/care";
 
 export type ChatMessageRequest = {
@@ -7,13 +7,15 @@ export type ChatMessageRequest = {
   context_source: "text";
   client_message_id?: string;
   session_id?: string;
+  elder_user_id?: string;
   latitude?: number;
   longitude?: number;
+  
 };
 
 export type ChatPlaceItem = {
   name: string;
-  distance_meters: number;
+  distance_meters: number; 
   latitude: number;
   longitude: number;
   address?: string | null;
@@ -56,6 +58,7 @@ export type ChatSpeechRequest = {
   audioDurationMs?: number;
   clientMessageId?: string;
   sessionId?: string;
+  elder_user_id?: string;
   transcriptVisibility: TranscriptVisibility;
   latitude?: number;
   longitude?: number;
@@ -107,6 +110,99 @@ export type ChatPlaceStatusResponse = {
   sources: ChatSourceItem[];
 };
 
+export type TtsVoiceId =
+  | "alloy"
+  | "echo"
+  | "fable"
+  | "onyx"
+  | "nova"
+  | "shimmer";
+
+export type VoiceOption = {
+  id: TtsVoiceId;
+  name: string;
+  gender: "male" | "female" | "neutral";
+  tone: string;
+  description: string;
+  avatar: string;
+};
+
+export const CHAT_TTS_VOICE_OPTIONS: VoiceOption[] = [
+  {
+    id: "alloy",
+    name: "기본 음성",
+    gender: "neutral",
+    tone: "중립적",
+    description: "또렷하고 무난한 기본 목소리",
+    avatar: "기본",
+  },
+  {
+    id: "echo",
+    name: "차분한 남성",
+    gender: "male",
+    tone: "차분함",
+    description: "안정적이고 침착한 목소리",
+    avatar: "남",
+  },
+  {
+    id: "fable",
+    name: "부드러운 여성",
+    gender: "female",
+    tone: "부드러움",
+    description: "편안하고 자연스러운 목소리",
+    avatar: "여",
+  },
+  {
+    id: "onyx",
+    name: "신뢰감 남성",
+    gender: "male",
+    tone: "묵직함",
+    description: "낮고 안정적인 목소리",
+    avatar: "남",
+  },
+  {
+    id: "nova",
+    name: "밝은 여성",
+    gender: "female",
+    tone: "밝음",
+    description: "친근하고 경쾌한 목소리",
+    avatar: "여",
+  },
+  {
+    id: "shimmer",
+    name: "따뜻한 여성",
+    gender: "female",
+    tone: "따뜻함",
+    description: "부드럽고 다정한 목소리",
+    avatar: "여",
+  },
+];
+
+export type AgentProfilePayload = {
+  elder_user_id: string;
+  agent_voice?: string;
+  agent_name?: string;
+};
+
+export type AgentProfileResponse = {
+  elder_user_id: string;
+  agent_voice?: string | null;
+  agent_name?: string | null;
+};
+
+export async function updateAgentProfile(
+  payload: AgentProfilePayload
+): Promise<AgentProfileResponse> {
+  return apiPatch("/elder-profile/agent", payload);
+}
+
+export async function getAgentProfile(
+  elderUserId: string
+): Promise<AgentProfileResponse> {
+  return apiGet(`/elder-profile/agent?elder_user_id=${encodeURIComponent(elderUserId)}`);
+}
+
+
 export function sendChatMessage(payload: ChatMessageRequest) {
   return apiPost<ChatMessageResponse>("/chat/message", payload);
 }
@@ -137,6 +233,10 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
     formData.append("session_id", payload.sessionId);
   }
 
+  if (payload.elder_user_id) {
+    formData.append("elder_user_id", payload.elder_user_id);
+  }
+
   formData.append("transcript_visibility", payload.transcriptVisibility);
 
   if (payload.latitude !== undefined) {
@@ -158,11 +258,19 @@ export function getPlaceStatus(payload: ChatPlaceStatusRequest) {
   return apiPost<ChatPlaceStatusResponse>("/chat/place-status", payload);
 }
 
-export function buildChatTtsUrl(text: string, mode: CareMode) {
+export function buildChatTtsUrl(
+  text: string,
+  mode: CareMode,
+  voice?: TtsVoiceId | string
+) {
   const searchParams = new URLSearchParams({
     text,
     mode,
   });
+
+  if (voice) {
+    searchParams.append("voice", voice);
+  }
 
   return buildApiUrl(`/chat/tts?${searchParams.toString()}`);
 }
