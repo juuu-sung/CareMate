@@ -8,10 +8,23 @@ export type ParentSignupPayload = {
   phone: string;
 };
 
+export type ParentLoginPayload = {
+  phone: string;
+  birth: string;
+};
+
 export type ParentSignupResponse = {
   parent_id: string;
   parent_name: string;
   link_code: string;
+  message?: string;
+};
+
+export type ParentLoginResponse = {
+  parent_id: string;
+  parent_name: string;
+  link_code: string;
+  guardian_phone: string;
   message?: string;
 };
 
@@ -36,6 +49,10 @@ export type ParentCareInfoPayload = {
 
 export function parentSignup(payload: ParentSignupPayload) {
   return apiPost<ParentSignupResponse>("/parents/signup", payload);
+}
+
+export function parentLogin(payload: ParentLoginPayload) {
+  return apiPost<ParentLoginResponse>("/parents/login", payload);
 }
 
 export function getParentByCode(linkCode: string) {

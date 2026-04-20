@@ -27,8 +27,14 @@ def send_message(payload: ChatMessageRequest, db: Session = Depends(get_db)) -> 
 
 
 @router.get("/history", response_model=ChatHistoryResponse)
-def get_history(limit: int = Query(50, ge=1, le=100), db: Session = Depends(get_db)) -> ChatHistoryResponse:
-    return ChatHistoryResponse(items=list_chat_logs(db, limit=limit))
+def get_history(
+    limit: int = Query(50, ge=1, le=100),
+    elder_user_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> ChatHistoryResponse:
+    return ChatHistoryResponse(
+        items=list_chat_logs(db, limit=limit, senior_user_id=elder_user_id)
+    )
 
 
 @router.post("/place-status", response_model=ChatPlaceStatusResponse)

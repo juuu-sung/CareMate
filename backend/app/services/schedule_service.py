@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.schemas.agent import AgentSlots
 from app.schemas.chat import CareMode
+from app.services.guardian_alert_service import create_guardian_alert
 
 
-def list_schedules(db: Session) -> list[dict[str, str]]:
-    senior_user_id = _get_primary_elder_id(db)
+def list_schedules(db: Session, elder_user_id: str | None = None) -> list[dict[str, str]]:
+    senior_user_id = elder_user_id or _get_primary_elder_id(db)
     if not senior_user_id:
-        return [{"title": "주민센터 방문", "time": "15:00", "status": "scheduled", "date": "오늘"}]
+        return []
 
     items = db.execute(
         text(
@@ -25,7 +26,7 @@ def list_schedules(db: Session) -> list[dict[str, str]]:
     ).mappings().all()
 
     if not items:
-        return [{"title": "주민센터 방문", "time": "15:00", "status": "scheduled", "date": "오늘"}]
+        return []
 
     return [
         {
@@ -75,6 +76,18 @@ def create_schedule_from_slots(db: Session, slots: AgentSlots, mode: CareMode) -
             "scheduled_at": scheduled_at,
         },
     ).mappings().one()
+
+    create_guardian_alert(
+        db,
+        elder_user_id=senior_user_id,
+        alert_type="schedule_created",
+        message=(
+            f"새 일정이 등록되었어요: "
+            f"{created_row['title']} ({_format_schedule_date(created_row['scheduled_at'])} {created_row['scheduled_at'].strftime('%H:%M')})"
+        ),
+        severity="low",
+        dedupe_minutes=60,
+    )
     db.commit()
 
     return {

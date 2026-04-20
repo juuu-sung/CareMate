@@ -1,19 +1,110 @@
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter } from 'expo-router';
+
+import {
+  buildParentAuthSession,
+  saveAuthSession,
+} from '@/services/authSession';
+import { parentLogin } from '@/services/parents';
 
 export default function ParentLoginPage() {
   const router = useRouter();
+  const [phone, setPhone] = useState('');
+  const [birth, setBirth] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!phone.trim() || !birth.trim()) {
+      Alert.alert('입력 확인', '전화번호와 생년월일을 입력해주세요.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const result = await parentLogin({
+        phone: phone.trim(),
+        birth: birth.trim(),
+      });
+
+      try {
+        await saveAuthSession(
+          buildParentAuthSession({
+            parentId: result.parent_id,
+            elderUserId: result.parent_id,
+            parentName: result.parent_name,
+            linkCode: result.link_code,
+            guardianPhone: result.guardian_phone,
+          })
+        );
+      } catch (sessionError) {
+        console.log('부모님 로그인 세션 저장 오류:', sessionError);
+      }
+
+      router.replace({
+        pathname: '/home',
+        params: {
+          parentId: result.parent_id,
+          elderUserId: result.parent_id,
+          parentName: result.parent_name,
+          linkCode: result.link_code,
+          guardianPhone: result.guardian_phone,
+        },
+      });
+    } catch (error: any) {
+      Alert.alert('로그인 실패', error.message || '부모님 로그인에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Text style={styles.title}>부모님 로그인</Text>
         <Text style={styles.description}>
-          로그인 화면은 아직 연결 전입니다. 현재는 테스트용으로 홈 화면으로 바로 이동합니다.
+          가입할 때 입력한 전화번호와 생년월일로 로그인합니다.
         </Text>
 
-        <TouchableOpacity style={styles.primaryButton} onPress={() => router.replace('/home')}>
-          <Text style={styles.primaryButtonText}>테스트 홈으로 이동</Text>
+        <Text style={styles.label}>전화번호</Text>
+        <TextInput
+          style={styles.input}
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="예: 010-1234-5678"
+          placeholderTextColor="#94A3B8"
+          keyboardType="phone-pad"
+        />
+
+        <Text style={styles.label}>생년월일</Text>
+        <TextInput
+          style={styles.input}
+          value={birth}
+          onChangeText={setBirth}
+          placeholder="예: 1947. 03. 12."
+          placeholderTextColor="#94A3B8"
+        />
+
+        <TouchableOpacity
+          style={[styles.primaryButton, loading && styles.disabledButton]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.primaryButtonText}>로그인</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.secondaryButton} onPress={() => router.back()}>
@@ -48,12 +139,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 28,
   },
+  label: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  input: {
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#0F172A',
+  },
   primaryButton: {
+    marginTop: 24,
     height: 58,
     borderRadius: 16,
     backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   primaryButtonText: {
     color: '#FFFFFF',

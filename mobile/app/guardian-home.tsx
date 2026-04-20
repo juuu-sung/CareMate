@@ -1,5 +1,7 @@
 import React from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   SafeAreaView,
   ScrollView,
   Text,
@@ -7,13 +9,24 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Ionicons,
   MaterialCommunityIcons,
   Feather,
   FontAwesome6,
 } from '@expo/vector-icons';
+import {
+  buildGuardianAuthSession,
+  clearAuthSession,
+  saveAuthSession,
+} from '@/services/authSession';
+import {
+  getGuardianAlerts,
+  getGuardianDashboard,
+  GuardianAlertItem,
+} from '@/services/guardian';
+import { GuardianDashboard } from '@/types/guardian';
 
 type StatItem = {
   label: string;
@@ -29,10 +42,69 @@ type MenuItem = {
   iconName: string;
 };
 
-type AlertItem = {
-  title: string;
-  time: string;
-};
+function formatRelativeTime(timestamp: string) {
+  if (!timestamp) {
+    return '기록 없음';
+  }
+
+  const target = new Date(timestamp);
+  if (Number.isNaN(target.getTime())) {
+    return '기록 없음';
+  }
+
+  const diffMs = Date.now() - target.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
+
+  if (diffMinutes < 1) {
+    return '방금 전';
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes}분 전`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}시간 전`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) {
+    return `${diffDays}일 전`;
+  }
+
+  return `${target.getMonth() + 1}/${target.getDate()}`;
+}
+
+function formatCheckInStatus(status: GuardianDashboard['check_in_status']) {
+  switch (status) {
+    case 'pending':
+      return '응답 대기';
+    case 'missed':
+      return '확인 필요';
+    case 'responded':
+    default:
+      return '응답 완료';
+  }
+}
+
+function getHealthStatus(dashboard: GuardianDashboard | null, hasError: boolean) {
+  if (hasError) {
+    return { label: '오류', color: '#EF4444' };
+  }
+  if (!dashboard) {
+    return { label: '확인중', color: '#6B7280' };
+  }
+  if (
+    dashboard.open_alert_count > 0 ||
+    dashboard.check_in_status === 'missed'
+  ) {
+    return { label: '주의', color: '#F97316' };
+  }
+  if (dashboard.today_medication_pending_count > 0) {
+    return { label: '확인', color: '#EAB308' };
+  }
+  return { label: '안정', color: '#05B547' };
+}
 
 export default function GuardianHomeScreen() {
   const router = useRouter();
@@ -51,28 +123,69 @@ export default function GuardianHomeScreen() {
   const memo = String(params.memo || '');
   const allergies = String(params.allergies || '');
 
+  const [dashboard, setDashboard] = React.useState<GuardianDashboard | null>(null);
+  const [alerts, setAlerts] = React.useState<GuardianAlertItem[]>([]);
+  const [isLoadingDashboard, setIsLoadingDashboard] = React.useState(true);
+  const [dashboardError, setDashboardError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!parentId || !linkCode) {
+      return;
+    }
+
+    void saveAuthSession(
+      buildGuardianAuthSession({
+        parentId,
+        parentName,
+        parentAge,
+        parentGender,
+        linkCode,
+        medications,
+        diseases,
+        allergies,
+        hospital,
+        doctorContact,
+        memo,
+      })
+    ).catch((error) => {
+      console.log('보호자 홈 세션 동기화 오류:', error);
+    });
+  }, [
+    allergies,
+    diseases,
+    doctorContact,
+    hospital,
+    linkCode,
+    medications,
+    memo,
+    parentAge,
+    parentGender,
+    parentId,
+    parentName,
+  ]);
+
   const quickStats: StatItem[] = [
     {
-      label: '오늘 대화',
-      value: '12회',
+      label: '체크인 상태',
+      value: dashboard ? formatCheckInStatus(dashboard.check_in_status) : '불러오는 중',
       iconType: 'Ionicons',
       iconName: 'chatbubble-ellipses-outline',
     },
     {
-      label: '건강 점수',
-      value: '85점',
+      label: '복약 남음',
+      value: dashboard ? `${dashboard.today_medication_pending_count}건` : '-',
       iconType: 'MaterialCommunityIcons',
       iconName: 'heart-pulse',
     },
     {
-      label: '다음 일정',
-      value: '내일 병원',
+      label: '오늘 일정',
+      value: dashboard ? `${dashboard.today_schedule_count}건` : '-',
       iconType: 'Ionicons',
       iconName: 'calendar-outline',
     },
     {
       label: '현재 위치',
-      value: '확인 가능',
+      value: dashboard ? dashboard.latest_location_label : '불러오는 중',
       iconType: 'Ionicons',
       iconName: 'location-outline',
     },
@@ -117,13 +230,95 @@ export default function GuardianHomeScreen() {
     },
   ];
 
-  const alerts: AlertItem[] = [
-    { title: '오늘 12회의 대화를 나누셨어요', time: '10분 전' },
-    { title: '건강 상태가 전반적으로 안정적이에요', time: '1시간 전' },
-    { title: '내일 오후 2시 병원 일정이 있어요', time: '2시간 전' },
-  ];
+  const loadGuardianData = React.useCallback(async () => {
+    if (!parentId || !linkCode) {
+      setDashboard(null);
+      setAlerts([]);
+      setDashboardError('연동 정보가 없어 보호자 홈 데이터를 불러올 수 없어요.');
+      setIsLoadingDashboard(false);
+      return;
+    }
+
+    setIsLoadingDashboard(true);
+    setDashboardError(null);
+
+    try {
+      const [dashboardResponse, alertsResponse] = await Promise.all([
+        getGuardianDashboard(parentId, linkCode),
+        getGuardianAlerts(parentId, linkCode),
+      ]);
+
+      setDashboard(dashboardResponse);
+      setAlerts(alertsResponse.items);
+    } catch (error) {
+      console.log('보호자 홈 조회 오류:', error);
+      setDashboard(null);
+      setAlerts([]);
+      setDashboardError('보호자 홈 정보를 불러오지 못했어요.');
+    } finally {
+      setIsLoadingDashboard(false);
+    }
+  }, [linkCode, parentId]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void loadGuardianData();
+    }, [loadGuardianData])
+  );
+
+  const healthStatus = getHealthStatus(dashboard, !!dashboardError);
+  const headerStatusText = dashboardError
+    ? '데이터 연결 확인 필요'
+    : dashboard?.latest_location_captured_at
+      ? `위치 갱신 ${formatRelativeTime(dashboard.latest_location_captured_at)}`
+      : dashboard
+        ? `체크인 ${formatCheckInStatus(dashboard.check_in_status)}`
+        : '데이터 불러오는 중';
+
+  const openGuardianLocation = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-location',
+      params: {
+        parentId,
+        parentName,
+        linkCode,
+      },
+    });
+  }, [linkCode, parentId, parentName, router]);
+
+  const openGuardianConversations = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-conversations',
+      params: {
+        parentId,
+        parentName,
+        linkCode,
+      },
+    });
+  }, [linkCode, parentId, parentName, router]);
+
+  const openGuardianSchedules = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-schedules',
+      params: {
+        parentId,
+        parentName,
+        linkCode,
+      },
+    });
+  }, [linkCode, parentId, parentName, router]);
 
   const handleMenuPress = (title: string) => {
+    if (title === '대화 요약') {
+      openGuardianConversations();
+      return;
+    }
+
+    if (title === '병원 일정') {
+      openGuardianSchedules();
+      return;
+    }
+
     if (title === '위치 확인') {
       router.push({
         pathname: '/guardian-location',
@@ -178,6 +373,26 @@ export default function GuardianHomeScreen() {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert('로그아웃', '현재 로그인 정보를 지우고 처음 화면으로 돌아갈까요?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '로그아웃',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await clearAuthSession();
+              router.replace('/');
+            } catch (error) {
+              console.log('보호자 로그아웃 오류:', error);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -200,14 +415,20 @@ export default function GuardianHomeScreen() {
 
               <View style={styles.statusRow}>
                 <View style={styles.liveDot} />
-                <Text style={styles.statusText}>마지막 활동 5분 전</Text>
+                <Text style={styles.statusText}>{headerStatusText}</Text>
               </View>
             </View>
 
             <View style={styles.scoreBox}>
-              <MaterialCommunityIcons name="heart-pulse" size={20} color="#05B547" />
-              <Text style={styles.scoreValue}>85</Text>
-              <Text style={styles.scoreLabel}>건강 점수</Text>
+              <MaterialCommunityIcons
+                name="heart-pulse"
+                size={20}
+                color={healthStatus.color}
+              />
+              <Text style={[styles.scoreValue, { color: healthStatus.color }]}>
+                {healthStatus.label}
+              </Text>
+              <Text style={styles.scoreLabel}>건강 상태</Text>
             </View>
           </View>
         </View>
@@ -304,21 +525,53 @@ export default function GuardianHomeScreen() {
 
         <Text style={styles.sectionTitle}>최근 알림</Text>
         <View style={styles.alertsCard}>
-          {alerts.map((item, index) => (
-            <View key={index}>
-              <View style={styles.alertRow}>
-                <View style={styles.alertIconWrap}>
-                  <Ionicons name="notifications-outline" size={18} color="#05B547" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.alertTitle}>{item.title}</Text>
-                  <Text style={styles.alertTime}>{item.time}</Text>
-                </View>
-              </View>
-              {index !== alerts.length - 1 && <Divider />}
+          {isLoadingDashboard ? (
+            <View style={styles.loadingAlertRow}>
+              <ActivityIndicator size="small" color="#05B547" />
+              <Text style={styles.alertTime}>최근 알림을 불러오는 중이에요</Text>
             </View>
-          ))}
+          ) : dashboardError ? (
+            <View style={styles.loadingAlertRow}>
+              <Text style={styles.alertTitle}>{dashboardError}</Text>
+              <Text style={styles.alertTime}>백엔드 연결 상태를 확인해 주세요.</Text>
+            </View>
+          ) : alerts.length === 0 ? (
+            <View style={styles.loadingAlertRow}>
+              <Text style={styles.alertTitle}>최근 알림이 없어요</Text>
+              <Text style={styles.alertTime}>새로운 보호 알림이 생기면 여기에 표시됩니다.</Text>
+            </View>
+          ) : (
+            alerts.map((item, index) => (
+              <View key={`${item.type}-${item.created_at}-${index}`}>
+                <TouchableOpacity
+                  style={styles.alertRow}
+                  activeOpacity={0.85}
+                  onPress={openGuardianLocation}
+                  disabled={!parentId || !linkCode}
+                >
+                  <View style={styles.alertIconWrap}>
+                    <Ionicons name="notifications-outline" size={18} color="#05B547" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.alertTitle}>{item.message}</Text>
+                    <Text style={styles.alertTime}>{formatRelativeTime(item.created_at)}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+                {index !== alerts.length - 1 && <Divider />}
+              </View>
+            ))
+          )}
         </View>
+
+        <TouchableOpacity
+          style={styles.logoutButton}
+          activeOpacity={0.85}
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.logoutButtonText}>로그아웃</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -606,5 +859,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     color: '#6B7280',
+  },
+  loadingAlertRow: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  logoutButton: {
+    marginTop: 18,
+    borderRadius: 18,
+    backgroundColor: '#DC2626',
+    minHeight: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  logoutButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
   },
 });

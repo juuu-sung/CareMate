@@ -11,6 +11,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  buildGuardianAuthSession,
+  saveAuthSession,
+} from '@/services/authSession';
 import { updateParentCareInfo } from '@/services/parents';
 
 export default function GuardianParentInfoScreen() {
@@ -49,6 +53,26 @@ export default function GuardianParentInfoScreen() {
         memo: memo.trim(),
       });
 
+      try {
+        await saveAuthSession(
+          buildGuardianAuthSession({
+            parentId,
+            parentName,
+            parentAge,
+            parentGender,
+            linkCode,
+            medications: medications.trim(),
+            diseases: diseases.trim(),
+            allergies: allergies.trim(),
+            hospital: hospital.trim(),
+            doctorContact: doctorContact.trim(),
+            memo: memo.trim(),
+          })
+        );
+      } catch (sessionError) {
+        console.log('보호자 세션 저장 오류:', sessionError);
+      }
+
       router.replace({
         pathname: '/guardian-home',
         params: {
@@ -57,13 +81,12 @@ export default function GuardianParentInfoScreen() {
           parentAge,
           parentGender,
           linkCode,
-          
-            medications,
-            diseases,
-            allergies,
-            hospital,
-            doctorContact,
-            memo,
+          medications: medications.trim(),
+          diseases: diseases.trim(),
+          allergies: allergies.trim(),
+          hospital: hospital.trim(),
+          doctorContact: doctorContact.trim(),
+          memo: memo.trim(),
         },
       });
     } catch (error: any) {

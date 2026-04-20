@@ -18,27 +18,17 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from "expo-audio";
+import {
+  buildParentAuthSession,
+  saveAuthSession,
+} from "@/services/authSession";
 
 import {
   buildChatTtsUrl,
   sendChatSpeech,
   TtsVoiceId,
+  updateAgentProfile,
 } from "@/services/chat";
-import { apiPatch } from "@/services/api";
-
-type AgentProfileResponse = {
-  elder_user_id: string;
-  agent_voice?: string | null;
-  agent_name?: string | null;
-};
-
-async function updateAgentProfile(payload: {
-  elder_user_id: string;
-  agent_voice?: string;
-  agent_name?: string;
-}): Promise<AgentProfileResponse> {
-  return apiPatch("/elder-profile/agent", payload);
-}
 
 export default function ParentAgentNameSetupScreen() {
   const router = useRouter();
@@ -314,6 +304,19 @@ export default function ParentAgentNameSetupScreen() {
         agent_name: recognizedName,
         agent_voice: selectedVoice || undefined,
       });
+
+      try {
+        await saveAuthSession(
+          buildParentAuthSession({
+            parentId,
+            elderUserId: parentId,
+            parentName,
+            linkCode,
+          })
+        );
+      } catch (sessionError) {
+        console.log("부모님 가입 세션 저장 오류:", sessionError);
+      }
 
       router.replace({
         pathname: "/home",

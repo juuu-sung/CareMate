@@ -1,0 +1,214 @@
+import * as FileSystem from 'expo-file-system/legacy';
+
+export type ParentAuthSession = {
+  role: 'parent';
+  parentId: string;
+  elderUserId: string;
+  parentName: string;
+  linkCode: string;
+  guardianPhone: string;
+};
+
+export type GuardianAuthSession = {
+  role: 'guardian';
+  parentId: string;
+  parentName: string;
+  parentAge: string;
+  parentGender: string;
+  linkCode: string;
+  medications: string;
+  diseases: string;
+  allergies: string;
+  hospital: string;
+  doctorContact: string;
+  memo: string;
+};
+
+export type AuthSession = ParentAuthSession | GuardianAuthSession;
+
+const SESSION_FILE_URI = FileSystem.documentDirectory
+  ? `${FileSystem.documentDirectory}caremate-auth-session.json`
+  : null;
+
+function normalizeString(value: unknown) {
+  return typeof value === 'string' ? value : '';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function parseAuthSession(value: unknown): AuthSession | null {
+  if (!isRecord(value) || typeof value.role !== 'string') {
+    return null;
+  }
+
+  if (value.role === 'parent') {
+    const parentId = normalizeString(value.parentId);
+    const elderUserId = normalizeString(value.elderUserId) || parentId;
+    const parentName = normalizeString(value.parentName);
+    const linkCode = normalizeString(value.linkCode);
+
+    if (!parentId || !parentName || !linkCode) {
+      return null;
+    }
+
+    return {
+      role: 'parent',
+      parentId,
+      elderUserId,
+      parentName,
+      linkCode,
+      guardianPhone: normalizeString(value.guardianPhone),
+    };
+  }
+
+  if (value.role === 'guardian') {
+    const parentId = normalizeString(value.parentId);
+    const parentName = normalizeString(value.parentName);
+    const linkCode = normalizeString(value.linkCode);
+
+    if (!parentId || !parentName || !linkCode) {
+      return null;
+    }
+
+    return {
+      role: 'guardian',
+      parentId,
+      parentName,
+      parentAge: normalizeString(value.parentAge),
+      parentGender: normalizeString(value.parentGender),
+      linkCode,
+      medications: normalizeString(value.medications),
+      diseases: normalizeString(value.diseases),
+      allergies: normalizeString(value.allergies),
+      hospital: normalizeString(value.hospital),
+      doctorContact: normalizeString(value.doctorContact),
+      memo: normalizeString(value.memo),
+    };
+  }
+
+  return null;
+}
+
+export function buildParentAuthSession(input: {
+  parentId: string;
+  elderUserId?: string;
+  parentName: string;
+  linkCode: string;
+  guardianPhone?: string;
+}): ParentAuthSession {
+  return {
+    role: 'parent',
+    parentId: input.parentId,
+    elderUserId: input.elderUserId || input.parentId,
+    parentName: input.parentName,
+    linkCode: input.linkCode,
+    guardianPhone: input.guardianPhone || '',
+  };
+}
+
+export function buildGuardianAuthSession(input: {
+  parentId: string;
+  parentName: string;
+  parentAge?: string;
+  parentGender?: string;
+  linkCode: string;
+  medications?: string;
+  diseases?: string;
+  allergies?: string;
+  hospital?: string;
+  doctorContact?: string;
+  memo?: string;
+}): GuardianAuthSession {
+  return {
+    role: 'guardian',
+    parentId: input.parentId,
+    parentName: input.parentName,
+    parentAge: input.parentAge || '',
+    parentGender: input.parentGender || '',
+    linkCode: input.linkCode,
+    medications: input.medications || '',
+    diseases: input.diseases || '',
+    allergies: input.allergies || '',
+    hospital: input.hospital || '',
+    doctorContact: input.doctorContact || '',
+    memo: input.memo || '',
+  };
+}
+
+export function getAuthSessionHomeRoute(session: AuthSession) {
+  if (session.role === 'parent') {
+    return {
+      pathname: '/home' as const,
+      params: {
+        parentId: session.parentId,
+        elderUserId: session.elderUserId,
+        parentName: session.parentName,
+        linkCode: session.linkCode,
+        guardianPhone: session.guardianPhone,
+      },
+    };
+  }
+
+  return {
+    pathname: '/guardian-home' as const,
+    params: {
+      parentId: session.parentId,
+      parentName: session.parentName,
+      parentAge: session.parentAge,
+      parentGender: session.parentGender,
+      linkCode: session.linkCode,
+      medications: session.medications,
+      diseases: session.diseases,
+      allergies: session.allergies,
+      hospital: session.hospital,
+      doctorContact: session.doctorContact,
+      memo: session.memo,
+    },
+  };
+}
+
+export async function saveAuthSession(session: AuthSession) {
+  if (!SESSION_FILE_URI) {
+    return;
+  }
+
+  await FileSystem.writeAsStringAsync(
+    SESSION_FILE_URI,
+    JSON.stringify(session)
+  );
+}
+
+export async function loadAuthSession() {
+  if (!SESSION_FILE_URI) {
+    return null;
+  }
+
+  try {
+    const fileInfo = await FileSystem.getInfoAsync(SESSION_FILE_URI);
+
+    if (!fileInfo.exists) {
+      return null;
+    }
+
+    const contents = await FileSystem.readAsStringAsync(SESSION_FILE_URI);
+    return parseAuthSession(JSON.parse(contents));
+  } catch {
+    return null;
+  }
+}
+
+export async function clearAuthSession() {
+  if (!SESSION_FILE_URI) {
+    return;
+  }
+
+  const fileInfo = await FileSystem.getInfoAsync(SESSION_FILE_URI);
+
+  if (!fileInfo.exists) {
+    return;
+  }
+
+  await FileSystem.deleteAsync(SESSION_FILE_URI);
+}

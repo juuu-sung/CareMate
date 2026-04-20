@@ -2,12 +2,18 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
-def append_chat_log(db: Session, role: str, content: str, mode: str) -> None:
+def append_chat_log(
+    db: Session,
+    role: str,
+    content: str,
+    mode: str,
+    senior_user_id: str | None = None,
+) -> None:
     normalized_content = content.strip()
     if not normalized_content:
         return
 
-    senior_user_id = _get_primary_elder_id(db)
+    senior_user_id = senior_user_id or _get_primary_elder_id(db)
     if not senior_user_id:
         return
 
@@ -38,11 +44,11 @@ def append_chat_log(db: Session, role: str, content: str, mode: str) -> None:
     db.commit()
 
 
-def list_chat_logs(db: Session, limit: int = 50) -> list[dict[str, str]]:
-    senior_user_id = _get_primary_elder_id(db)
-    if not senior_user_id:
-        return []
-
+def list_chat_logs_for_elder(
+    db: Session,
+    senior_user_id: str,
+    limit: int = 50,
+) -> list[dict[str, str]]:
     rows = db.execute(
         text(
             """
@@ -68,6 +74,22 @@ def list_chat_logs(db: Session, limit: int = 50) -> list[dict[str, str]]:
         }
         for row in reversed(rows)
     ]
+
+
+def list_chat_logs(
+    db: Session,
+    limit: int = 50,
+    senior_user_id: str | None = None,
+) -> list[dict[str, str]]:
+    senior_user_id = senior_user_id or _get_primary_elder_id(db)
+    if not senior_user_id:
+        return []
+
+    return list_chat_logs_for_elder(
+        db,
+        senior_user_id=senior_user_id,
+        limit=limit,
+    )
 
 
 def _get_primary_elder_id(db: Session) -> str | None:

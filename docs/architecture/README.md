@@ -9,3 +9,4 @@
 - 외부 API 연동 지점
 - DB 스키마 초안: `database-schema.md`
 - 기능별 구조 정리: `feature-structure.md`
+- STT 실험용 manifest 설계: `stt-manifest-design.md`

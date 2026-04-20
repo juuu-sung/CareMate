@@ -34,6 +34,7 @@ import {
   sendChatSpeech,
   TtsVoiceId,
 } from '@/services/chat';
+import { loadAuthSession } from '@/services/authSession';
 import { getCoordinatesForTextTurn, getCoordinatesForVoiceTurn } from '@/services/locationService';
 import { getCurrentMode } from '@/services/modes';
 import { CareMode } from '@/types/care';
@@ -58,12 +59,12 @@ export default function ChatPage() {
     selectedVoice?: string;
     agentName?: string;
     elderUserId?: string;
+    elder_user_id?: string;
+    parentId?: string;
   }>();
-
   const isVoiceMode = params.input === 'voice';
   const selectedVoice = String(params.selectedVoice || '') as TtsVoiceId | '';
   const agentName = String(params.agentName || '');
-  const elderUserId = String(params.elderUserId || '');
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
@@ -80,13 +81,17 @@ export default function ChatPage() {
   const [ttsMessageId, setTtsMessageId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoadingMode, setIsLoadingMode] = useState(true);
+  const [isLoadingElderUserId, setIsLoadingElderUserId] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [hasRecordingPermission, setHasRecordingPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [voiceUiState, setVoiceUiState] = useState<VoiceUiState>('idle');
   const [showQuickConfirmation, setShowQuickConfirmation] = useState(false);
   const [selectedHistoryDay, setSelectedHistoryDay] = useState<string>('all');
-
+  const [selectedCalendarMonth, setSelectedCalendarMonth] = useState(() => startOfMonth(new Date()));
+  const [elderUserId, setElderUserId] = useState(
+    String(params.elderUserId || params.elder_user_id || params.parentId || '')
+  );
   const [messages, setMessages] = useState<ChatBubble[]>(() =>
     isVoiceMode
       ? [
@@ -101,6 +106,44 @@ export default function ChatPage() {
         ]
       : []
   );
+
+  useEffect(() => {
+    const paramElderUserId = String(
+      params.elderUserId || params.elder_user_id || params.parentId || ''
+    );
+
+    if (paramElderUserId) {
+      setElderUserId(paramElderUserId);
+      setIsLoadingElderUserId(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const restoreParentSession = async () => {
+      try {
+        const session = await loadAuthSession();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (session?.role === 'parent') {
+          setElderUserId(session.elderUserId || session.parentId);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingElderUserId(false);
+        }
+      }
+    };
+
+    void restoreParentSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [params.elderUserId, params.elder_user_id, params.parentId]);
 
   useEffect(() => {
     let mounted = true;
@@ -175,7 +218,12 @@ export default function ChatPage() {
     if (!isVoiceMode || params.autostart !== '1') {
       return;
     }
-    if (isLoadingMode || recorderState.isRecording || isUploadingVoice) {
+    if (
+      isLoadingMode ||
+      isLoadingElderUserId ||
+      recorderState.isRecording ||
+      isUploadingVoice
+    ) {
       return;
     }
     if (hasAttemptedAutoRecordingRef.current) {
@@ -184,17 +232,34 @@ export default function ChatPage() {
 
     hasAttemptedAutoRecordingRef.current = true;
     void handleStartRecording();
-  }, [isLoadingMode, isUploadingVoice, isVoiceMode, params.autostart, recorderState.isRecording]);
+  }, [
+    isLoadingElderUserId,
+    isLoadingMode,
+    isUploadingVoice,
+    isVoiceMode,
+    params.autostart,
+    recorderState.isRecording,
+  ]);
 
   const loadHistory = useCallback(async () => {
     if (isVoiceMode) {
       return;
     }
 
+    if (isLoadingElderUserId) {
+      return;
+    }
+
+    if (!elderUserId) {
+      setMessages([]);
+      setError('부모님 계정 정보를 찾지 못했습니다.');
+      return;
+    }
+
     try {
       setIsLoadingHistory(true);
       setError(null);
-      const response = await getChatHistory();
+      const response = await getChatHistory(50, elderUserId);
       const historyMessages: ChatBubble[] = response.items.map((item, index) => ({
         id: `history-${item.created_at}-${index}`,
         role: item.role,
@@ -208,7 +273,7 @@ export default function ChatPage() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [isVoiceMode]);
+  }, [elderUserId, isLoadingElderUserId, isVoiceMode]);
 
   useFocusEffect(
     useCallback(() => {
@@ -268,6 +333,10 @@ export default function ChatPage() {
     setVoiceUiState('processing');
 
     try {
+      if (!elderUserId) {
+        throw new Error('부모님 계정 정보를 찾지 못했습니다.');
+      }
+
       await recorder.stop();
       await setAudioModeAsync({
         allowsRecording: false,
@@ -284,10 +353,6 @@ export default function ChatPage() {
         throw new Error('녹음 파일을 찾을 수 없습니다.');
       }
 
-      if (!elderUserId) {
-        throw new Error('어르신 정보가 없습니다. 이전 화면에서 다시 들어와 주세요.');
-      }
-
       const voiceCoordinates = await getCoordinatesForVoiceTurn();
       const response = await sendChatSpeech({
         fileUri,
@@ -298,8 +363,8 @@ export default function ChatPage() {
         audioDurationMs: status.durationMillis,
         clientMessageId: `voice-${Date.now()}`,
         sessionId: sessionId ?? undefined,
+        elderUserId,
         transcriptVisibility: 'on_low_confidence',
-        elder_user_id: elderUserId,
         ...(voiceCoordinates ?? {}),
       });
 
@@ -320,6 +385,7 @@ export default function ChatPage() {
           : response.answer,
         meta: formatResponseMeta(response),
         places: response.places,
+        sources: response.sources,
       };
 
       setMessages((prev) => [...prev, transcriptBubble, assistantBubble]);
@@ -358,7 +424,7 @@ export default function ChatPage() {
 
     try {
       if (!elderUserId) {
-        throw new Error('어르신 정보가 없습니다. 이전 화면에서 다시 들어와 주세요.');
+        throw new Error('부모님 계정 정보를 찾지 못했습니다.');
       }
 
       const coordinates = await getCoordinatesForTextTurn(trimmedText);
@@ -383,6 +449,7 @@ export default function ChatPage() {
         meta: formatResponseMeta(response),
         createdAt: new Date().toISOString(),
         places: response.places,
+        sources: response.sources,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -544,10 +611,34 @@ export default function ChatPage() {
   };
 
   const historyDayOptions = isVoiceMode ? [] : buildHistoryDayOptions(messages);
+  const calendarMonths = isVoiceMode ? [] : buildHistoryMonthOptions(messages);
+  const selectedCalendarMonthKey = formatMonthKey(selectedCalendarMonth);
+  const activeMonthIndex = calendarMonths.findIndex((monthKey) => monthKey === selectedCalendarMonthKey);
+  const visibleCalendarMonth =
+    activeMonthIndex >= 0 ? selectedCalendarMonth : calendarMonths[0] ? parseMonthKey(calendarMonths[0]) : selectedCalendarMonth;
+  const calendarDays = isVoiceMode ? [] : buildCalendarDays(visibleCalendarMonth, messages);
   const visibleMessages =
     isVoiceMode || selectedHistoryDay === 'all'
       ? messages
       : messages.filter((message) => getHistoryDayKey(message.createdAt) === selectedHistoryDay);
+
+  useEffect(() => {
+    if (isVoiceMode) {
+      return;
+    }
+
+    if (calendarMonths.length === 0) {
+      const currentMonth = startOfMonth(new Date());
+      if (formatMonthKey(currentMonth) !== selectedCalendarMonthKey) {
+        setSelectedCalendarMonth(currentMonth);
+      }
+      return;
+    }
+
+    if (!calendarMonths.includes(selectedCalendarMonthKey)) {
+      setSelectedCalendarMonth(parseMonthKey(calendarMonths[0]));
+    }
+  }, [calendarMonths, isVoiceMode, selectedCalendarMonthKey]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -570,32 +661,90 @@ export default function ChatPage() {
 
         {!isVoiceMode && historyDayOptions.length > 0 ? (
           <View style={styles.filterCard}>
-            <Text style={styles.filterTitle}>날짜 선택</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterListContent}
-            >
-              {historyDayOptions.map((item) => (
-                <TouchableOpacity
-                  key={item.key}
+            <View style={styles.filterHeaderRow}>
+              <Text style={styles.filterTitle}>날짜 선택</Text>
+              <TouchableOpacity
+                style={[styles.allHistoryButton, selectedHistoryDay === 'all' && styles.allHistoryButtonActive]}
+                onPress={() => setSelectedHistoryDay('all')}
+              >
+                <Text
                   style={[
-                    styles.filterChip,
-                    selectedHistoryDay === item.key && styles.filterChipActive,
+                    styles.allHistoryButtonText,
+                    selectedHistoryDay === 'all' && styles.allHistoryButtonTextActive,
                   ]}
-                  onPress={() => setSelectedHistoryDay(item.key)}
                 >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      selectedHistoryDay === item.key && styles.filterChipTextActive,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
+                  전체 보기
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.calendarHeaderRow}>
+              <TouchableOpacity
+                style={[styles.calendarNavButton, activeMonthIndex <= 0 && styles.calendarNavButtonDisabled]}
+                onPress={() => {
+                  if (activeMonthIndex > 0) {
+                    setSelectedCalendarMonth(parseMonthKey(calendarMonths[activeMonthIndex - 1]));
+                  }
+                }}
+                disabled={activeMonthIndex <= 0}
+              >
+                <Text style={styles.calendarNavText}>이전</Text>
+              </TouchableOpacity>
+              <Text style={styles.calendarMonthLabel}>{formatCalendarMonthLabel(visibleCalendarMonth)}</Text>
+              <TouchableOpacity
+                style={[
+                  styles.calendarNavButton,
+                  (activeMonthIndex < 0 || activeMonthIndex >= calendarMonths.length - 1) && styles.calendarNavButtonDisabled,
+                ]}
+                onPress={() => {
+                  if (activeMonthIndex >= 0 && activeMonthIndex < calendarMonths.length - 1) {
+                    setSelectedCalendarMonth(parseMonthKey(calendarMonths[activeMonthIndex + 1]));
+                  }
+                }}
+                disabled={activeMonthIndex < 0 || activeMonthIndex >= calendarMonths.length - 1}
+              >
+                <Text style={styles.calendarNavText}>다음</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.weekdayRow}>
+              {['일', '월', '화', '수', '목', '금', '토'].map((day) => (
+                <Text key={day} style={styles.weekdayLabel}>
+                  {day}
+                </Text>
               ))}
-            </ScrollView>
+            </View>
+            <View style={styles.calendarGrid}>
+              {calendarDays.map((day, calendarIndex) =>
+                day ? (
+                  <TouchableOpacity
+                    key={day.key}
+                    style={[
+                      styles.calendarDayCell,
+                      !day.hasMessages && styles.calendarDayCellDisabled,
+                      selectedHistoryDay === day.key && styles.calendarDayCellActive,
+                    ]}
+                    onPress={() => {
+                      if (day.hasMessages) {
+                        setSelectedHistoryDay(day.key);
+                      }
+                    }}
+                    disabled={!day.hasMessages}
+                  >
+                    <Text
+                      style={[
+                        styles.calendarDayText,
+                        !day.hasMessages && styles.calendarDayTextDisabled,
+                        selectedHistoryDay === day.key && styles.calendarDayTextActive,
+                      ]}
+                    >
+                      {day.dayNumber}
+                    </Text>
+                    {day.hasMessages ? <View style={styles.calendarDayDot} /> : null}
+                  </TouchableOpacity>
+                ) : (
+                  <View key={`empty-${calendarIndex}`} style={styles.calendarDaySpacer} />
+                )
+              )}
+            </View>
           </View>
         ) : null}
 
@@ -605,6 +754,8 @@ export default function ChatPage() {
             !isVoiceMode &&
             !!message.createdAt &&
             getHistoryDayKey(previousMessage?.createdAt) !== getHistoryDayKey(message.createdAt);
+          const isUserMessage = message.role === 'user';
+          const isSystemMessage = message.role === 'system';
 
           return (
             <View key={message.id}>
@@ -613,92 +764,92 @@ export default function ChatPage() {
                   <Text style={styles.dayDividerText}>{formatHistoryDayLabel(message.createdAt!)}</Text>
                 </View>
               ) : null}
-              <View
-                style={[
-                  styles.messageCard,
-                  message.role === 'user' && styles.userMessageCard,
-                  message.role === 'system' && styles.systemMessageCard,
-                ]}
-              >
-                <Text style={styles.messageLabel}>{getRoleLabel(message.role)}</Text>
-                <Text style={styles.messageText}>{message.text}</Text>
-                {message.meta ? <Text style={styles.messageMeta}>{message.meta}</Text> : null}
-
-                {message.places && message.places.length > 0 ? (
-                  <View style={styles.placeButtonGroup}>
-                    {message.places.map((place, placeIndex) => (
-                      <View key={`${message.id}-place-${placeIndex}`} style={styles.placeCard}>
-                        <Text style={styles.placeButtonTitle}>
-                          {placeIndex + 1}. {place.name}
-                        </Text>
-                        <Text style={styles.placeButtonSubtitle}>
-                          {place.distance_meters}m
-                          {place.available_beds !== undefined && place.available_beds !== null
-                            ? ` · 응급실 가능 ${place.available_beds}개`
-                            : ''}
-                          {place.phone ? ` · ${place.phone}` : ''}
-                        </Text>
-
-                        <View style={styles.placeActionRow}>
-                          <TouchableOpacity
-                            style={[styles.placeButton, styles.placeStatusButton]}
-                            onPress={() => void handleCheckPlaceStatus(place)}
-                            disabled={checkingPlaceKey === `${place.name}-${place.latitude}-${place.longitude}`}
-                          >
-                            <Text style={[styles.placeButtonActionText, styles.placeStatusButtonText]}>
-                              {checkingPlaceKey === `${place.name}-${place.latitude}-${place.longitude}`
-                                ? '확인 중...'
-                                : '영업중 확인'}
-                            </Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={styles.placeButton}
-                            onPress={() => void handleOpenDirections(place)}
-                          >
-                            <Text style={styles.placeButtonActionText}>길안내</Text>
-                          </TouchableOpacity>
-
-                          {place.phone ? (
-                            <TouchableOpacity
-                              style={[styles.placeButton, styles.placeCallButton]}
-                              onPress={() => void handleCallPlace(place)}
-                            >
-                              <Text style={[styles.placeButtonActionText, styles.placeCallButtonText]}>
-                                전화하기
-                              </Text>
-                            </TouchableOpacity>
-                          ) : null}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-
-                {message.sources && message.sources.length > 0 ? (
-                  <View style={styles.sourceButtonGroup}>
-                    {message.sources.map((source, sourceIndex) => (
-                      <TouchableOpacity
-                        key={`${message.id}-source-${sourceIndex}`}
-                        style={styles.sourceButton}
-                        onPress={() => void handleOpenSource(source)}
-                      >
-                        <Text style={styles.sourceButtonText}>출처 {sourceIndex + 1}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : null}
-
-                {message.role !== 'user' && message.text.trim() ? (
-                  <TouchableOpacity
-                    style={[styles.ttsButton, ttsMessageId === message.id && styles.ttsButtonActive]}
-                    onPress={() => void playTtsForMessage(message.id, message.text)}
+              <View style={[styles.messageRow, isUserMessage ? styles.userMessageRow : styles.assistantMessageRow]}>
+                <View style={[styles.messageBubbleWrap, isUserMessage ? styles.userBubbleWrap : styles.assistantBubbleWrap]}>
+                  <Text style={[styles.messageLabel, isUserMessage && styles.userMessageLabel, isSystemMessage && styles.systemMessageLabel]}>
+                    {getRoleLabel(message.role)}
+                  </Text>
+                  <View
+                    style={[
+                      styles.messageCard,
+                      isUserMessage && styles.userMessageCard,
+                      isSystemMessage && styles.systemMessageCard,
+                    ]}
                   >
-                    <Text style={styles.ttsButtonText}>
-                      {ttsMessageId === message.id && playerStatus.playing ? '읽는 중...' : '음성으로 듣기'}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
+                    <Text style={[styles.messageText, isUserMessage && styles.userMessageText]}>{message.text}</Text>
+                    {message.meta ? (
+                      <Text style={[styles.messageMeta, isUserMessage && styles.userMessageMeta]}>{message.meta}</Text>
+                    ) : null}
+                    {message.places && message.places.length > 0 ? (
+                      <View style={styles.placeButtonGroup}>
+                        {message.places.map((place, placeIndex) => (
+                          <View key={`${message.id}-place-${placeIndex}`} style={styles.placeCard}>
+                            <Text style={styles.placeButtonTitle}>
+                              {placeIndex + 1}. {place.name}
+                            </Text>
+                            <Text style={styles.placeButtonSubtitle}>
+                              {place.distance_meters}m
+                              {place.available_beds !== undefined && place.available_beds !== null
+                                ? ` · 응급실 가능 ${place.available_beds}개`
+                                : ''}
+                              {place.phone ? ` · ${place.phone}` : ''}
+                            </Text>
+                            <View style={styles.placeActionRow}>
+                              <TouchableOpacity
+                                style={[styles.placeButton, styles.placeStatusButton]}
+                                onPress={() => void handleCheckPlaceStatus(place)}
+                                disabled={checkingPlaceKey === `${place.name}-${place.latitude}-${place.longitude}`}
+                              >
+                                <Text style={[styles.placeButtonActionText, styles.placeStatusButtonText]}>
+                                  {checkingPlaceKey === `${place.name}-${place.latitude}-${place.longitude}`
+                                    ? '확인 중...'
+                                    : '영업중 확인'}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.placeButton}
+                                onPress={() => void handleOpenDirections(place)}
+                              >
+                                <Text style={styles.placeButtonActionText}>길안내</Text>
+                              </TouchableOpacity>
+                              {place.phone ? (
+                                <TouchableOpacity
+                                  style={[styles.placeButton, styles.placeCallButton]}
+                                  onPress={() => void handleCallPlace(place)}
+                                >
+                                  <Text style={[styles.placeButtonActionText, styles.placeCallButtonText]}>전화하기</Text>
+                                </TouchableOpacity>
+                              ) : null}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                    {message.sources && message.sources.length > 0 ? (
+                      <View style={styles.sourceButtonGroup}>
+                        {message.sources.map((source, sourceIndex) => (
+                          <TouchableOpacity
+                            key={`${message.id}-source-${sourceIndex}`}
+                            style={styles.sourceButton}
+                            onPress={() => void handleOpenSource(source)}
+                          >
+                            <Text style={styles.sourceButtonText}>{formatSourceLabel(source, sourceIndex)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    ) : null}
+                    {message.role !== 'user' && message.text.trim() ? (
+                      <TouchableOpacity
+                        style={[styles.ttsButton, ttsMessageId === message.id && styles.ttsButtonActive]}
+                        onPress={() => void playTtsForMessage(message.id, message.text)}
+                      >
+                        <Text style={styles.ttsButtonText}>
+                          {ttsMessageId === message.id && playerStatus.playing ? '읽는 중...' : '음성으로 듣기'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
               </View>
             </View>
           );
@@ -869,60 +1020,180 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginBottom: 12,
   },
+  filterHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 12,
+  },
   filterTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#0F172A',
-    marginBottom: 10,
   },
-  filterListContent: {
-    gap: 10,
-    paddingRight: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  allHistoryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: '#E2E8F0',
   },
-  filterChipActive: {
-    backgroundColor: '#BFDBFE',
+  allHistoryButtonActive: {
+    backgroundColor: '#DBEAFE',
   },
-  filterChipText: {
-    fontSize: 14,
+  allHistoryButtonText: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#475569',
   },
-  filterChipTextActive: {
+  allHistoryButtonTextActive: {
     color: '#1D4ED8',
+  },
+  calendarHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  calendarNavButton: {
+    minWidth: 52,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+  },
+  calendarNavButtonDisabled: {
+    backgroundColor: '#F8FAFC',
+  },
+  calendarNavText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  calendarMonthLabel: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  weekdayRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  weekdayLabel: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 10,
+  },
+  calendarDayCell: {
+    width: '14.28%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+  },
+  calendarDayCellDisabled: {
+    backgroundColor: 'transparent',
+  },
+  calendarDayCellActive: {
+    backgroundColor: '#2563EB',
+  },
+  calendarDayText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  calendarDayTextDisabled: {
+    color: '#CBD5E1',
+    fontWeight: '600',
+  },
+  calendarDayTextActive: {
+    color: '#FFFFFF',
+  },
+  calendarDayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+    marginTop: 4,
+    backgroundColor: '#60A5FA',
+  },
+  calendarDaySpacer: {
+    width: '14.28%',
+    minHeight: 48,
+  },
+  messageRow: {
+    marginBottom: 14,
+    flexDirection: 'row',
+  },
+  assistantMessageRow: {
+    justifyContent: 'flex-start',
+  },
+  userMessageRow: {
+    justifyContent: 'flex-end',
+  },
+  messageBubbleWrap: {
+    maxWidth: '82%',
+  },
+  assistantBubbleWrap: {
+    alignItems: 'flex-start',
+  },
+  userBubbleWrap: {
+    alignItems: 'flex-end',
   },
   messageCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 12,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   userMessageCard: {
-    backgroundColor: '#DCEBFF',
+    backgroundColor: '#2563EB',
+    borderBottomRightRadius: 8,
   },
   systemMessageCard: {
     backgroundColor: '#FEF3C7',
+    borderBottomLeftRadius: 8,
   },
   messageLabel: {
     fontSize: 14,
     color: '#64748B',
-    marginBottom: 8,
+    marginBottom: 6,
+    paddingHorizontal: 4,
     fontWeight: '700',
+  },
+  userMessageLabel: {
+    color: '#2563EB',
+  },
+  systemMessageLabel: {
+    color: '#B45309',
   },
   messageText: {
     fontSize: 18,
     color: '#0F172A',
     lineHeight: 28,
   },
+  userMessageText: {
+    color: '#FFFFFF',
+  },
   messageMeta: {
     marginTop: 12,
     fontSize: 13,
     color: '#64748B',
+  },
+  userMessageMeta: {
+    color: 'rgba(255,255,255,0.78)',
   },
   placeButtonGroup: {
     marginTop: 14,
@@ -984,7 +1255,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#E2E8F0',
   },
   sourceButtonText: {
     fontSize: 13,
@@ -1260,6 +1531,9 @@ function formatIntentLabel(intent: string, mode: CareMode) {
   if (intent === 'schedule_lookup') {
     return '일정 안내';
   }
+  if (intent === 'web_search_support') {
+    return '웹 검색';
+  }
   if (mode === 'health_support') {
     return '건강지원';
   }
@@ -1267,6 +1541,16 @@ function formatIntentLabel(intent: string, mode: CareMode) {
     return '인지지원';
   }
   return '일반 안내';
+}
+
+function formatSourceLabel(source: ChatSourceItem, index: number) {
+  const title = source.title.trim();
+
+  if (!title) {
+    return `출처 ${index + 1}`;
+  }
+
+  return title.length > 18 ? `${title.slice(0, 18)}...` : title;
 }
 
 function formatHistoryTimestamp(value: string) {
@@ -1335,6 +1619,81 @@ function buildHistoryDayOptions(messages: ChatBubble[]) {
   }
 
   return options;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function formatMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function parseMonthKey(value: string) {
+  const [year, month] = value.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, 1);
+}
+
+function buildHistoryMonthOptions(messages: ChatBubble[]) {
+  const keys = new Set<string>();
+  const monthKeys: string[] = [];
+
+  for (const message of messages) {
+    if (!message.createdAt) {
+      continue;
+    }
+
+    const date = new Date(message.createdAt);
+    if (Number.isNaN(date.getTime())) {
+      continue;
+    }
+
+    const monthKey = formatMonthKey(date);
+    if (keys.has(monthKey)) {
+      continue;
+    }
+
+    keys.add(monthKey);
+    monthKeys.push(monthKey);
+  }
+
+  monthKeys.sort((left, right) => (left < right ? 1 : -1));
+  return monthKeys;
+}
+
+function formatCalendarMonthLabel(date: Date) {
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
+}
+
+function buildCalendarDays(monthDate: Date, messages: ChatBubble[]) {
+  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const lastDay = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  const days: Array<{ key: string; dayNumber: number; hasMessages: boolean } | null> = [];
+  const availableDayKeys = new Set(
+    messages
+      .map((message) => getHistoryDayKey(message.createdAt) ?? '')
+      .filter(Boolean)
+  );
+
+  for (let index = 0; index < firstDay.getDay(); index += 1) {
+    days.push(null);
+  }
+
+  for (let day = 1; day <= lastDay.getDate(); day += 1) {
+    const currentDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+    const key = getHistoryDayKey(currentDate.toISOString()) ?? '';
+    days.push({
+      key,
+      dayNumber: day,
+      hasMessages: availableDayKeys.has(key),
+    });
+  }
+
+  while (days.length % 7 !== 0) {
+    days.push(null);
+  }
+
+  return days;
 }
 
 function getLatestAssistantPrompt(messages: ChatBubble[]) {
