@@ -117,7 +117,7 @@ def _media_type_for_format(response_format: str) -> str:
         "mp3": "audio/mpeg",
         "wav": "audio/wav",
         "opus": "audio/ogg",
-        "aac": "audio/aac",
+        "aac": "audio/ac",
         "flac": "audio/flac",
         "pcm": "audio/pcm",
     }.get(response_format, "audio/mpeg")

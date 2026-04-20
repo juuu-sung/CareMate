@@ -366,7 +366,7 @@ export default function HomeScreen() {
         <View style={styles.topSection}>
           <View style={styles.headerRow}>
             <Text style={styles.title}>
-              무엇을 도와드릴까요?
+              안녕하세요!
             </Text>
 
             <View style={styles.linkCodeChip}>
