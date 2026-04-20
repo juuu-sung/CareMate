@@ -15,6 +15,56 @@ def ccache_enabled?(podfile_properties)
   podfile_properties['apple.ccacheEnabled'] == 'true'
 end
 
+def patch_hermes_framework_search_paths
+  xcconfig_files = Dir.glob(File.join(__dir__, 'Pods', 'Target Support Files', 'Pods-*', 'Pods-*.xcconfig'))
+  original = 'FRAMEWORK_SEARCH_PATHS = $(inherited) "${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios"'
+  replacement = <<~XCCONFIG.strip
+    FRAMEWORK_SEARCH_PATHS = $(inherited)
+    FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*] = $(inherited) "${PODS_ROOT}/hermes-engine/build/iphoneos/lib"
+    FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*] = $(inherited) "${PODS_ROOT}/hermes-engine/build/iphonesimulator/lib"
+  XCCONFIG
+
+  xcconfig_files.each do |xcconfig_path|
+    contents = File.read(xcconfig_path)
+    next unless contents.include?(original)
+
+    File.write(xcconfig_path, contents.gsub(original, replacement))
+  end
+end
+
+def patch_hermes_embed_frameworks
+  framework_script = File.join(__dir__, 'Pods', 'Target Support Files', 'Pods-CareMate', 'Pods-CareMate-frameworks.sh')
+  framework_reference = <<~SH.strip
+    if [[ "$CONFIGURATION" == "Debug" ]]; then
+      install_framework "${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios/hermesvm.framework"
+    fi
+    if [[ "$CONFIGURATION" == "Release" ]]; then
+      install_framework "${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios/hermesvm.framework"
+    fi
+  SH
+  framework_replacement = <<~SH.strip
+    install_framework "${PODS_ROOT}/hermes-engine/build/${PLATFORM_NAME}/lib/hermesvm.framework"
+  SH
+
+  if File.exist?(framework_script)
+    contents = File.read(framework_script)
+    if contents.include?(framework_reference)
+      File.write(framework_script, contents.gsub(framework_reference, framework_replacement))
+    end
+  end
+
+  project_file = File.join(__dir__, 'CareMate.xcodeproj', 'project.pbxproj')
+  project_reference = '"${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios/hermesvm.framework",'
+  project_replacement = '"${PODS_ROOT}/hermes-engine/build/${PLATFORM_NAME}/lib/hermesvm.framework",'
+
+  if File.exist?(project_file)
+    contents = File.read(project_file)
+    if contents.include?(project_reference)
+      File.write(project_file, contents.gsub(project_reference, project_replacement))
+    end
+  end
+end
+
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] ||= podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
 ENV['RCT_USE_RN_DEP'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true'
 ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true'
@@ -64,6 +114,9 @@ target 'CareMate' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    patch_hermes_framework_search_paths
+    patch_hermes_embed_frameworks
   end
 
 end

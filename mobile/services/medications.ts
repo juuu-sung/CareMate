@@ -16,7 +16,10 @@ type MedicationListResponse = {
   items: MedicationItem[];
 };
 
-export async function getMedications(): Promise<MedicationItem[]> {
-  const response = await apiGet<MedicationListResponse>("/medications");
+export async function getMedications(elderUserId?: string): Promise<MedicationItem[]> {
+  const searchParams = elderUserId
+    ? `?${new URLSearchParams({ elder_user_id: elderUserId }).toString()}`
+    : "";
+  const response = await apiGet<MedicationListResponse>(`/medications${searchParams}`);
   return response.items;
 }

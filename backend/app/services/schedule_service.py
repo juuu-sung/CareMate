@@ -8,10 +8,10 @@ from app.schemas.chat import CareMode
 from app.services.guardian_alert_service import create_guardian_alert
 
 
-def list_schedules(db: Session) -> list[dict[str, str]]:
-    senior_user_id = _get_primary_elder_id(db)
+def list_schedules(db: Session, elder_user_id: str | None = None) -> list[dict[str, str]]:
+    senior_user_id = elder_user_id or _get_primary_elder_id(db)
     if not senior_user_id:
-        return [{"title": "주민센터 방문", "time": "15:00", "status": "scheduled", "date": "오늘"}]
+        return []
 
     items = db.execute(
         text(
@@ -26,7 +26,7 @@ def list_schedules(db: Session) -> list[dict[str, str]]:
     ).mappings().all()
 
     if not items:
-        return [{"title": "주민센터 방문", "time": "15:00", "status": "scheduled", "date": "오늘"}]
+        return []
 
     return [
         {

@@ -234,19 +234,23 @@ CareMate/
 
 | 패키지 | 설치 버전 |
 | --- | --- |
-| expo | `54.0.33` |
-| expo-router | `6.0.23` |
-| expo-audio | `1.1.1` |
-| expo-constants | `18.0.13` |
-| expo-linking | `8.0.11` |
+| expo | `55.0.0` |
+| expo-router | `55.0.12` |
+| expo-audio | `55.0.13` |
+| expo-constants | `55.0.14` |
+| expo-dev-client | `55.0.27` |
+| expo-linking | `55.0.13` |
 | expo-location | `55.1.8` |
-| react | `19.1.0` |
-| react-native | `0.81.5` |
-| react-native-maps | `1.20.1` |
-| react-native-safe-area-context | `5.6.2` |
-| react-native-screens | `4.16.0` |
+| expo-speech-recognition | `3.1.2` |
+| expo-widgets | `55.0.13` |
+| react | `19.2.0` |
+| react-native | `0.83.4` |
+| react-native-maps | `1.27.2` |
+| react-native-safe-area-context | `5.6.0` |
+| react-native-screens | `4.23.0` |
 | @expo/vector-icons | `15.1.1` |
-| @types/react | `19.1.17` |
+| @expo/ui | `55.0.11` |
+| @types/react | `19.2.10` |
 | typescript | `5.9.3` |
 
 ### Backend
@@ -263,14 +267,72 @@ CareMate/
 | psycopg[binary] | `3.2.3` |
 | python-multipart | `0.0.24` |
 
+## Team Setup
+
+`origin/main` 대비 현재 작업본은 모바일이 `Expo 55 + development build + widgets + speech recognition` 기준으로 바뀌었습니다.
+팀원이 새로 맞춰야 하는 핵심은 아래 4가지입니다.
+
+- 모바일은 `Expo Go`로 실행할 수 없습니다. `expo-dev-client` 기반 development build가 필요합니다.
+- 모바일 의존성이 크게 바뀌어서 `mobile`에서는 `npm install` 대신 `npm ci`를 다시 해야 합니다.
+- iOS는 네이티브 구성이 바뀌었기 때문에 `mobile/ios`에서 `pod install`이 필요합니다.
+- 백엔드는 새 DB 컬럼이 들어갔으므로 `alembic upgrade head`를 반드시 다시 실행해야 합니다.
+
+### Team Checklist
+
+```bash
+git pull
+
+cd mobile
+cp .env.example .env
+npm ci
+cd ios
+pod install
+cd ..
+
+cd ../backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cd ..
+docker compose up -d db
+cd backend
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+```
+
+### iOS Notes
+
+- 실기기 실행은 `CareMate`와 `ExpoWidgetsTarget` 둘 다 Xcode Signing 설정이 필요합니다.
+- 개인 Apple 계정으로 설치할 때는 `Developer Mode`, 개발자 인증서 신뢰, 로컬 네트워크 권한 허용이 필요합니다.
+- 공유 Apple Team이 없으면 로컬에서만 `bundleIdentifier`를 별도로 바꿔야 할 수 있습니다.
+- 앱 설치 후 JS만 다시 붙일 때는 `npx expo start --dev-client --host lan`을 사용합니다.
+
 ## Quick Start
 
 ### Frontend
 
 ```bash
 cd mobile
+cp .env.example .env
 npm ci
-npx expo start
+cd ios
+pod install
+cd ..
+npx expo run:ios
+```
+
+실기기 설치:
+
+```bash
+cd mobile
+npx expo run:ios --device
+```
+
+이후 development build에 다시 붙기:
+
+```bash
+cd mobile
+npx expo start --dev-client --host lan
 ```
 
 ### Backend

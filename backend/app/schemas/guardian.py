@@ -70,3 +70,40 @@ class GuardianAlertsResponse(BaseModel):
 
 class GuardianConversationsResponse(BaseModel):
     items: list[ChatHistoryItem]
+
+
+class GuardianScheduleItem(BaseModel):
+    id: str
+    title: str
+    description: str = ""
+    date: str
+    time: str
+    status: str
+    type: str = "hospital"
+    scheduled_at: str
+
+
+class GuardianSchedulesResponse(BaseModel):
+    items: list[GuardianScheduleItem]
+
+
+class GuardianScheduleCreateRequest(BaseModel):
+    title: str
+    date: str
+    time: str
+    description: str = ""
+    status: str = "scheduled"
+    type: str = "hospital"
+
+
+class GuardianScheduleUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    date: Optional[str] = None
+    time: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    type: Optional[str] = None
+
+
+class GuardianScheduleDeleteResponse(BaseModel):
+    success: bool

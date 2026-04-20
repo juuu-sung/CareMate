@@ -25,17 +25,41 @@ Expo Router 기반 모바일 앱 골격입니다.
 
 직접 사용하는 주요 패키지 버전:
 
-- `expo` `54.0.33`
-- `expo-router` `6.0.23`
-- `expo-audio` `1.1.1`
-- `expo-constants` `18.0.13`
-- `expo-linking` `8.0.11`
+- `expo` `55.0.0`
+- `expo-router` `55.0.12`
+- `expo-audio` `55.0.13`
+- `expo-constants` `55.0.14`
+- `expo-dev-client` `55.0.27`
+- `expo-linking` `55.0.13`
 - `expo-location` `55.1.8`
-- `react` `19.1.0`
-- `react-native` `0.81.5`
-- `react-native-maps` `1.20.1`
-- `react-native-safe-area-context` `5.6.2`
-- `react-native-screens` `4.16.0`
+- `expo-speech-recognition` `3.1.2`
+- `expo-widgets` `55.0.13`
+- `@expo/ui` `55.0.11`
+- `react` `19.2.0`
+- `react-native` `0.83.4`
+- `react-native-maps` `1.27.2`
+- `react-native-safe-area-context` `5.6.0`
+- `react-native-screens` `4.23.0`
+
+## Team Setup Checklist
+
+현재 모바일은 `Expo Go`가 아니라 `Expo development build` 기준입니다.
+팀원이 새로 받아서 맞춰야 하는 순서는 아래와 같습니다.
+
+```bash
+cp .env.example .env
+npm ci
+cd ios
+pod install
+cd ..
+```
+
+필수 확인:
+
+- `Expo Go`로는 실행되지 않습니다.
+- iOS 네이티브 구성이 포함되어 있어서 `pod install`이 필요합니다.
+- `postinstall`에서 `patch-react-native-ios-encoding.js`가 자동으로 실행되므로 별도 스크립트 실행은 필요 없습니다.
+- `.env`의 `EXPO_PUBLIC_API_BASE_URL`은 실기기 테스트 시 `localhost`가 아니라 백엔드가 떠 있는 Mac의 LAN IP여야 합니다.
 
 ## Development Build
 
@@ -46,14 +70,28 @@ Expo Router 기반 모바일 앱 골격입니다.
 ```bash
 cp .env.example .env
 npm ci
-npm run prebuild:ios
-npm run dev:ios
+cd ios
+pod install
+cd ..
+npx expo run:ios
 ```
 
 추가된 실행 명령:
 
-- `npm run prebuild:ios`: iOS 네이티브 프로젝트 생성 및 동기화
+- `npm run prebuild:ios`: iOS 네이티브 프로젝트를 다시 생성해야 할 때만 사용
 - `npm run dev:ios`: iPhone 실기기에 development build 설치 및 실행
+
+실기기에서 설치할 때:
+
+```bash
+npx expo run:ios --device
+```
+
+설치 후 JS만 다시 붙일 때:
+
+```bash
+npx expo start --dev-client --host lan
+```
 
 웨이크워드 환경변수:
 
@@ -73,6 +111,13 @@ EXPO_PUBLIC_WAKE_WORD_PHRASES=케어,케어야
 - 진짜 웨이크워드 엔진이 아니라 iOS 음성 인식 결과에서 지정한 문구를 잡아내는 방식입니다.
 - 음성 인식 정확도는 주변 소음, 발화 속도, iOS 언어 설정에 영향을 받습니다.
 - `케어`처럼 짧은 호출어는 오탐 가능성이 있어서, 필요하면 `케어야` 같은 변형을 같이 넣어 두는 편이 안정적입니다.
+
+실기기 추가 설정:
+
+- `Developer Mode` 활성화
+- `설정 > 일반 > VPN 및 기기 관리`에서 개발자 인증서 신뢰
+- `설정 > CareMate > 로컬 네트워크` 허용
+- Xcode에서 `CareMate`, `ExpoWidgetsTarget` 둘 다 Signing 확인
 
 ## Siri Shortcut
 

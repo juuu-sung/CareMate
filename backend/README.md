@@ -31,6 +31,7 @@ FastAPI 기반 서버 골격입니다.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
 DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
@@ -47,9 +48,14 @@ docker compose up backend
 
 ## Alembic
 
-초기 마이그레이션 적용:
+새 브랜치를 받거나 DB를 다시 만들었으면 반드시 최신 마이그레이션까지 올립니다.
 
 ```bash
 source .venv/bin/activate
 DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
 ```
+
+주의:
+
+- 현재 코드에는 `elder_profiles.agent_name`, `elder_profiles.agent_voice`를 포함한 최신 스키마가 필요합니다.
+- `alembic upgrade head`를 하지 않으면 보호자 로그인 등에서 500 에러가 날 수 있습니다.

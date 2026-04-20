@@ -10,3 +10,16 @@ export type GuardianDashboard = {
   today_medication_pending_count: number;
   today_schedule_count: number;
 };
+
+export type GuardianScheduleStatus = "scheduled" | "completed" | "cancelled";
+
+export type GuardianScheduleItem = {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  status: GuardianScheduleStatus;
+  type: string;
+  scheduled_at: string;
+};

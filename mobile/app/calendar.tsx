@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { loadAuthSession } from '@/services/authSession';
 import { getSchedules, ScheduleItem } from '@/services/schedules';
 
 export default function CalendarPage() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const elderUserIdParam = String(
+    params.elderUserId || params.elder_user_id || params.parentId || ''
+  );
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +20,16 @@ export default function CalendarPage() {
 
     const loadSchedules = async () => {
       try {
-        const items = await getSchedules();
+        let elderUserId = elderUserIdParam;
+
+        if (!elderUserId) {
+          const session = await loadAuthSession();
+          if (session?.role === 'parent') {
+            elderUserId = session.elderUserId || session.parentId;
+          }
+        }
+
+        const items = await getSchedules(elderUserId);
         if (!mounted) {
           return;
         }
@@ -37,7 +51,7 @@ export default function CalendarPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [elderUserIdParam]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

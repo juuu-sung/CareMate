@@ -297,9 +297,25 @@ export default function GuardianHomeScreen() {
     });
   }, [linkCode, parentId, parentName, router]);
 
+  const openGuardianSchedules = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-schedules',
+      params: {
+        parentId,
+        parentName,
+        linkCode,
+      },
+    });
+  }, [linkCode, parentId, parentName, router]);
+
   const handleMenuPress = (title: string) => {
     if (title === '대화 요약') {
       openGuardianConversations();
+      return;
+    }
+
+    if (title === '병원 일정') {
+      openGuardianSchedules();
       return;
     }
 

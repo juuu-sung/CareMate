@@ -81,6 +81,18 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export async function apiDelete<T>(path: string): Promise<T> {
+  const response = await fetch(buildApiUrl(path), {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw await createApiError(response);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     method: "POST",

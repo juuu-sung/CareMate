@@ -237,7 +237,7 @@ export default function HomeScreen() {
     try {
       setIsLoadingMedications(true);
       setMedicationError(null);
-      const items = await getMedications();
+      const items = await getMedications(elderUserId);
       setMedications(items);
     } catch (error) {
       console.log('복약 조회 오류:', error);
@@ -252,7 +252,7 @@ export default function HomeScreen() {
     try {
       setIsLoadingSchedules(true);
       setScheduleError(null);
-      const items = await getSchedules();
+      const items = await getSchedules(elderUserId);
       setSchedules(items);
     } catch (error) {
       console.log('일정 조회 오류:', error);

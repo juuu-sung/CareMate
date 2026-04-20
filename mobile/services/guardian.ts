@@ -1,6 +1,10 @@
-import { apiGet, apiPost } from "@/services/api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/services/api";
 import { CareMode } from "@/types/care";
-import { GuardianDashboard } from "@/types/guardian";
+import {
+  GuardianDashboard,
+  GuardianScheduleItem,
+  GuardianScheduleStatus,
+} from "@/types/guardian";
 
 export type GuardianAlertItem = {
   type: string;
@@ -15,12 +19,29 @@ export type GuardianConversationItem = {
   created_at: string;
 };
 
+export type GuardianSchedulePayload = {
+  title: string;
+  date: string;
+  time: string;
+  description?: string;
+  status?: GuardianScheduleStatus;
+  type?: string;
+};
+
 type GuardianAlertsResponse = {
   items: GuardianAlertItem[];
 };
 
 type GuardianConversationsResponse = {
   items: GuardianConversationItem[];
+};
+
+type GuardianSchedulesResponse = {
+  items: GuardianScheduleItem[];
+};
+
+type GuardianScheduleDeleteResponse = {
+  success: boolean;
 };
 
 export function getGuardianDashboard(elderUserId: string, linkCode: string) {
@@ -51,6 +72,63 @@ export function getGuardianConversations(elderUserId: string, linkCode: string, 
 
   return apiGet<GuardianConversationsResponse>(
     `/guardians/conversations?${searchParams.toString()}`
+  );
+}
+
+export function getGuardianSchedules(elderUserId: string, linkCode: string) {
+  const searchParams = new URLSearchParams({
+    elder_user_id: elderUserId,
+    link_code: linkCode,
+  });
+
+  return apiGet<GuardianSchedulesResponse>(`/guardians/schedules?${searchParams.toString()}`);
+}
+
+export function createGuardianSchedule(
+  elderUserId: string,
+  linkCode: string,
+  payload: GuardianSchedulePayload
+) {
+  const searchParams = new URLSearchParams({
+    elder_user_id: elderUserId,
+    link_code: linkCode,
+  });
+
+  return apiPost<GuardianScheduleItem>(
+    `/guardians/schedules?${searchParams.toString()}`,
+    payload
+  );
+}
+
+export function updateGuardianSchedule(
+  elderUserId: string,
+  linkCode: string,
+  scheduleId: string,
+  payload: Partial<GuardianSchedulePayload>
+) {
+  const searchParams = new URLSearchParams({
+    elder_user_id: elderUserId,
+    link_code: linkCode,
+  });
+
+  return apiPatch<GuardianScheduleItem>(
+    `/guardians/schedules/${scheduleId}?${searchParams.toString()}`,
+    payload
+  );
+}
+
+export function deleteGuardianSchedule(
+  elderUserId: string,
+  linkCode: string,
+  scheduleId: string
+) {
+  const searchParams = new URLSearchParams({
+    elder_user_id: elderUserId,
+    link_code: linkCode,
+  });
+
+  return apiDelete<GuardianScheduleDeleteResponse>(
+    `/guardians/schedules/${scheduleId}?${searchParams.toString()}`
   );
 }
 

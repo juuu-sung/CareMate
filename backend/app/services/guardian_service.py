@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -10,6 +11,9 @@ from app.models.guardian_link import GuardianLink
 from app.schemas.alerts import AlertItem
 from app.schemas.guardian import GuardianLoginRequest
 from app.services.chat_log_service import list_chat_logs_for_elder
+
+SEOUL_TZ = ZoneInfo("Asia/Seoul")
+VALID_SCHEDULE_STATUSES = {"scheduled", "completed", "cancelled"}
 
 
 def calculate_age_from_birth(birth: str | None) -> int | None:
@@ -73,6 +77,82 @@ def _get_guardian_link(db: Session, elder_user_id: str, link_code: str) -> Guard
         raise ValueError("연동된 보호자 정보를 찾을 수 없습니다.")
 
     return link
+
+
+def _normalize_schedule_status(value: str | None, fallback: str = "scheduled") -> str:
+    normalized = (value or fallback).strip().lower()
+    if normalized not in VALID_SCHEDULE_STATUSES:
+        raise ValueError("일정 상태가 올바르지 않습니다.")
+    return normalized
+
+
+def _ensure_utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _format_guardian_schedule_item(row) -> dict[str, str]:
+    scheduled_at = _ensure_utc_datetime(row["scheduled_at"])
+    local_scheduled_at = scheduled_at.astimezone(SEOUL_TZ)
+
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "description": row["description"] or "",
+        "date": local_scheduled_at.strftime("%Y-%m-%d"),
+        "time": local_scheduled_at.strftime("%H:%M"),
+        "status": row["status"],
+        "type": row["type"] or "hospital",
+        "scheduled_at": local_scheduled_at.isoformat(),
+    }
+
+
+def _parse_guardian_schedule_datetime(date_value: str, time_value: str) -> datetime:
+    normalized_date = (date_value or "").strip()
+    normalized_time = (time_value or "").strip()
+
+    if not normalized_date or not normalized_time:
+        raise ValueError("날짜와 시간을 모두 입력해 주세요.")
+
+    try:
+        local_datetime = datetime.strptime(
+            f"{normalized_date} {normalized_time}",
+            "%Y-%m-%d %H:%M",
+        ).replace(tzinfo=SEOUL_TZ)
+    except ValueError as exc:
+        raise ValueError("날짜는 YYYY-MM-DD, 시간은 HH:MM 형식으로 입력해 주세요.") from exc
+
+    return local_datetime.astimezone(timezone.utc)
+
+
+def _get_guardian_schedule_row(db: Session, elder_user_id: str, schedule_id: str):
+    row = db.execute(
+        text(
+            """
+            SELECT
+                id::text AS id,
+                title,
+                COALESCE(description, '') AS description,
+                scheduled_at,
+                status,
+                type
+            FROM schedules
+            WHERE senior_user_id = :elder_user_id
+              AND id::text = :schedule_id
+            LIMIT 1
+            """
+        ),
+        {
+            "elder_user_id": elder_user_id,
+            "schedule_id": schedule_id,
+        },
+    ).mappings().first()
+
+    if not row:
+        raise ValueError("일정을 찾을 수 없습니다.")
+
+    return row
 
 
 def get_parent_by_code(db: Session, link_code: str):
@@ -267,6 +347,201 @@ def list_guardian_conversations(
         senior_user_id=elder_user_id,
         limit=limit,
     )
+
+
+def list_guardian_schedules(
+    db: Session,
+    elder_user_id: str,
+    link_code: str,
+) -> list[dict[str, str]]:
+    _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
+
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                id::text AS id,
+                title,
+                COALESCE(description, '') AS description,
+                scheduled_at,
+                status,
+                type
+            FROM schedules
+            WHERE senior_user_id = :elder_user_id
+            ORDER BY scheduled_at ASC
+            """
+        ),
+        {"elder_user_id": elder_user_id},
+    ).mappings().all()
+
+    return [_format_guardian_schedule_item(row) for row in rows]
+
+
+def create_guardian_schedule(
+    db: Session,
+    elder_user_id: str,
+    link_code: str,
+    payload,
+) -> dict[str, str]:
+    _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
+
+    title = payload.title.strip()
+    if not title:
+        raise ValueError("일정 제목을 입력해 주세요.")
+
+    scheduled_at = _parse_guardian_schedule_datetime(payload.date, payload.time)
+    normalized_status = _normalize_schedule_status(payload.status)
+    schedule_type = (payload.type or "hospital").strip() or "hospital"
+
+    created_row = db.execute(
+        text(
+            """
+            INSERT INTO schedules (
+                id,
+                senior_user_id,
+                title,
+                description,
+                scheduled_at,
+                type,
+                status
+            )
+            VALUES (
+                gen_random_uuid(),
+                :elder_user_id,
+                :title,
+                :description,
+                :scheduled_at,
+                :type,
+                :status
+            )
+            RETURNING
+                id::text AS id,
+                title,
+                COALESCE(description, '') AS description,
+                scheduled_at,
+                status,
+                type
+            """
+        ),
+        {
+            "elder_user_id": elder_user_id,
+            "title": title,
+            "description": payload.description.strip(),
+            "scheduled_at": scheduled_at,
+            "type": schedule_type,
+            "status": normalized_status,
+        },
+    ).mappings().one()
+
+    db.commit()
+
+    return _format_guardian_schedule_item(created_row)
+
+
+def update_guardian_schedule(
+    db: Session,
+    elder_user_id: str,
+    link_code: str,
+    schedule_id: str,
+    payload,
+) -> dict[str, str]:
+    _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
+    current_row = _get_guardian_schedule_row(db, elder_user_id=elder_user_id, schedule_id=schedule_id)
+
+    current_local_datetime = _ensure_utc_datetime(current_row["scheduled_at"]).astimezone(SEOUL_TZ)
+
+    title = (
+        payload.title.strip()
+        if payload.title is not None
+        else current_row["title"]
+    )
+    if not title:
+        raise ValueError("일정 제목을 입력해 주세요.")
+
+    description = (
+        payload.description.strip()
+        if payload.description is not None
+        else current_row["description"]
+    )
+    normalized_status = _normalize_schedule_status(payload.status, fallback=current_row["status"])
+    schedule_type = (
+        payload.type.strip()
+        if payload.type is not None
+        else (current_row["type"] or "hospital")
+    ) or "hospital"
+
+    next_date = payload.date if payload.date is not None else current_local_datetime.strftime("%Y-%m-%d")
+    next_time = payload.time if payload.time is not None else current_local_datetime.strftime("%H:%M")
+    scheduled_at = _parse_guardian_schedule_datetime(next_date, next_time)
+
+    updated_row = db.execute(
+        text(
+            """
+            UPDATE schedules
+            SET
+                title = :title,
+                description = :description,
+                scheduled_at = :scheduled_at,
+                type = :type,
+                status = :status
+            WHERE senior_user_id = :elder_user_id
+              AND id::text = :schedule_id
+            RETURNING
+                id::text AS id,
+                title,
+                COALESCE(description, '') AS description,
+                scheduled_at,
+                status,
+                type
+            """
+        ),
+        {
+            "elder_user_id": elder_user_id,
+            "schedule_id": schedule_id,
+            "title": title,
+            "description": description,
+            "scheduled_at": scheduled_at,
+            "type": schedule_type,
+            "status": normalized_status,
+        },
+    ).mappings().first()
+
+    if not updated_row:
+        raise ValueError("일정을 찾을 수 없습니다.")
+
+    db.commit()
+
+    return _format_guardian_schedule_item(updated_row)
+
+
+def delete_guardian_schedule(
+    db: Session,
+    elder_user_id: str,
+    link_code: str,
+    schedule_id: str,
+) -> dict[str, bool]:
+    _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
+
+    deleted_row = db.execute(
+        text(
+            """
+            DELETE FROM schedules
+            WHERE senior_user_id = :elder_user_id
+              AND id::text = :schedule_id
+            RETURNING id::text AS id
+            """
+        ),
+        {
+            "elder_user_id": elder_user_id,
+            "schedule_id": schedule_id,
+        },
+    ).mappings().first()
+
+    if not deleted_row:
+        raise ValueError("일정을 찾을 수 없습니다.")
+
+    db.commit()
+    return {"success": True}
 
 
 def create_guardian_and_link(db: Session, payload):
