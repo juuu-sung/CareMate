@@ -1,83 +1,90 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const projectRoot = path.resolve(__dirname, '..');
-const hermesPodspecPath = path.join(
-  projectRoot,
-  'node_modules',
-  'react-native',
-  'sdks',
-  'hermes-engine',
-  'hermes-engine.podspec'
-);
-const hermesBuildScriptPath = path.join(
-  projectRoot,
-  'node_modules',
-  'react-native',
-  'sdks',
-  'hermes-engine',
-  'utils',
-  'build-hermes-xcode.sh'
-);
+function findHermesScript() {
+  const candidates = [
+    path.join(
+      process.cwd(),
+      "node_modules",
+      "react-native",
+      "sdks",
+      "hermes-engine",
+      "utils",
+      "build-hermes-xcode.sh"
+    ),
+    path.join(
+      process.cwd(),
+      "node_modules",
+      "react-native",
+      "sdks",
+      "hermes",
+      "utils",
+      "build-hermes-xcode.sh"
+    ),
+    path.join(
+      process.cwd(),
+      "node_modules",
+      "hermes-engine",
+      "utils",
+      "build-hermes-xcode.sh"
+    ),
+  ];
 
-function patchHermesPodspec(contents) {
-  return contents.replaceAll(
-    ']).strip',
-    "]).strip.force_encoding('UTF-8')"
-  );
+  for (const filePath of candidates) {
+    if (fs.existsSync(filePath)) {
+      return filePath;
+    }
+  }
+  return null;
 }
 
-function patchHermesBuildScript(contents) {
-  if (contents.includes('apple_arch_sysroots')) {
-    return contents;
+function patchHermesBuildScript(filePath) {
+  const source = fs.readFileSync(filePath, "utf8");
+
+  const marker = 'NODE_BINARY=$(command -v node)\n';
+
+  if (!source.includes(marker)) {
+    console.log("Hermes build marker not found, skipping patch");
+    return false;
   }
 
-  const marker = 'architectures=$( echo "$ARCHS" | tr  " " ";" )\n';
-  const insertion = `${marker}apple_arch_sysroots=""\nfor arch in $ARCHS; do\n  if [[ -n "$apple_arch_sysroots" ]]; then\n    apple_arch_sysroots="${apple_arch_sysroots};"\n  fi\n  apple_arch_sysroots="${apple_arch_sysroots}${SDKROOT}"\ndone\n`;
+  if (source.includes('apple_arch_sysroots=""')) {
+    console.log("Hermes encoding patch already applied");
+    return false;
+  }
 
-  return contents
-    .replace(marker, insertion)
-    .replace(
-      '-DCMAKE_OSX_ARCHITECTURES:STRING="$architectures" \\',
-      '-DCMAKE_OSX_ARCHITECTURES:STRING="$architectures" \\\n  -DCMAKE_APPLE_ARCH_SYSROOTS:STRING="$apple_arch_sysroots" \\'
-    );
+  const insertion =
+    marker +
+    'apple_arch_sysroots=""\n' +
+    'for arch in $ARCHS; do\n' +
+    '  if [[ -n "$apple_arch_sysroots" ]]; then\n' +
+    '    apple_arch_sysroots="${apple_arch_sysroots};"\n' +
+    '  fi\n' +
+    '  apple_arch_sysroots="${apple_arch_sysroots}${SDKROOT}"\n' +
+    'done\n';
+
+  const patched = source.replace(marker, insertion);
+
+  if (patched === source) {
+    console.log("No changes applied to Hermes build script");
+    return false;
+  }
+
+  fs.writeFileSync(filePath, patched, "utf8");
+  console.log("Applied Hermes encoding patch");
+  return true;
 }
 
 function main() {
-  if (!fs.existsSync(hermesPodspecPath)) {
-    console.log('Skipping Hermes encoding patch: hermes-engine.podspec not found');
-  } else {
-    const currentContents = fs.readFileSync(hermesPodspecPath, 'utf8');
+  const hermesScriptPath = findHermesScript();
 
-    if (currentContents.includes(".strip.force_encoding('UTF-8')")) {
-      console.log('Hermes encoding patch already applied');
-    } else {
-      const nextContents = patchHermesPodspec(currentContents);
-
-      if (nextContents === currentContents) {
-        console.log('Skipping Hermes encoding patch: no matching podspec pattern found');
-      } else {
-        fs.writeFileSync(hermesPodspecPath, nextContents);
-        console.log('Applied Hermes encoding patch');
-      }
-    }
+  if (!hermesScriptPath) {
+    console.log("Hermes build script not found, skipping patch");
+    process.exit(0);
   }
 
-  if (!fs.existsSync(hermesBuildScriptPath)) {
-    console.log('Skipping Hermes Xcode sysroot patch: build-hermes-xcode.sh not found');
-    return;
-  }
-
-  const currentBuildScript = fs.readFileSync(hermesBuildScriptPath, 'utf8');
-  const nextBuildScript = patchHermesBuildScript(currentBuildScript);
-
-  if (nextBuildScript === currentBuildScript) {
-    console.log('Hermes Xcode sysroot patch already applied');
-    return;
-  }
-
-  fs.writeFileSync(hermesBuildScriptPath, nextBuildScript);
-  console.log('Applied Hermes Xcode sysroot patch');
+  patchHermesBuildScript(hermesScriptPath);
+  process.exit(0);
 }
 
 main();

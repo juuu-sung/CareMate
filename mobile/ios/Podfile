@@ -1,6 +1,5 @@
 # Set by expo-router. This enables Fabric-only features from react-native-screens
 ENV['RNS_GAMMA_ENABLED'] ||= '1'
-source 'https://github.com/CocoaPods/Specs.git'
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
 
@@ -13,56 +12,6 @@ def ccache_enabled?(podfile_properties)
 
   # Fall back to Podfile properties
   podfile_properties['apple.ccacheEnabled'] == 'true'
-end
-
-def patch_hermes_framework_search_paths
-  xcconfig_files = Dir.glob(File.join(__dir__, 'Pods', 'Target Support Files', 'Pods-*', 'Pods-*.xcconfig'))
-  original = 'FRAMEWORK_SEARCH_PATHS = $(inherited) "${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios"'
-  replacement = <<~XCCONFIG.strip
-    FRAMEWORK_SEARCH_PATHS = $(inherited)
-    FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*] = $(inherited) "${PODS_ROOT}/hermes-engine/build/iphoneos/lib"
-    FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*] = $(inherited) "${PODS_ROOT}/hermes-engine/build/iphonesimulator/lib"
-  XCCONFIG
-
-  xcconfig_files.each do |xcconfig_path|
-    contents = File.read(xcconfig_path)
-    next unless contents.include?(original)
-
-    File.write(xcconfig_path, contents.gsub(original, replacement))
-  end
-end
-
-def patch_hermes_embed_frameworks
-  framework_script = File.join(__dir__, 'Pods', 'Target Support Files', 'Pods-CareMate', 'Pods-CareMate-frameworks.sh')
-  framework_reference = <<~SH.strip
-    if [[ "$CONFIGURATION" == "Debug" ]]; then
-      install_framework "${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios/hermesvm.framework"
-    fi
-    if [[ "$CONFIGURATION" == "Release" ]]; then
-      install_framework "${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios/hermesvm.framework"
-    fi
-  SH
-  framework_replacement = <<~SH.strip
-    install_framework "${PODS_ROOT}/hermes-engine/build/${PLATFORM_NAME}/lib/hermesvm.framework"
-  SH
-
-  if File.exist?(framework_script)
-    contents = File.read(framework_script)
-    if contents.include?(framework_reference)
-      File.write(framework_script, contents.gsub(framework_reference, framework_replacement))
-    end
-  end
-
-  project_file = File.join(__dir__, 'CareMate.xcodeproj', 'project.pbxproj')
-  project_reference = '"${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios/hermesvm.framework",'
-  project_replacement = '"${PODS_ROOT}/hermes-engine/build/${PLATFORM_NAME}/lib/hermesvm.framework",'
-
-  if File.exist?(project_file)
-    contents = File.read(project_file)
-    if contents.include?(project_reference)
-      File.write(project_file, contents.gsub(project_reference, project_replacement))
-    end
-  end
 end
 
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] ||= podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
@@ -106,49 +55,11 @@ target 'CareMate' do
   )
 
   post_install do |installer|
-    expo_widgets_post_install(installer)
-
     react_native_post_install(
       installer,
       config[:reactNativePath],
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
-
-    patch_hermes_framework_search_paths
-    patch_hermes_embed_frameworks
   end
-
-end
-
-require File.join(File.dirname(`node --print "require.resolve('expo-widgets/package.json')"`), "scripts/autolinking")
-target "ExpoWidgetsTarget" do
-    use_expo_modules_widgets!
-
-    if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
-      config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
-    else
-      config_command = [
-        'node',
-        '--no-warnings',
-        '--eval',
-        "require(require.resolve('expo-modules-autolinking', { paths: [require.resolve('expo/package.json')] }))(process.argv.slice(1))",
-        'react-native-config',
-        '--json',
-        '--platform',
-        'ios'
-      ]
-    end
-
-    config = use_expo_native_module!(config_command)
-
-    use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
-    use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
-
-    use_react_native!(
-      :path => config[:reactNativePath],
-      :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
-      :app_path => "#{Pod::Config.instance.installation_root}/..",
-      :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
-    )
 end
