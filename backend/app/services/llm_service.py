@@ -8,17 +8,18 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.schemas.agent import AgentPlan, AgentSessionState, AgentSlots
 from app.schemas.chat import (
-    ChatPlaceItem,
-    ChatSourceItem,
     ChatIntent,
     ChatMessageRequest,
     ChatMessageResponse,
+    ChatPlaceItem,
+    ChatSourceItem,
     ChatSpeechRequest,
     ChatSpeechResponse,
     RequesterRole,
 )
 from app.services.agent_confirmation_service import build_confirmation_question, build_missing_slot_question
 from app.services.agent_service import action_to_intent, build_agent_plan
+from app.services.agent_session_service import clear_expired_sessions, clear_session, get_session, save_session
 from app.services.agent_slot_service import (
     extract_agent_slots,
     find_missing_slots,
@@ -27,12 +28,11 @@ from app.services.agent_slot_service import (
 )
 from app.services.agent_tool_service import execute_agent_action
 from app.services.chat_log_service import append_chat_log, list_chat_logs
-from app.services.agent_session_service import clear_expired_sessions, clear_session, get_session, save_session
+from app.services.elder_profile_service import get_elder_profile_context
+from app.services.guardian_service import validate_guardian_access
 from app.services.openai_audio_service import OpenAIAudioServiceError, transcribe_audio
 from app.services.openai_service import OpenAIServiceError, generate_chat_text, generate_web_search_answer
 from app.services.response_policy_service import build_response_policy
-from app.services.elder_profile_service import get_elder_profile_context
-from app.services.guardian_service import validate_guardian_access
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
     clear_expired_sessions(db)
     _validate_requester_context(payload=payload, db=db)
     session_id = payload.session_id or payload.client_message_id or f"session-{uuid4().hex[:12]}"
+
     recent_messages = _load_recent_messages(
         db=db,
         elder_user_id=payload.elder_user_id,
@@ -56,6 +57,7 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
         senior_user_id=payload.elder_user_id,
         requester_role=payload.requester_role,
     )
+
     agent_plan = _build_effective_agent_plan(
         db=db,
         session_id=session_id,
@@ -343,6 +345,7 @@ def _generate_llm_answer(
                     recent_messages=recent_messages,
                 )
                 return answer, _elapsed_ms(started_at), sources
+
             answer = generate_chat_text(
                 intent=intent,
                 user_text=text,
@@ -360,7 +363,11 @@ def _generate_llm_answer(
                 [],
             )
 
-    return fallback_answer or _build_stub_answer(intent=intent, text=text, mode=mode, grounded_hint=grounded_hint), None, []
+    return (
+        fallback_answer or _build_stub_answer(intent=intent, text=text, mode=mode, grounded_hint=grounded_hint),
+        None,
+        [],
+    )
 
 
 def _validate_requester_context(payload, db: Session) -> None:
@@ -369,11 +376,11 @@ def _validate_requester_context(payload, db: Session) -> None:
 
     elder_user_id = getattr(payload, "elder_user_id", None)
     link_code = getattr(payload, "link_code", None)
-
     if not elder_user_id or not link_code:
         raise ValueError("보호자 질문에는 연동된 부모님 정보가 필요합니다.")
 
     validate_guardian_access(db, elder_user_id=elder_user_id, link_code=link_code)
+
 
 def _resolve_elder_profile_context(payload, db: Session) -> str | None:
     elder_user_id = getattr(payload, "elder_user_id", None) or getattr(payload, "user_id", None)
@@ -515,15 +522,7 @@ def _build_effective_agent_plan(
                     pending_action=None,
                     executed_action=executed_action,
                 )
-            if _is_negative(normalized):
-                clear_session(db, session_id)
-                return AgentPlan(
-                    action="general_support",
-                    intent="general_support",
-                    clarification_question="알겠어요. 이번 요청은 취소할게요.",
-                    pending_action=None,
-                    executed_action="general_support",
-                )
+
             refreshed_plan = build_agent_plan(
                 normalized,
                 mode,
@@ -536,6 +535,17 @@ def _build_effective_agent_plan(
                 refreshed_plan=refreshed_plan,
                 text=normalized,
             )
+
+            if _is_negative(normalized) and not (_looks_like_slot_update(normalized) and updated_confirmation_plan):
+                clear_session(db, session_id)
+                return AgentPlan(
+                    action="general_support",
+                    intent="general_support",
+                    clarification_question="알겠어요. 이번 요청은 취소할게요.",
+                    pending_action=None,
+                    executed_action="general_support",
+                )
+
             if updated_confirmation_plan:
                 save_session(
                     db,
@@ -545,9 +555,10 @@ def _build_effective_agent_plan(
                         pending_action=active_session.pending_action,
                         slots=updated_confirmation_plan.slots,
                         awaiting_confirmation=updated_confirmation_plan.awaiting_confirmation,
-                    )
+                    ),
                 )
                 return updated_confirmation_plan
+
             if _should_interrupt_confirmation(
                 text=normalized,
                 fresh_plan=refreshed_plan,
@@ -556,6 +567,7 @@ def _build_effective_agent_plan(
                 clear_session(db, session_id)
                 _persist_agent_plan_session(db, session_id, mode, refreshed_plan)
                 return refreshed_plan
+
             return AgentPlan(
                 action=active_session.pending_action,
                 intent=action_to_intent(active_session.pending_action),
@@ -563,7 +575,7 @@ def _build_effective_agent_plan(
                 missing_slots=[],
                 requires_confirmation=True,
                 awaiting_confirmation=True,
-                clarification_question="네 또는 아니오로 말씀해 주세요.",
+                clarification_question="맞으면 네, 바꿀 게 있으면 날짜나 시간을 다시 말씀해 주세요.",
                 pending_action=active_session.pending_action,
                 executed_action=None,
             )
@@ -583,11 +595,7 @@ def _build_effective_agent_plan(
             _persist_agent_plan_session(db, session_id, mode, fresh_plan)
             return fresh_plan
 
-        llm_slot_updates = (
-            fresh_plan.slots
-            if fresh_plan.action == active_session.pending_action
-            else AgentSlots()
-        )
+        llm_slot_updates = fresh_plan.slots if fresh_plan.action == active_session.pending_action else AgentSlots()
         fallback_slot_updates = extract_agent_slots(active_session.pending_action, normalized)
         merged_slots = normalize_agent_slots(
             active_session.pending_action,
@@ -597,6 +605,7 @@ def _build_effective_agent_plan(
             ),
         )
         missing_slots = find_missing_slots(active_session.pending_action, merged_slots)
+
         updated_plan = fresh_plan
         updated_plan.action = active_session.pending_action
         updated_plan.intent = action_to_intent(active_session.pending_action)
@@ -609,8 +618,13 @@ def _build_effective_agent_plan(
             "mark_medication_taken",
             "change_mode",
         }
+
         if missing_slots:
             updated_plan.awaiting_confirmation = False
+            updated_plan.clarification_question = build_missing_slot_question(
+                active_session.pending_action,
+                missing_slots,
+            )
             save_session(
                 db,
                 AgentSessionState(
@@ -619,7 +633,7 @@ def _build_effective_agent_plan(
                     pending_action=active_session.pending_action,
                     slots=merged_slots,
                     awaiting_confirmation=False,
-                )
+                ),
             )
             return updated_plan
 
@@ -637,7 +651,7 @@ def _build_effective_agent_plan(
                     pending_action=active_session.pending_action,
                     slots=merged_slots,
                     awaiting_confirmation=True,
-                )
+                ),
             )
         else:
             clear_session(db, session_id)
@@ -721,7 +735,7 @@ def _normalize_confirmation_text(text: str) -> str:
 
     for filler in ("음", "어", "저기", "그럼", "음음", "어어"):
         if compact.startswith(filler) and len(compact) > len(filler):
-            compact = compact[len(filler):]
+            compact = compact[len(filler) :]
             break
 
     return compact
@@ -773,8 +787,42 @@ def _build_updated_confirmation_plan(
     )
 
 
-def _has_slot_updates(slot_updates) -> bool:
+def _has_slot_updates(slot_updates: AgentSlots) -> bool:
     return any(value for value in slot_updates.model_dump().values())
+
+
+def _looks_like_slot_update(text: str) -> bool:
+    keywords = [
+        "오늘",
+        "내일",
+        "모레",
+        "글피",
+        "다음주",
+        "다음 주",
+        "이번주",
+        "이번 주",
+        "월요일",
+        "화요일",
+        "수요일",
+        "목요일",
+        "금요일",
+        "토요일",
+        "일요일",
+        "오전",
+        "오후",
+        "아침",
+        "점심",
+        "저녁",
+        "밤",
+        "새벽",
+        "시",
+        "분",
+        ":",
+        "로 바꿔",
+        "변경",
+        "수정",
+    ]
+    return any(keyword in text for keyword in keywords)
 
 
 def _should_interrupt_confirmation(
@@ -828,7 +876,7 @@ def _persist_agent_plan_session(db: Session, session_id: str, mode: str, agent_p
                 pending_action=agent_plan.action,
                 slots=agent_plan.slots,
                 awaiting_confirmation=False,
-            )
+            ),
         )
         return
 
@@ -841,7 +889,7 @@ def _persist_agent_plan_session(db: Session, session_id: str, mode: str, agent_p
                 pending_action=agent_plan.pending_action,
                 slots=agent_plan.slots,
                 awaiting_confirmation=agent_plan.awaiting_confirmation,
-            )
+            ),
         )
         return
 

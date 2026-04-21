@@ -27,7 +27,6 @@ class AppDelegate: ExpoAppDelegate {
       in: window,
       launchOptions: launchOptions)
 #endif
-
     if #available(iOS 16.0, *) {
       CareShortcutUpdater.register()
     }

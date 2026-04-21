@@ -6,6 +6,14 @@ from app.schemas.agent import AgentAction
 from app.schemas.chat import CareMode, RequesterRole
 from app.services.openai_service import OpenAIServiceError, classify_chat_action
 
+EXACT_TIME_PATTERN = re.compile(
+    r"((오전|오후)\s*\d{1,2}시(?:\s*\d{1,2}분)?|\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}시(?:\s*(?:반|\d{1,2}분))?)"
+)
+BROAD_TIME_PATTERN = re.compile(r"(오전|오후|아침|점심|낮|저녁|밤|새벽)")
+DATE_PATTERN = re.compile(
+    r"(\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}월\s*\d{1,2}일|오늘|내일|모레|글피|이번\s*주\s*[월화수목금토일]요일?|다음\s*주\s*[월화수목금토일]요일?|[월화수목금토일]요일?)"
+)
+
 
 @dataclass(frozen=True)
 class IntentClassificationResult:
@@ -38,6 +46,20 @@ def classify_agent_request(
     return IntentClassificationResult(
         action=_classify_agent_action_rule_based(text),
         slot_hints={},
+    )
+
+
+def classify_agent_action(
+    text: str,
+    current_pending_action: AgentAction | None = None,
+    awaiting_confirmation: bool = False,
+    last_requested_slot: str | None = None,
+) -> AgentAction:
+    return _classify_agent_action_rule_based(
+        text=text,
+        current_pending_action=current_pending_action,
+        awaiting_confirmation=awaiting_confirmation,
+        last_requested_slot=last_requested_slot,
     )
 
 
@@ -114,22 +136,42 @@ def _normalize_slot_hints(value) -> dict[str, str]:
     return slot_hints
 
 
-def _classify_agent_action_rule_based(text: str) -> AgentAction:
-    normalized = text.strip().lower()
+def _classify_agent_action_rule_based(
+    text: str,
+    current_pending_action: AgentAction | None = None,
+    awaiting_confirmation: bool = False,
+    last_requested_slot: str | None = None,
+) -> AgentAction:
+    normalized = _normalize_text(text)
 
-    if len(normalized) < 2:
+    if not normalized:
         return "needs_clarification"
+
+    if awaiting_confirmation and current_pending_action:
+        if _looks_like_confirmation_response(normalized):
+            return current_pending_action
+        if _looks_like_rejection_response(normalized):
+            return current_pending_action
+
+    if current_pending_action == "create_schedule" and _looks_like_schedule_followup_response(
+        normalized,
+        last_requested_slot,
+    ):
+        return "create_schedule"
 
     if any(keyword in normalized for keyword in ("모드", "인지 지원", "건강 관리")):
         if any(keyword in normalized for keyword in ("바꿔", "변경", "전환", "해줘")):
             return "change_mode"
         return "check_mode"
 
-    if any(keyword in normalized for keyword in ("편지", "보내", "전해", "메시지")):
+    if any(keyword in normalized for keyword in ("편지", "메시지")):
+        return "send_guardian_message"
+
+    if any(keyword in normalized for keyword in ("보내", "전해")) and not _looks_like_schedule_request(normalized):
         return "send_guardian_message"
 
     if any(keyword in normalized for keyword in ("기록", "체크")) and any(
-        keyword in normalized for keyword in ("약", "복약", "먹었")
+        keyword in normalized for keyword in ("약", "복약", "먹었", "복용")
     ):
         return "mark_medication_taken"
 
@@ -148,9 +190,10 @@ def _classify_agent_action_rule_based(text: str) -> AgentAction:
     if _looks_like_health_status_request(normalized):
         return "lookup_health_status"
 
-    if any(keyword in normalized for keyword in ("일정", "약속", "병원", "예약", "등록", "추가", "넣어")):
-        if any(keyword in normalized for keyword in ("등록", "추가", "넣어", "잡아")):
-            return "create_schedule"
+    if _looks_like_schedule_create_request(normalized):
+        return "create_schedule"
+
+    if _looks_like_schedule_lookup_request(normalized):
         return "lookup_schedule"
 
     if _looks_like_web_search_request(normalized):
@@ -160,6 +203,150 @@ def _classify_agent_action_rule_based(text: str) -> AgentAction:
         return "small_talk"
 
     return "general_support"
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
+def _looks_like_schedule_followup_response(text: str, last_requested_slot: str | None) -> bool:
+    if len(text) <= 1:
+        return False
+
+    if last_requested_slot == "time" and _contains_time_expression(text):
+        return True
+
+    if last_requested_slot == "date" and _contains_date_expression(text):
+        return True
+
+    if last_requested_slot == "title" and not _contains_other_domain_keywords(text):
+        return True
+
+    if _contains_time_expression(text) or _contains_date_expression(text):
+        return True
+
+    if text in {"응", "그래", "맞아", "예", "네", "좋아", "좋습니다"}:
+        return True
+
+    return False
+
+
+def _looks_like_confirmation_response(text: str) -> bool:
+    positives = (
+        "응",
+        "그래",
+        "맞아",
+        "예",
+        "네",
+        "좋아",
+        "좋습니다",
+        "해주세요",
+        "해줘",
+        "해",
+        "맞습니다",
+        "그렇게 해줘",
+        "그렇게 해",
+        "등록해줘",
+        "추가해줘",
+    )
+    return any(phrase == text or phrase in text for phrase in positives)
+
+
+def _looks_like_rejection_response(text: str) -> bool:
+    negatives = (
+        "아니",
+        "아니야",
+        "아뇨",
+        "아니요",
+        "취소",
+        "취소해",
+        "취소해줘",
+        "하지마",
+        "하지 마",
+        "그건 아니야",
+    )
+    return any(phrase == text or phrase in text for phrase in negatives)
+
+
+def _looks_like_schedule_request(text: str) -> bool:
+    return _looks_like_schedule_create_request(text) or _looks_like_schedule_lookup_request(text)
+
+
+def _looks_like_schedule_create_request(text: str) -> bool:
+    create_keywords = (
+        "등록",
+        "추가",
+        "넣어",
+        "잡아",
+        "기억해줘",
+        "기록해줘",
+        "적어줘",
+        "만들어",
+        "예약해",
+        "예약 잡아",
+    )
+    schedule_targets = (
+        "일정",
+        "약속",
+        "병원",
+        "예약",
+        "진료",
+        "모임",
+        "방문",
+    )
+
+    if any(keyword in text for keyword in create_keywords) and any(target in text for target in schedule_targets):
+        return True
+
+    if (_contains_date_expression(text) or _contains_time_expression(text)) and any(
+        phrase in text
+        for phrase in (
+            "가야 해",
+            "가야해",
+            "가야 돼",
+            "가야돼",
+            "가야 한다",
+            "가야한다",
+            "다녀와야 해",
+            "다녀와야해",
+            "다녀와야 한다",
+            "다녀와야한다",
+            "약속",
+            "병원",
+            "진료",
+            "방문",
+        )
+    ):
+        return True
+
+    return any(target in text for target in schedule_targets) and any(keyword in text for keyword in create_keywords)
+
+
+def _looks_like_schedule_lookup_request(text: str) -> bool:
+    lookup_keywords = (
+        "뭐 있",
+        "뭐 있어",
+        "뭐 있나",
+        "보여줘",
+        "알려줘",
+        "확인",
+        "조회",
+        "어떤 일정",
+        "일정 뭐",
+        "약속 뭐",
+    )
+    schedule_keywords = ("일정", "약속", "예약")
+    date_keywords = ("오늘", "내일", "모레", "이번주", "이번 주", "다음주", "다음 주")
+
+    if any(keyword in text for keyword in schedule_keywords) and any(keyword in text for keyword in lookup_keywords):
+        return True
+
+    if any(date_keyword in text for date_keyword in date_keywords) and any(
+        keyword in text for keyword in schedule_keywords
+    ):
+        return any(keyword in text for keyword in ("뭐", "있", "보여", "알려", "확인", "조회"))
+
+    return False
 
 
 def _looks_like_nearby_hospital_request(text: str) -> bool:
@@ -225,6 +412,7 @@ def _looks_like_medication_request(text: str) -> bool:
         r"먹었",
         r"먹어",
         r"드셨어",
+        r"복용",
         r"(?<!예)약[은는이가을를도만]",
         r"(?<!예)약\s",
         r"\s약",
@@ -285,3 +473,32 @@ def _looks_like_web_search_request(text: str) -> bool:
         "찾아보",
     )
     return any(keyword in text for keyword in search_keywords)
+
+
+def _contains_time_expression(text: str) -> bool:
+    return bool(EXACT_TIME_PATTERN.search(text) or BROAD_TIME_PATTERN.search(text))
+
+
+def _contains_date_expression(text: str) -> bool:
+    return bool(DATE_PATTERN.search(text))
+
+
+def _contains_other_domain_keywords(text: str) -> bool:
+    other_domain_keywords = (
+        "병원 어디",
+        "근처 병원",
+        "응급실",
+        "약 뭐",
+        "무슨 약",
+        "복약",
+        "모드",
+        "인지 지원",
+        "건강 관리",
+        "검색해",
+        "찾아줘",
+        "아파",
+        "두통",
+        "기침",
+        "열이",
+    )
+    return any(keyword in text for keyword in other_domain_keywords)

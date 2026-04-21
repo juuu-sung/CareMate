@@ -42,6 +42,10 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>ExpoWidgetsAppGroupIdentifier</key>
+	<string>group.com.hongjusung.caremate</string>
+	<key>ExpoWidgets_EnablePushNotifications</key>
+	<false/>
 	<key>INAlternativeAppNames</key>
 	<array>
 		<dict>
@@ -78,6 +82,10 @@
 	<string>CareMate가 음성 대화와 웨이크워드를 위해 마이크 접근이 필요합니다.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>CareMate가 '케어'를 인식해 바로 대화를 시작하려면 음성 인식 접근이 필요합니다.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<false/>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

@@ -3,9 +3,9 @@ import re
 from app.schemas.agent import AgentAction, AgentSlots
 from app.schemas.chat import CareMode
 
-
-TIME_PATTERN = re.compile(r"((오전|오후)\s*\d{1,2}시(?:\s*\d{1,2}분)?|\d{1,2}시(?:\s*\d{1,2}분)?)")
-DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+TIME_PATTERN = re.compile(
+    r"((오전|오후)\s*\d{1,2}시(?:\s*(?:반|\d{1,2}분))?|\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}시(?:\s*(?:반|\d{1,2}분))?)"
+)
 KOREAN_HOUR_WORDS = (
     "열두",
     "열한",
@@ -23,6 +23,23 @@ KOREAN_HOUR_WORDS = (
 KOREAN_TIME_PATTERN = re.compile(
     rf"((오전|오후)\s*({'|'.join(KOREAN_HOUR_WORDS)})\s*시(?:\s*반|\s*\d{{1,2}}분)?|({'|'.join(KOREAN_HOUR_WORDS)})\s*시(?:\s*반|\s*\d{{1,2}}분)?)"
 )
+DATE_PATTERNS = [
+    r"\d{4}년\s*\d{1,2}월\s*\d{1,2}일",
+    r"\d{4}[./-]\d{1,2}[./-]\d{1,2}",
+    r"\d{1,2}월\s*\d{1,2}일",
+    r"\d{1,2}/\d{1,2}",
+    r"\d{1,2}-\d{1,2}",
+    r"다음\s*주\s*[월화수목금토일]요일",
+    r"이번\s*주\s*[월화수목금토일]요일",
+    r"[월화수목금토일]요일",
+    r"오늘",
+    r"내일",
+    r"모레",
+    r"글피",
+    r"이번\s*주",
+    r"다음\s*주",
+]
+DATE_PATTERN = re.compile("|".join(f"(?:{pattern})" for pattern in DATE_PATTERNS))
 KOREAN_HOUR_MAP = {
     "한": "1",
     "두": "2",
@@ -50,8 +67,11 @@ DATE_SYNONYM_MAP = {
     "오늘": "오늘",
     "내일": "내일",
     "모레": "모레",
+    "글피": "글피",
     "이번주": "이번 주",
     "이번 주": "이번 주",
+    "다음주": "다음 주",
+    "다음 주": "다음 주",
 }
 TIME_SCOPE_SYNONYM_MAP = {
     "지금": "지금",
@@ -65,10 +85,44 @@ TIME_SCOPE_SYNONYM_MAP = {
     "오늘저녁": "오늘 저녁",
     "오늘 저녁": "오늘 저녁",
 }
+SCHEDULE_ENDINGS = [
+    "가야 한다",
+    "가야한다",
+    "가야 해",
+    "가야해",
+    "가야 돼",
+    "가야돼",
+    "다녀와야 한다",
+    "다녀와야한다",
+    "다녀와야 해",
+    "다녀와야해",
+    "넣어줘",
+    "추가해줘",
+    "등록해줘",
+    "잡아줘",
+    "잡아주라",
+    "기억해줘",
+    "기록해줘",
+    "적어줘",
+    "넣어",
+    "추가해",
+    "등록해",
+    "잡아",
+    "잡아라",
+    "넣어라",
+    "등록해라",
+    "추가해라",
+    "만들어",
+    "만들어줘",
+    "만들어라",
+    "해줘",
+    "해라",
+    "해",
+]
 
 
 def extract_agent_slots(action: AgentAction, text: str) -> AgentSlots:
-    normalized = text.strip()
+    normalized = re.sub(r"\s+", " ", text.strip())
     lowered = normalized.lower()
     slots = AgentSlots()
 
@@ -82,10 +136,17 @@ def extract_agent_slots(action: AgentAction, text: str) -> AgentSlots:
 
     if action == "create_schedule":
         slots.title = _extract_schedule_title(normalized)
+        slots.content = normalized
+        slots.raw_text = normalized
+
     if action == "send_guardian_message":
         slots.content = _extract_message_content(normalized)
+
     if action == "mark_medication_taken":
-        slots.status = "taken" if any(keyword in lowered for keyword in ("먹었", "복용", "기록")) else None
+        if any(keyword in lowered for keyword in ("안 먹", "못 먹", "누락", "놓쳤")):
+            slots.status = "missed"
+        elif any(keyword in lowered for keyword in ("먹었", "복용", "기록", "먹었어", "먹었어요")):
+            slots.status = "taken"
 
     return slots
 
@@ -96,7 +157,7 @@ def find_missing_slots(action: AgentAction, slots: AgentSlots) -> list[str]:
         "lookup_medication": ["time_scope"],
         "lookup_health_status": [],
         "check_mode": [],
-        "create_schedule": ["title", "date", "time"],
+        "create_schedule": ["date", "time"],
         "send_guardian_message": ["target", "content"],
         "mark_medication_taken": ["medication_name", "time_scope", "status"],
         "change_mode": ["target_mode"],
@@ -106,18 +167,24 @@ def find_missing_slots(action: AgentAction, slots: AgentSlots) -> list[str]:
         "small_talk": [],
         "general_support": [],
         "needs_clarification": [],
+        "web_search_request": [],
     }
+
     missing: list[str] = []
     for field_name in required_by_action[action]:
-        if not getattr(slots, field_name):
+        value = getattr(slots, field_name, None)
+        if not value:
             missing.append(field_name)
+            continue
+        if action == "create_schedule" and field_name == "time" and _is_broad_time_expression(value):
+            missing.append("time")
     return missing
 
 
 def merge_agent_slots(base_slots: AgentSlots, new_slots: AgentSlots) -> AgentSlots:
     merged_data = base_slots.model_dump()
     for field_name, value in new_slots.model_dump().items():
-        if value:
+        if value is not None and value != "":
             merged_data[field_name] = value
     return AgentSlots(**merged_data)
 
@@ -133,6 +200,7 @@ def normalize_agent_slots(action: AgentAction, slots: AgentSlots) -> AgentSlots:
     normalized.medication_name = _normalize_simple_text(normalized.medication_name)
     normalized.title = _normalize_schedule_title_value(normalized.title, normalized.target)
     normalized.content = _normalize_simple_text(normalized.content)
+    normalized.raw_text = _normalize_simple_text(normalized.raw_text)
 
     if action == "lookup_schedule" and not normalized.date_range and normalized.date:
         normalized.date_range = normalized.date
@@ -150,23 +218,10 @@ def normalize_agent_slots(action: AgentAction, slots: AgentSlots) -> AgentSlots:
 
 
 def _extract_date_range(text: str) -> str | None:
-    if "오늘" in text:
-        return "오늘"
-    if "내일" in text:
-        return "내일"
-    if "모레" in text:
-        return "모레"
-    if "이번 주" in text or "이번주" in text:
-        return "이번 주"
-
-    explicit_date_match = DATE_PATTERN.search(text)
-    if explicit_date_match:
-        return explicit_date_match.group(0)
-
-    for weekday in WEEKDAY_LABELS:
-        if weekday in text:
-            return weekday
-
+    for pattern in DATE_PATTERNS:
+        match = re.search(pattern, text)
+        if match:
+            return re.sub(r"\s+", " ", match.group(0)).strip()
     return None
 
 
@@ -176,29 +231,139 @@ def _extract_time(text: str) -> str | None:
         return re.sub(r"\s+", " ", match.group(1)).strip()
 
     korean_match = KOREAN_TIME_PATTERN.search(text)
-    if not korean_match:
-        return None
+    if korean_match:
+        return _normalize_korean_time_expression(korean_match.group(1))
 
-    return _normalize_korean_time_expression(korean_match.group(1))
+    broad_match = re.search(r"(새벽|아침|점심|낮|저녁|밤|오전|오후)", text)
+    if broad_match:
+        return broad_match.group(1).strip()
+
+    return None
 
 
 def _extract_time_scope(text: str) -> str | None:
-    for keyword in ("지금", "아침", "점심", "저녁", "오늘", "오늘 저녁", "오늘 아침"):
+    priority_keywords = (
+        "오늘 아침",
+        "오늘 점심",
+        "오늘 저녁",
+        "오늘 밤",
+        "지금",
+        "아침",
+        "점심",
+        "저녁",
+        "오늘",
+    )
+    for keyword in priority_keywords:
         if keyword in text:
             return keyword
     return None
 
 
 def _extract_schedule_title(text: str) -> str | None:
-    if "병원" in text:
-        return "병원 일정"
-    if "주민센터" in text:
-        return "주민센터 일정"
-    if "약속" in text:
-        return "약속"
-    if "일정" in text:
+    cleaned = text.strip()
+
+    for pattern in DATE_PATTERNS:
+        cleaned = re.sub(pattern, " ", cleaned)
+
+    cleaned = re.sub(
+        r"((오전|오후)\s*\d{1,2}시(?:\s*(?:반|\d{1,2}분))?|\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}시(?:\s*(?:반|\d{1,2}분))?)",
+        " ",
+        cleaned,
+    )
+    cleaned = re.sub(r"(오전|오후|아침|점심|낮|저녁|밤|새벽)", " ", cleaned)
+    cleaned = re.sub(r"(에|에는|으로|쯤|때|날)\b", " ", cleaned)
+    cleaned = re.sub(r"(좀|조금|하나|하나만|하나쯤)", " ", cleaned)
+
+    for ending in SCHEDULE_ENDINGS:
+        cleaned = cleaned.replace(ending, " ")
+
+    cleaned = re.sub(
+        r"(일정|스케줄|약속)\s*(추가|등록|저장|잡아|잡아라|잡아줘|잡아주라|만들어|만들어줘|넣어|넣어줘)?",
+        " ",
+        cleaned,
+    )
+    cleaned = re.sub(r"(해줘|해주세요|부탁해|부탁해요)", " ", cleaned)
+    cleaned = re.sub(r"[\"'.,!?]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    if not cleaned:
         return "일정"
-    return None
+
+    cleaned = _normalize_schedule_title_phrase(cleaned)
+    if len(cleaned) > 12:
+        cleaned = _compress_title(cleaned)
+    if len(cleaned) > 12:
+        cleaned = cleaned[:12].strip()
+    return cleaned or "일정"
+
+
+def _normalize_schedule_title_phrase(text: str) -> str:
+    replacements = [
+        ("가족 여행 가", "가족 여행"),
+        ("가족 여행", "가족 여행"),
+        ("여행 가", "여행"),
+        ("친구 병문안 가", "친구 병문안"),
+        ("친구 병문안", "친구 병문안"),
+        ("병문안 가", "병문안"),
+        ("병문안", "병문안"),
+        ("병원 가", "병원 방문"),
+        ("병원 방문", "병원 방문"),
+        ("진료 가", "병원 진료"),
+        ("진료", "병원 진료"),
+        ("약 타러 가", "약 수령"),
+        ("약 받으러 가", "약 수령"),
+        ("약 찾으러 가", "약 수령"),
+        ("약국 가", "약국 방문"),
+        ("주민센터 가", "주민센터"),
+        ("마트 가", "마트 장보기"),
+        ("장 보러 가", "장보기"),
+        ("은행 가", "은행 방문"),
+        ("식사 하", "식사"),
+        ("밥 먹", "식사"),
+        ("축구", "축구"),
+        ("병원", "병원 방문"),
+    ]
+    result = text
+    for source, target in replacements:
+        if source in result:
+            return target
+    return result
+
+
+def _compress_title(text: str) -> str:
+    priority_keywords = [
+        "가족 여행",
+        "친구 병문안",
+        "병원 진료",
+        "병원 방문",
+        "약 수령",
+        "약국 방문",
+        "주민센터",
+        "마트 장보기",
+        "장보기",
+        "은행 방문",
+        "식사",
+        "약속",
+        "여행",
+    ]
+    for keyword in priority_keywords:
+        if keyword in text:
+            return keyword
+
+    words = text.split()
+    if len(words) >= 2:
+        spaced = " ".join(words[:2])
+        if len(spaced) <= 12:
+            return spaced
+        combined = "".join(words[:2])
+        if len(combined) <= 12:
+            return combined
+
+    return text
+
+
+def _is_broad_time_expression(value: str) -> bool:
+    return value in {"오전", "오후", "아침", "점심", "낮", "저녁", "밤", "새벽"}
 
 
 def _extract_target(text: str) -> str | None:
@@ -246,15 +411,12 @@ def _normalize_korean_time_expression(value: str) -> str:
     normalized = re.sub(r"\s+", " ", value).strip()
     normalized = normalized.replace("시 반", "시 30분")
     normalized = normalized.replace("시반", "시 30분")
-
     for korean_hour in KOREAN_HOUR_WORDS:
-        numeric_hour = KOREAN_HOUR_MAP[korean_hour]
         normalized = re.sub(
             rf"(?<!\d){korean_hour}(?=\s*시)",
-            numeric_hour,
+            KOREAN_HOUR_MAP[korean_hour],
             normalized,
         )
-
     return normalized
 
 
@@ -263,8 +425,9 @@ def _normalize_date_value(value: str | None) -> str | None:
     if not normalized:
         return None
 
-    if normalized in DATE_SYNONYM_MAP:
-        return DATE_SYNONYM_MAP[normalized]
+    compact = normalized.replace(" ", "")
+    if compact in DATE_SYNONYM_MAP:
+        return DATE_SYNONYM_MAP[compact]
 
     for weekday in WEEKDAY_LABELS:
         if normalized == weekday or normalized == weekday.replace("요일", ""):
@@ -272,7 +435,7 @@ def _normalize_date_value(value: str | None) -> str | None:
 
     explicit_date_match = DATE_PATTERN.search(normalized)
     if explicit_date_match:
-        return explicit_date_match.group(0)
+        return re.sub(r"\s+", " ", explicit_date_match.group(0)).strip()
 
     return normalized
 
@@ -299,7 +462,14 @@ def _normalize_time_value(value: str | None) -> str | None:
     hour_only_match = re.search(r"\b(\d{1,2})\s*시\b", normalized)
     if hour_only_match:
         hour = int(hour_only_match.group(1))
-        return _format_hour_minute(hour, 0, preserve_24h="오전" not in normalized and "오후" not in normalized)
+        return _format_hour_minute(
+            hour,
+            0,
+            preserve_24h="오전" not in normalized and "오후" not in normalized,
+        )
+
+    if _is_broad_time_expression(normalized):
+        return normalized
 
     return normalized
 
@@ -341,7 +511,11 @@ def _normalize_schedule_title_value(title: str | None, target: str | None) -> st
 
     generic_titles = {"일정", "약속"}
     if normalized in generic_titles and target:
-        return f"{target} {normalized}"
+        return f"{target} 약속"
+    if target and target in normalized:
+        return f"{target} 약속"
+    if "친구" in normalized:
+        return "친구 약속"
     return normalized
 
 
