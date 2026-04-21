@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     LOCATION_RETENTION_DAYS: int = 30
     LLM_PROVIDER: str = "stub"
     LLM_MODEL: str = "gpt-5.4-mini"
+    LLM_REASONING_EFFORT: str = "medium"
     LLM_TIMEOUT_SECONDS: int = 20
+    CHAT_HISTORY_TURNS: int = 8
     STT_PROVIDER: str = "stub"
     STT_MODEL: str = "gpt-4o-mini-transcribe"
     STT_TIMEOUT_SECONDS: int = 30
@@ -86,8 +88,18 @@ class Settings(BaseSettings):
         return self.LLM_MODEL
 
     @property
+    def llm_reasoning_effort(self) -> str:
+        if self.LLM_REASONING_EFFORT in {"minimal", "low", "medium", "high"}:
+            return self.LLM_REASONING_EFFORT
+        return "medium"
+
+    @property
     def llm_timeout_seconds(self) -> int:
         return self.LLM_TIMEOUT_SECONDS
+
+    @property
+    def chat_history_turns(self) -> int:
+        return min(10, max(0, self.CHAT_HISTORY_TURNS))
 
     @property
     def stt_provider(self) -> str:

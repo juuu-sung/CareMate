@@ -9,6 +9,7 @@ from app.schemas.chat import CareMode, ChatIntent
 AgentAction = Literal[
     "lookup_schedule",
     "lookup_medication",
+    "lookup_health_status",
     "check_mode",
     "create_schedule",
     "send_guardian_message",

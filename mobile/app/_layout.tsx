@@ -235,6 +235,7 @@ export default function RootLayout() {
       <Stack.Screen name="guardian-signup" />
       <Stack.Screen name="guardian-parent-info" />
       <Stack.Screen name="guardian-home" />
+      <Stack.Screen name="guardian-health" />
       <Stack.Screen name="guardian-conversations" />
       <Stack.Screen name="guardian-location" />
       <Stack.Screen name="guardian-letter" />

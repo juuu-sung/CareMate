@@ -1,22 +1,142 @@
 import re
+from dataclasses import dataclass, field
 
+from app.core.config import settings
 from app.schemas.agent import AgentAction
-
+from app.schemas.chat import CareMode, RequesterRole
+from app.services.openai_service import OpenAIServiceError, classify_chat_action
 
 EXACT_TIME_PATTERN = re.compile(
-    r"((오전|오후)\s*\d{1,2}시(?:\s*\d{1,2}분)?|\d{1,2}시(?:\s*\d{1,2}분)?)"
+    r"((오전|오후)\s*\d{1,2}시(?:\s*\d{1,2}분)?|\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}시(?:\s*(?:반|\d{1,2}분))?)"
 )
-
-BROAD_TIME_PATTERN = re.compile(
-    r"(오전|오후|아침|점심|낮|저녁|밤)"
-)
-
+BROAD_TIME_PATTERN = re.compile(r"(오전|오후|아침|점심|낮|저녁|밤|새벽)")
 DATE_PATTERN = re.compile(
-    r"(오늘|내일|모레|글피|이번주\s*[월화수목금토일]요일?|다음주\s*[월화수목금토일]요일?|[월화수목금토일]요일?)"
+    r"(\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}월\s*\d{1,2}일|오늘|내일|모레|글피|이번\s*주\s*[월화수목금토일]요일?|다음\s*주\s*[월화수목금토일]요일?|[월화수목금토일]요일?)"
 )
+
+
+@dataclass(frozen=True)
+class IntentClassificationResult:
+    action: AgentAction
+    slot_hints: dict[str, str] = field(default_factory=dict)
+
+
+def classify_agent_request(
+    text: str,
+    mode: CareMode,
+    requester_role: RequesterRole = "parent",
+    recent_messages: list[dict[str, str]] | None = None,
+    elder_profile_context: str | None = None,
+) -> IntentClassificationResult:
+    if _should_use_llm_classifier():
+        try:
+            result = classify_chat_action(
+                user_text=text,
+                mode=mode,
+                requester_role=requester_role,
+                recent_messages=recent_messages,
+                elder_profile_context=elder_profile_context,
+            )
+            action = _normalize_action(result.get("action"))
+            slot_hints = _normalize_slot_hints(result.get("slot_hints"))
+            return IntentClassificationResult(action=action, slot_hints=slot_hints)
+        except (OpenAIServiceError, TypeError, ValueError):
+            pass
+
+    return IntentClassificationResult(
+        action=_classify_agent_action_rule_based(text),
+        slot_hints={},
+    )
 
 
 def classify_agent_action(
+    text: str,
+    current_pending_action: AgentAction | None = None,
+    awaiting_confirmation: bool = False,
+    last_requested_slot: str | None = None,
+) -> AgentAction:
+    return _classify_agent_action_rule_based(
+        text=text,
+        current_pending_action=current_pending_action,
+        awaiting_confirmation=awaiting_confirmation,
+        last_requested_slot=last_requested_slot,
+    )
+
+
+def _should_use_llm_classifier() -> bool:
+    if settings.llm_provider == "openai":
+        return bool(settings.openai_api_key)
+    return settings.llm_provider == "stub" and bool(settings.openai_api_key)
+
+
+def _normalize_action(value) -> AgentAction:
+    allowed_actions: set[AgentAction] = {
+        "lookup_schedule",
+        "lookup_medication",
+        "lookup_health_status",
+        "check_mode",
+        "create_schedule",
+        "send_guardian_message",
+        "mark_medication_taken",
+        "change_mode",
+        "hospital_visit_support",
+        "nearby_hospital_request",
+        "symptom_support",
+        "web_search_request",
+        "small_talk",
+        "general_support",
+        "needs_clarification",
+    }
+
+    normalized = str(value or "").strip()
+    if normalized not in allowed_actions:
+        raise ValueError("invalid action")
+    return normalized
+
+
+def _normalize_slot_hints(value) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+
+    allowed_fields = {
+        "date_range",
+        "date",
+        "time",
+        "time_scope",
+        "title",
+        "target",
+        "content",
+        "medication_name",
+        "status",
+        "target_mode",
+    }
+    slot_hints: dict[str, str] = {}
+
+    for field_name, raw_value in value.items():
+        if field_name not in allowed_fields or raw_value in {None, ""}:
+            continue
+
+        normalized_value = str(raw_value).strip()
+        if not normalized_value:
+            continue
+
+        if field_name == "date_range" and normalized_value == "이번주":
+            normalized_value = "이번 주"
+        if field_name == "target_mode" and normalized_value not in {
+            "basic",
+            "cognitive_support",
+            "health_support",
+        }:
+            continue
+        if field_name == "status" and normalized_value not in {"taken", "missed"}:
+            continue
+
+        slot_hints[field_name] = normalized_value
+
+    return slot_hints
+
+
+def _classify_agent_action_rule_based(
     text: str,
     current_pending_action: AgentAction | None = None,
     awaiting_confirmation: bool = False,
@@ -27,66 +147,58 @@ def classify_agent_action(
     if not normalized:
         return "needs_clarification"
 
-    # 1. 확인 응답은 현재 진행 중인 액션을 유지
     if awaiting_confirmation and current_pending_action:
         if _looks_like_confirmation_response(normalized):
             return current_pending_action
         if _looks_like_rejection_response(normalized):
             return current_pending_action
 
-    # 2. 일정 등록/수정 질문 직후의 짧은 후속 응답은 create_schedule로 우선 처리
-    if current_pending_action == "create_schedule":
-        if _looks_like_schedule_followup_response(normalized, last_requested_slot):
-            return "create_schedule"
+    if current_pending_action == "create_schedule" and _looks_like_schedule_followup_response(
+        normalized,
+        last_requested_slot,
+    ):
+        return "create_schedule"
 
-    # 3. 모드 관련
     if any(keyword in normalized for keyword in ("모드", "인지 지원", "건강 관리")):
         if any(keyword in normalized for keyword in ("바꿔", "변경", "전환", "해줘")):
             return "change_mode"
         return "check_mode"
 
-    # 4. 보호자 메시지
     if any(keyword in normalized for keyword in ("편지", "메시지")):
         return "send_guardian_message"
 
-    if any(keyword in normalized for keyword in ("보내", "전해")):
-        # 일정 관련 표현이 아니면 보호자 메시지 쪽 우선
-        if not _looks_like_schedule_request(normalized):
-            return "send_guardian_message"
+    if any(keyword in normalized for keyword in ("보내", "전해")) and not _looks_like_schedule_request(normalized):
+        return "send_guardian_message"
 
-    # 5. 복약 기록
     if any(keyword in normalized for keyword in ("기록", "체크")) and any(
         keyword in normalized for keyword in ("약", "복약", "먹었", "복용")
     ):
         return "mark_medication_taken"
 
-    # 6. 병원/응급 관련
     if _looks_like_nearby_hospital_request(normalized):
         return "nearby_hospital_request"
 
     if _looks_like_hospital_visit_request(normalized):
         return "hospital_visit_support"
 
-    # 7. 증상 지원
     if _looks_like_symptom_support_request(normalized):
         return "symptom_support"
 
-    # 8. 약 조회
     if _looks_like_medication_request(normalized):
         return "lookup_medication"
 
-    # 9. 일정 관련
+    if _looks_like_health_status_request(normalized):
+        return "lookup_health_status"
+
     if _looks_like_schedule_create_request(normalized):
         return "create_schedule"
 
     if _looks_like_schedule_lookup_request(normalized):
         return "lookup_schedule"
 
-    # 10. 웹 검색
     if _looks_like_web_search_request(normalized):
         return "web_search_request"
 
-    # 11. 잡담
     if any(keyword in normalized for keyword in ("심심", "적적", "외롭", "말동무")):
         return "small_talk"
 
@@ -98,24 +210,18 @@ def _normalize_text(text: str) -> str:
 
 
 def _looks_like_schedule_followup_response(text: str, last_requested_slot: str | None) -> bool:
-    # 일정 등록 진행 중, 사용자가 짧게 필요한 슬롯만 답하는 경우
     if len(text) <= 1:
         return False
 
-    if last_requested_slot == "time":
-        if _contains_time_expression(text):
-            return True
+    if last_requested_slot == "time" and _contains_time_expression(text):
+        return True
 
-    if last_requested_slot == "date":
-        if _contains_date_expression(text):
-            return True
+    if last_requested_slot == "date" and _contains_date_expression(text):
+        return True
 
-    if last_requested_slot == "title":
-        # 제목은 범용이라 너무 넓게 잡지 않되, 짧은 단답도 허용
-        if not _contains_other_domain_keywords(text):
-            return True
+    if last_requested_slot == "title" and not _contains_other_domain_keywords(text):
+        return True
 
-    # last_requested_slot 정보가 없어도 일정 follow-up처럼 보이는 경우
     if _contains_time_expression(text) or _contains_date_expression(text):
         return True
 
@@ -189,42 +295,31 @@ def _looks_like_schedule_create_request(text: str) -> bool:
         "방문",
     )
 
-    # 명시적으로 일정 생성 의도가 있는 경우
-    if any(keyword in text for keyword in create_keywords) and any(
-        target in text for target in schedule_targets
+    if any(keyword in text for keyword in create_keywords) and any(target in text for target in schedule_targets):
+        return True
+
+    if (_contains_date_expression(text) or _contains_time_expression(text)) and any(
+        phrase in text
+        for phrase in (
+            "가야 해",
+            "가야해",
+            "가야 돼",
+            "가야돼",
+            "가야 한다",
+            "가야한다",
+            "다녀와야 해",
+            "다녀와야해",
+            "다녀와야 한다",
+            "다녀와야한다",
+            "약속",
+            "병원",
+            "진료",
+            "방문",
+        )
     ):
         return True
 
-    # "내일 병원 가야 해", "금요일 주민센터 가야 한다" 같이 생성성 발화
-    if _contains_date_expression(text) or _contains_time_expression(text):
-        if any(
-            phrase in text
-            for phrase in (
-                "가야 해",
-                "가야해",
-                "가야 돼",
-                "가야돼",
-                "가야 한다",
-                "가야한다",
-                "다녀와야 해",
-                "다녀와야해",
-                "다녀와야 한다",
-                "다녀와야한다",
-                "약속",
-                "병원",
-                "진료",
-                "방문",
-            )
-        ):
-            return True
-
-    # "병원 예약 넣어줘", "내일 일정 하나 추가해줘"
-    if any(target in text for target in schedule_targets) and any(
-        keyword in text for keyword in create_keywords
-    ):
-        return True
-
-    return False
+    return any(target in text for target in schedule_targets) and any(keyword in text for keyword in create_keywords)
 
 
 def _looks_like_schedule_lookup_request(text: str) -> bool:
@@ -240,31 +335,16 @@ def _looks_like_schedule_lookup_request(text: str) -> bool:
         "일정 뭐",
         "약속 뭐",
     )
+    schedule_keywords = ("일정", "약속", "예약")
+    date_keywords = ("오늘", "내일", "모레", "이번주", "이번 주", "다음주", "다음 주")
 
-    schedule_keywords = (
-        "일정",
-        "약속",
-        "예약",
-    )
-
-    date_keywords = (
-        "오늘",
-        "내일",
-        "모레",
-        "이번주",
-        "다음주",
-    )
-
-    if any(keyword in text for keyword in schedule_keywords) and any(
-        keyword in text for keyword in lookup_keywords
-    ):
+    if any(keyword in text for keyword in schedule_keywords) and any(keyword in text for keyword in lookup_keywords):
         return True
 
     if any(date_keyword in text for date_keyword in date_keywords) and any(
-        keyword in text for keyword in ("일정", "약속", "예약")
+        keyword in text for keyword in schedule_keywords
     ):
-        if any(keyword in text for keyword in ("뭐", "있", "보여", "알려", "확인", "조회")):
-            return True
+        return any(keyword in text for keyword in ("뭐", "있", "보여", "알려", "확인", "조회"))
 
     return False
 
@@ -292,7 +372,6 @@ def _looks_like_hospital_visit_request(text: str) -> bool:
         "오늘 지금",
         "지금",
     )
-
     schedule_keywords = (
         "일정",
         "예약",
@@ -316,6 +395,12 @@ def _looks_like_hospital_visit_request(text: str) -> bool:
 
 
 def _looks_like_medication_request(text: str) -> bool:
+    if any(keyword in text for keyword in ("약속", "예약", "계약")):
+        sanitized = text
+        for keyword in ("약속", "예약", "계약"):
+            sanitized = sanitized.replace(keyword, " ")
+        text = sanitized
+
     medication_patterns = (
         r"복약",
         r"약시간",
@@ -354,6 +439,26 @@ def _looks_like_symptom_support_request(text: str) -> bool:
         "떨려",
     )
     return any(keyword in text for keyword in symptom_keywords)
+
+
+def _looks_like_health_status_request(text: str) -> bool:
+    if any(keyword in text for keyword in ("일정", "약속", "예약", "병원", "약", "복약")):
+        return False
+
+    direct_keywords = (
+        "건강 상태",
+        "상태 어때",
+        "상태는 어때",
+        "괜찮아",
+        "괜찮으",
+        "이상 징후",
+        "알림 있",
+        "체크인",
+    )
+    if any(keyword in text for keyword in direct_keywords):
+        return True
+
+    return "상태" in text and any(keyword in text for keyword in ("건강", "지금", "오늘", "부모님", "어르신"))
 
 
 def _looks_like_web_search_request(text: str) -> bool:

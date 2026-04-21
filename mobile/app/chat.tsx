@@ -27,6 +27,7 @@ import {
 import {
   buildChatTtsUrl,
   ChatPlaceItem,
+  ChatRequesterRole,
   ChatSourceItem,
   getChatHistory,
   getPlaceStatus,
@@ -61,10 +62,21 @@ export default function ChatPage() {
     elderUserId?: string;
     elder_user_id?: string;
     parentId?: string;
+    parentName?: string;
+    linkCode?: string;
+    link_code?: string;
+    requesterRole?: string;
+    requester_role?: string;
   }>();
   const isVoiceMode = params.input === 'voice';
   const selectedVoice = String(params.selectedVoice || '') as TtsVoiceId | '';
   const agentName = String(params.agentName || '');
+  const initialRequesterRole: ChatRequesterRole =
+    String(params.requesterRole || params.requester_role || '') === 'guardian'
+      ? 'guardian'
+      : 'parent';
+  const initialSubjectName = String(params.parentName || '부모님');
+  const initialLinkCode = String(params.linkCode || params.link_code || '');
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
@@ -89,6 +101,9 @@ export default function ChatPage() {
   const [showQuickConfirmation, setShowQuickConfirmation] = useState(false);
   const [selectedHistoryDay, setSelectedHistoryDay] = useState<string>('all');
   const [selectedCalendarMonth, setSelectedCalendarMonth] = useState(() => startOfMonth(new Date()));
+  const [requesterRole, setRequesterRole] = useState<ChatRequesterRole>(initialRequesterRole);
+  const [subjectName, setSubjectName] = useState(initialSubjectName);
+  const [linkCode, setLinkCode] = useState(initialLinkCode);
   const [elderUserId, setElderUserId] = useState(
     String(params.elderUserId || params.elder_user_id || params.parentId || '')
   );
@@ -98,22 +113,39 @@ export default function ChatPage() {
           {
             id: 'welcome',
             role: 'assistant',
-            text: agentName
-              ? `${agentName}입니다. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.`
-              : '안녕하세요. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.',
+            text:
+              initialRequesterRole === 'guardian'
+                ? `${initialSubjectName} 님의 일정, 복약, 건강 상태를 물어보시면 바로 확인해드릴게요.`
+                : agentName
+                  ? `${agentName}입니다. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.`
+                  : '안녕하세요. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.',
             meta: '기본 안내',
           },
         ]
       : []
   );
+  const isGuardianRequester = requesterRole === 'guardian';
 
   useEffect(() => {
     const paramElderUserId = String(
       params.elderUserId || params.elder_user_id || params.parentId || ''
     );
+    const paramRequesterRole: ChatRequesterRole =
+      String(params.requesterRole || params.requester_role || '') === 'guardian'
+        ? 'guardian'
+        : 'parent';
+    const paramSubjectName = String(params.parentName || '');
+    const paramLinkCode = String(params.linkCode || params.link_code || '');
 
     if (paramElderUserId) {
       setElderUserId(paramElderUserId);
+      setRequesterRole(paramRequesterRole);
+      if (paramSubjectName) {
+        setSubjectName(paramSubjectName);
+      }
+      if (paramLinkCode) {
+        setLinkCode(paramLinkCode);
+      }
       setIsLoadingElderUserId(false);
       return;
     }
@@ -130,6 +162,16 @@ export default function ChatPage() {
 
         if (session?.role === 'parent') {
           setElderUserId(session.elderUserId || session.parentId);
+          setRequesterRole('parent');
+          setSubjectName(session.parentName);
+          setLinkCode(session.linkCode);
+        }
+
+        if (session?.role === 'guardian') {
+          setElderUserId(session.parentId);
+          setRequesterRole('guardian');
+          setSubjectName(session.parentName);
+          setLinkCode(session.linkCode);
         }
       } finally {
         if (!cancelled) {
@@ -143,7 +185,16 @@ export default function ChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [params.elderUserId, params.elder_user_id, params.parentId]);
+  }, [
+    params.elderUserId,
+    params.elder_user_id,
+    params.linkCode,
+    params.link_code,
+    params.parentId,
+    params.parentName,
+    params.requesterRole,
+    params.requester_role,
+  ]);
 
   useEffect(() => {
     let mounted = true;
@@ -252,14 +303,14 @@ export default function ChatPage() {
 
     if (!elderUserId) {
       setMessages([]);
-      setError('부모님 계정 정보를 찾지 못했습니다.');
+      setError('대상자 정보를 찾지 못했습니다.');
       return;
     }
 
     try {
       setIsLoadingHistory(true);
       setError(null);
-      const response = await getChatHistory(50, elderUserId);
+      const response = await getChatHistory(50, elderUserId, requesterRole);
       const historyMessages: ChatBubble[] = response.items.map((item, index) => ({
         id: `history-${item.created_at}-${index}`,
         role: item.role,
@@ -273,7 +324,7 @@ export default function ChatPage() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [elderUserId, isLoadingElderUserId, isVoiceMode]);
+  }, [elderUserId, isLoadingElderUserId, isVoiceMode, requesterRole]);
 
   useFocusEffect(
     useCallback(() => {
@@ -334,7 +385,7 @@ export default function ChatPage() {
 
     try {
       if (!elderUserId) {
-        throw new Error('부모님 계정 정보를 찾지 못했습니다.');
+        throw new Error('대상자 정보를 찾지 못했습니다.');
       }
 
       await recorder.stop();
@@ -364,6 +415,8 @@ export default function ChatPage() {
         clientMessageId: `voice-${Date.now()}`,
         sessionId: sessionId ?? undefined,
         elderUserId,
+        requesterRole,
+        linkCode: isGuardianRequester ? linkCode || undefined : undefined,
         transcriptVisibility: 'on_low_confidence',
         ...(voiceCoordinates ?? {}),
       });
@@ -424,7 +477,7 @@ export default function ChatPage() {
 
     try {
       if (!elderUserId) {
-        throw new Error('부모님 계정 정보를 찾지 못했습니다.');
+        throw new Error('대상자 정보를 찾지 못했습니다.');
       }
 
       const coordinates = await getCoordinatesForTextTurn(trimmedText);
@@ -435,6 +488,8 @@ export default function ChatPage() {
         client_message_id: `mobile-${Date.now()}`,
         session_id: sessionId ?? undefined,
         elder_user_id: elderUserId,
+        requester_role: requesterRole,
+        link_code: isGuardianRequester ? linkCode || undefined : undefined,
         ...(coordinates ?? {}),
       });
 
@@ -643,11 +698,21 @@ export default function ChatPage() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>{agentName ? `${agentName}와 대화하기` : '대화하기'}</Text>
+        <Text style={styles.title}>
+          {isGuardianRequester
+            ? `${subjectName} 님 상태 질문하기`
+            : agentName
+              ? `${agentName}와 대화하기`
+              : '대화하기'}
+        </Text>
         <Text style={styles.description}>
-          {isVoiceMode
-            ? '홈에서 바로 넘어왔습니다. 말씀하시면 전사와 답변을 이어서 확인할 수 있습니다.'
-            : '이전에 주고받은 대화를 날짜별로 골라 확인할 수 있습니다.'}
+          {isGuardianRequester
+            ? isVoiceMode
+              ? '보호자 질문으로 처리됩니다. 부모님 일정, 복약, 건강 상태를 바로 확인할 수 있습니다.'
+              : '보호자 질문 기록을 날짜별로 골라 확인할 수 있습니다.'
+            : isVoiceMode
+              ? '홈에서 바로 넘어왔습니다. 말씀하시면 전사와 답변을 이어서 확인할 수 있습니다.'
+              : '이전에 주고받은 대화를 날짜별로 골라 확인할 수 있습니다.'}
         </Text>
 
         <View style={styles.modeCard}>
@@ -767,7 +832,7 @@ export default function ChatPage() {
               <View style={[styles.messageRow, isUserMessage ? styles.userMessageRow : styles.assistantMessageRow]}>
                 <View style={[styles.messageBubbleWrap, isUserMessage ? styles.userBubbleWrap : styles.assistantBubbleWrap]}>
                   <Text style={[styles.messageLabel, isUserMessage && styles.userMessageLabel, isSystemMessage && styles.systemMessageLabel]}>
-                    {getRoleLabel(message.role)}
+                    {getRoleLabel(message.role, requesterRole)}
                   </Text>
                   <View
                     style={[
@@ -951,7 +1016,11 @@ export default function ChatPage() {
               style={styles.input}
               value={draft}
               onChangeText={setDraft}
-              placeholder="예: 오늘 병원 일정 있나요?"
+              placeholder={
+                isGuardianRequester
+                  ? '예: 오늘 약 잘 드셨어?'
+                  : '예: 오늘 병원 일정 있나요?'
+              }
               placeholderTextColor="#94A3B8"
               multiline
             />
@@ -1494,9 +1563,12 @@ function formatModeLabel(mode: CareMode) {
   return '기본 모드';
 }
 
-function getRoleLabel(role: ChatBubble['role']) {
+function getRoleLabel(
+  role: ChatBubble['role'],
+  requesterRole: ChatRequesterRole
+) {
   if (role === 'user') {
-    return '나';
+    return requesterRole === 'guardian' ? '보호자' : '나';
   }
   if (role === 'system') {
     return '재확인';

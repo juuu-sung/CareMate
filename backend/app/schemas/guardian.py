@@ -1,5 +1,6 @@
+from typing import Literal, Optional
+
 from pydantic import BaseModel
-from typing import Optional
 
 from app.schemas.alerts import AlertItem
 from app.schemas.chat import ChatHistoryItem
@@ -53,8 +54,27 @@ class ParentInfoByCodeResponse(BaseModel):
     parent_gender: Optional[str] = None
 
 
+class GuardianCarePenaltyResponse(BaseModel):
+    alerts: int
+    check_in: int
+    medication: int
+    location: int
+    total: int
+
+
+class GuardianCarePenaltyItemResponse(BaseModel):
+    label: str
+    penalty: int
+
+
 class GuardianDashboardResponse(BaseModel):
     care_mode: str
+    care_score: int
+    care_level: Literal["stable", "check", "caution"]
+    care_summary: str
+    care_reasons: list[str]
+    care_penalties: GuardianCarePenaltyResponse
+    care_penalty_items: list[GuardianCarePenaltyItemResponse]
     check_in_status: str
     latest_location_status: str
     latest_location_label: str

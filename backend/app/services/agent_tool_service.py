@@ -50,15 +50,16 @@ def execute_agent_action(
         return (f"{target}에게 '{content}'라고 전달했어요.", action)
 
     if action == "mark_medication_taken":
-        recorded = record_medication_taken(db, slots)
-        return (
-            f"{recorded['time_scope']} {recorded['medication_name']} 복용으로 기록했어요.",
-            action,
+        recorded = record_medication_taken(
+            db,
+            slots,
+            elder_user_id=elder_user_id,
         )
+        return (f"{recorded['time_scope']} {recorded['medication_name']} 복용으로 기록했어요.", action)
 
     if action == "change_mode":
         target_mode = slots.target_mode or "basic"
-        change_mode_from_agent(db, target_mode)
+        change_mode_from_agent(db, target_mode, elder_user_id=elder_user_id)
         mode_label = {
             "basic": "기본 모드",
             "cognitive_support": "인지 지원 모드",

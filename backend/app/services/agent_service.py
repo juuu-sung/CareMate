@@ -1,12 +1,18 @@
-from app.schemas.agent import AgentPlan
-from app.schemas.chat import CareMode, ChatIntent
+from app.schemas.agent import AgentPlan, AgentSlots
+from app.schemas.chat import CareMode, ChatIntent, RequesterRole
 from app.services.agent_confirmation_service import build_confirmation_question, build_missing_slot_question
-from app.services.agent_intent_service import classify_agent_action
-from app.services.agent_slot_service import extract_agent_slots, find_missing_slots
+from app.services.agent_intent_service import classify_agent_request
+from app.services.agent_slot_service import (
+    extract_agent_slots,
+    find_missing_slots,
+    merge_agent_slots,
+    normalize_agent_slots,
+)
 
 ACTION_TO_INTENT: dict[str, ChatIntent] = {
     "lookup_schedule": "schedule_lookup",
     "lookup_medication": "medication_lookup",
+    "lookup_health_status": "health_status_lookup",
     "check_mode": "general_support",
     "create_schedule": "general_support",
     "send_guardian_message": "general_support",
@@ -22,9 +28,27 @@ ACTION_TO_INTENT: dict[str, ChatIntent] = {
 }
 
 
-def build_agent_plan(text: str, mode: CareMode) -> AgentPlan:
-    action = classify_agent_action(text)
-    slots = extract_agent_slots(action, text)
+def build_agent_plan(
+    text: str,
+    mode: CareMode,
+    requester_role: RequesterRole = "parent",
+    recent_messages: list[dict[str, str]] | None = None,
+    elder_profile_context: str | None = None,
+) -> AgentPlan:
+    classification = classify_agent_request(
+        text=text,
+        mode=mode,
+        requester_role=requester_role,
+        recent_messages=recent_messages,
+        elder_profile_context=elder_profile_context,
+    )
+    action = classification.action
+    llm_slots = AgentSlots(**classification.slot_hints)
+    extracted_slots = extract_agent_slots(action, text)
+    slots = normalize_agent_slots(
+        action,
+        merge_agent_slots(extracted_slots, llm_slots),
+    )
     missing_slots = find_missing_slots(action, slots)
     requires_confirmation = action in {
         "create_schedule",

@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from uuid import uuid4
 import re
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.schemas.agent import AgentSlots
 from app.schemas.chat import CareMode
+from app.services.guardian_alert_service import create_guardian_alert
 
-
+SEOUL_TZ = ZoneInfo("Asia/Seoul")
 WEEKDAY_MAP = {
     "월": 0,
     "화": 1,
@@ -21,7 +23,6 @@ WEEKDAY_MAP = {
     "토": 5,
     "일": 6,
 }
-
 STOPWORDS = {
     "좀",
     "조금",
@@ -52,14 +53,15 @@ STOPWORDS = {
     "에",
     "에서",
 }
-
 TIME_WORDS = {
     "오늘",
     "내일",
     "모레",
     "글피",
     "다음주",
+    "다음 주",
     "이번주",
+    "이번 주",
     "오전",
     "오후",
     "아침",
@@ -76,7 +78,6 @@ TIME_WORDS = {
     "토요일",
     "일요일",
 }
-
 TITLE_PRIORITY_KEYWORDS = [
     "가족 여행",
     "여행",
@@ -125,8 +126,295 @@ class ParsedScheduleIntent:
     missing_slots: list[str]
 
 
+def list_schedules(db: Session, senior_user_id: str | None = None) -> list[dict]:
+    target_user_id = senior_user_id or _get_primary_elder_id(db)
+    if not target_user_id:
+        return []
+
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                id,
+                senior_user_id,
+                title,
+                description,
+                scheduled_at,
+                type,
+                status,
+                created_at
+            FROM schedules
+            WHERE senior_user_id = :senior_user_id
+            ORDER BY scheduled_at ASC
+            """
+        ),
+        {"senior_user_id": target_user_id},
+    ).mappings().all()
+
+    items: list[dict] = []
+    for row in rows:
+        scheduled_at = row["scheduled_at"]
+        scheduled_at_local = _as_seoul(scheduled_at) if scheduled_at else None
+        items.append(
+            {
+                "id": row["id"],
+                "elder_user_id": row["senior_user_id"],
+                "senior_user_id": row["senior_user_id"],
+                "title": row["title"],
+                "description": row["description"] or "",
+                "scheduled_at": _serialize_datetime(scheduled_at) if scheduled_at else "",
+                "date": scheduled_at_local.strftime("%Y-%m-%d") if scheduled_at_local else "",
+                "time": scheduled_at_local.strftime("%H:%M") if scheduled_at_local else "",
+                "type": row["type"],
+                "status": row["status"],
+                "created_at": _serialize_datetime(row["created_at"]) if row["created_at"] else None,
+            }
+        )
+
+    return items
+
+
+def create_schedule_from_slots(
+    db: Session,
+    slots: AgentSlots,
+    mode: CareMode,
+    elder_user_id: str | None = None,
+) -> dict:
+    if not elder_user_id:
+        raise ValueError("elder_user_id가 없어 일정을 저장할 수 없습니다.")
+
+    parsed = parse_schedule_intent_from_slots(slots)
+    if parsed.missing_slots:
+        missing_korean = []
+        if "date" in parsed.missing_slots:
+            missing_korean.append("날짜")
+        if "time" in parsed.missing_slots:
+            missing_korean.append("시간")
+        raise ValueError(f"일정 저장에 필요한 정보가 부족합니다: {', '.join(missing_korean)}")
+
+    scheduled_at = _combine_datetime(parsed.date, parsed.time)
+    schedule_id = str(uuid4())
+    schedule_type = "general"
+    status = "scheduled"
+
+    created_row = db.execute(
+        text(
+            """
+            INSERT INTO schedules (
+                id,
+                senior_user_id,
+                title,
+                description,
+                scheduled_at,
+                type,
+                status,
+                created_at
+            )
+            VALUES (
+                :id,
+                :senior_user_id,
+                :title,
+                :description,
+                :scheduled_at,
+                :type,
+                :status,
+                NOW()
+            )
+            RETURNING
+                id,
+                senior_user_id,
+                title,
+                description,
+                scheduled_at,
+                type,
+                status,
+                created_at
+            """
+        ),
+        {
+            "id": schedule_id,
+            "senior_user_id": elder_user_id,
+            "title": parsed.title,
+            "description": parsed.description or f"{mode} mode agent action",
+            "scheduled_at": scheduled_at,
+            "type": schedule_type,
+            "status": status,
+        },
+    ).mappings().one()
+
+    create_guardian_alert(
+        db,
+        elder_user_id=elder_user_id,
+        alert_type="schedule_created",
+        message=(
+            "새 일정이 등록되었어요: "
+            f"{created_row['title']} ({_format_schedule_date_label(created_row['scheduled_at'])} {_format_schedule_time(created_row['scheduled_at'])})"
+        ),
+        severity="low",
+        dedupe_minutes=60,
+    )
+    db.commit()
+
+    return {
+        "id": created_row["id"],
+        "elder_user_id": created_row["senior_user_id"],
+        "senior_user_id": created_row["senior_user_id"],
+        "title": created_row["title"],
+        "description": created_row["description"] or "",
+        "scheduled_at": _serialize_datetime(created_row["scheduled_at"]),
+        "date": _format_schedule_date_label(created_row["scheduled_at"]),
+        "time": _format_schedule_time(created_row["scheduled_at"]),
+        "type": created_row["type"],
+        "status": created_row["status"],
+        "created_at": _serialize_datetime(created_row["created_at"]) if created_row["created_at"] else None,
+        "raw_text": parsed.raw_text,
+    }
+
+
+def parse_schedule_intent_from_slots(slots: AgentSlots) -> ParsedScheduleIntent:
+    raw_text = _get_raw_text_from_slots(slots)
+
+    explicit_date = getattr(slots, "date", None)
+    explicit_time = getattr(slots, "time", None)
+    explicit_title = getattr(slots, "title", None)
+    explicit_description = getattr(slots, "description", None) or getattr(slots, "content", None)
+
+    parsed_date = _normalize_korean_date(explicit_date) if explicit_date else None
+    if not parsed_date and raw_text:
+        parsed_date = extract_date_from_text(raw_text)
+
+    parsed_time = _normalize_korean_time(explicit_time) if explicit_time else None
+    if not parsed_time and raw_text:
+        parsed_time = _normalize_korean_time(extract_time_from_text(raw_text))
+
+    if (
+        explicit_title
+        and str(explicit_title).strip()
+        and str(explicit_title).strip() not in {"일정", "스케줄", "약속"}
+        and not _looks_like_noisy_schedule_title(str(explicit_title))
+    ):
+        title = _normalize_whitespace(str(explicit_title))[:20]
+    else:
+        title = extract_title_from_text(raw_text)
+
+    if explicit_description and str(explicit_description).strip():
+        description = _normalize_whitespace(str(explicit_description))
+    else:
+        description = extract_description_from_text(raw_text)
+
+    missing_slots: list[str] = []
+    if not parsed_date:
+        missing_slots.append("date")
+    if not parsed_time:
+        missing_slots.append("time")
+
+    return ParsedScheduleIntent(
+        raw_text=raw_text,
+        date=parsed_date,
+        time=parsed_time,
+        title=title,
+        description=description,
+        missing_slots=missing_slots,
+    )
+
+
+def extract_date_from_text(text: str, now: datetime | None = None) -> str | None:
+    now = now or _now()
+    normalized_text = _normalize_whitespace(text)
+
+    for parser in (
+        _parse_explicit_year_month_day,
+        lambda value: _parse_explicit_month_day(value, now),
+        lambda value: _parse_relative_day(value, now),
+        lambda value: _parse_weekday(value, now),
+    ):
+        result = parser(normalized_text)
+        if result:
+            return result
+
+    return None
+
+
+def extract_time_from_text(text: str) -> str | None:
+    normalized_text = _normalize_whitespace(text)
+
+    match = re.search(r"(오전|오후)\s*(\d{1,2})시\s*(\d{1,2})분", normalized_text)
+    if match:
+        hour = _convert_meridiem_hour(match.group(1), int(match.group(2)))
+        minute = int(match.group(3))
+        return _format_time(hour, minute)
+
+    match = re.search(r"(오전|오후)\s*(\d{1,2})시\s*반", normalized_text)
+    if match:
+        hour = _convert_meridiem_hour(match.group(1), int(match.group(2)))
+        return _format_time(hour, 30)
+
+    match = re.search(r"(오전|오후)\s*(\d{1,2})시", normalized_text)
+    if match:
+        hour = _convert_meridiem_hour(match.group(1), int(match.group(2)))
+        return _format_time(hour)
+
+    match = re.search(r"(?<!\d)(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\d)", normalized_text)
+    if match:
+        hour = int(match.group(1))
+        minute = int(match.group(2))
+        second = int(match.group(3)) if match.group(3) else 0
+        if 0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59:
+            return _format_time(hour, minute, second)
+
+    match = re.search(r"(?<!오전\s)(?<!오후\s)(\d{1,2})시\s*(\d{1,2})분", normalized_text)
+    if match:
+        hour = int(match.group(1))
+        minute = int(match.group(2))
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            return _format_time(hour, minute)
+
+    match = re.search(r"(?<!오전\s)(?<!오후\s)(\d{1,2})시\s*반", normalized_text)
+    if match:
+        hour = int(match.group(1))
+        if 0 <= hour <= 23:
+            return _format_time(hour, 30)
+
+    match = re.search(r"(?<!오전\s)(?<!오후\s)(\d{1,2})시", normalized_text)
+    if match:
+        hour = int(match.group(1))
+        if 0 <= hour <= 23:
+            return _format_time(hour)
+
+    for broad in ("새벽", "아침", "점심", "낮", "저녁", "밤", "오전", "오후"):
+        if broad in normalized_text:
+            return broad
+
+    return None
+
+
+def extract_title_from_text(raw_text: str) -> str:
+    if not raw_text or not raw_text.strip():
+        return "일정"
+
+    cleaned = _clean_title_source_text(raw_text)
+    pattern_title = _pattern_based_title(cleaned)
+    if pattern_title:
+        return pattern_title
+
+    tokens = _extract_tokens(cleaned)
+    if not tokens:
+        return "일정"
+
+    for keyword in TITLE_PRIORITY_KEYWORDS:
+        if keyword in cleaned:
+            return keyword[:20]
+
+    title = " ".join(tokens[:3]).strip()
+    return title[:20] if title else "일정"
+
+
+def extract_description_from_text(raw_text: str) -> str:
+    return _normalize_whitespace(raw_text) if raw_text else ""
+
+
 def _now() -> datetime:
-    return datetime.now()
+    return datetime.now(SEOUL_TZ)
 
 
 def _normalize_whitespace(text: str) -> str:
@@ -203,12 +491,7 @@ def _parse_explicit_month_day(text: str, now: datetime) -> str | None:
 
 def _parse_relative_day(text: str, now: datetime) -> str | None:
     today = now.date()
-    mapping = {
-        "오늘": 0,
-        "내일": 1,
-        "모레": 2,
-        "글피": 3,
-    }
+    mapping = {"오늘": 0, "내일": 1, "모레": 2, "글피": 3}
     for word, offset in mapping.items():
         if word in text:
             return (today + timedelta(days=offset)).isoformat()
@@ -218,30 +501,24 @@ def _parse_relative_day(text: str, now: datetime) -> str | None:
 def _parse_weekday(text: str, now: datetime) -> str | None:
     today = now.date()
 
-    match = re.search(r"다음주\s*([월화수목금토일])요일", text)
+    match = re.search(r"다음\s*주\s*([월화수목금토일])요일", text)
     if match:
         target_weekday = WEEKDAY_MAP[match.group(1)]
-        days_until_next_monday = (7 - today.weekday()) % 7
-        if days_until_next_monday == 0:
-            days_until_next_monday = 7
+        days_until_next_monday = (7 - today.weekday()) % 7 or 7
         next_monday = today + timedelta(days=days_until_next_monday)
-        target = next_monday + timedelta(days=target_weekday)
-        return target.isoformat()
+        return (next_monday + timedelta(days=target_weekday)).isoformat()
 
-    match = re.search(r"이번주\s*([월화수목금토일])요일", text)
+    match = re.search(r"이번\s*주\s*([월화수목금토일])요일", text)
     if match:
         target_weekday = WEEKDAY_MAP[match.group(1)]
         monday = today - timedelta(days=today.weekday())
-        target = monday + timedelta(days=target_weekday)
-        return target.isoformat()
+        return (monday + timedelta(days=target_weekday)).isoformat()
 
-    if "다음주" in text:
-        days_until_next_monday = (7 - today.weekday()) % 7
-        if days_until_next_monday == 0:
-            days_until_next_monday = 7
+    if "다음주" in text or "다음 주" in text:
+        days_until_next_monday = (7 - today.weekday()) % 7 or 7
         return (today + timedelta(days=days_until_next_monday)).isoformat()
 
-    match = re.search(r"(?<!이번주\s)(?<!다음주\s)([월화수목금토일])요일", text)
+    match = re.search(r"([월화수목금토일])요일", text)
     if match:
         target_weekday = WEEKDAY_MAP[match.group(1)]
         days_ahead = (target_weekday - today.weekday()) % 7
@@ -249,22 +526,6 @@ def _parse_weekday(text: str, now: datetime) -> str | None:
             days_ahead = 7
         return (today + timedelta(days=days_ahead)).isoformat()
 
-    return None
-
-
-def extract_date_from_text(text: str, now: datetime | None = None) -> str | None:
-    now = now or _now()
-    text = _normalize_whitespace(text)
-
-    for parser in (
-        _parse_explicit_year_month_day,
-        lambda t: _parse_explicit_month_day(t, now),
-        lambda t: _parse_relative_day(t, now),
-        lambda t: _parse_weekday(t, now),
-    ):
-        result = parser(text)
-        if result:
-            return result
     return None
 
 
@@ -284,62 +545,10 @@ def _is_broad_time_expression(text: str) -> bool:
     return text in {"새벽", "아침", "점심", "낮", "저녁", "밤", "오전", "오후"}
 
 
-def extract_time_from_text(text: str) -> str | None:
-    text = _normalize_whitespace(text)
-
-    match = re.search(r"(오전|오후)\s*(\d{1,2})시\s*(\d{1,2})분", text)
-    if match:
-        hour = _convert_meridiem_hour(match.group(1), int(match.group(2)))
-        minute = int(match.group(3))
-        return _format_time(hour, minute)
-
-    match = re.search(r"(오전|오후)\s*(\d{1,2})시\s*반", text)
-    if match:
-        hour = _convert_meridiem_hour(match.group(1), int(match.group(2)))
-        return _format_time(hour, 30)
-
-    match = re.search(r"(오전|오후)\s*(\d{1,2})시", text)
-    if match:
-        hour = _convert_meridiem_hour(match.group(1), int(match.group(2)))
-        return _format_time(hour)
-
-    match = re.search(r"(?<!\d)(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\d)", text)
-    if match:
-        hour = int(match.group(1))
-        minute = int(match.group(2))
-        second = int(match.group(3)) if match.group(3) else 0
-        if 0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59:
-            return _format_time(hour, minute, second)
-
-    match = re.search(r"(?<!오전\s)(?<!오후\s)(\d{1,2})시\s*(\d{1,2})분", text)
-    if match:
-        hour = int(match.group(1))
-        minute = int(match.group(2))
-        if 0 <= hour <= 23 and 0 <= minute <= 59:
-            return _format_time(hour, minute)
-
-    match = re.search(r"(?<!오전\s)(?<!오후\s)(\d{1,2})시\s*반", text)
-    if match:
-        hour = int(match.group(1))
-        if 0 <= hour <= 23:
-            return _format_time(hour, 30)
-
-    match = re.search(r"(?<!오전\s)(?<!오후\s)(\d{1,2})시", text)
-    if match:
-        hour = int(match.group(1))
-        if 0 <= hour <= 23:
-            return _format_time(hour)
-
-    for broad in ("새벽", "아침", "점심", "낮", "저녁", "밤", "오전", "오후"):
-        if broad in text:
-            return broad
-
-    return None
-
-
 def _normalize_korean_date(date_str: str | None) -> str | None:
     if not date_str:
         return None
+
     raw = _normalize_whitespace(date_str)
     if not raw:
         return None
@@ -372,10 +581,7 @@ def _normalize_korean_time(time_str: str | None) -> str | None:
         return None
 
     parsed = extract_time_from_text(raw)
-    if not parsed:
-        return None
-
-    if _is_broad_time_expression(parsed):
+    if not parsed or _is_broad_time_expression(parsed):
         return None
 
     return parsed
@@ -391,11 +597,13 @@ def _combine_datetime(date_str: str | None, time_str: str | None) -> datetime:
         raise ValueError("정확한 time이 필요합니다.")
 
     try:
-        return datetime.fromisoformat(f"{normalized_date}T{normalized_time}")
+        local_dt = datetime.fromisoformat(f"{normalized_date}T{normalized_time}")
     except ValueError as exc:
         raise ValueError(
             "date/time 형식이 올바르지 않습니다. 예: 2026-04-21, 14:30 또는 내일, 오후 3시"
         ) from exc
+
+    return local_dt.replace(tzinfo=SEOUL_TZ).astimezone(timezone.utc)
 
 
 def _remove_date_time_expressions(text: str) -> str:
@@ -404,7 +612,7 @@ def _remove_date_time_expressions(text: str) -> str:
     text = re.sub(r"\d{1,2}월\s*\d{1,2}일", " ", text)
     text = re.sub(r"\d{1,2}/\d{1,2}", " ", text)
     text = re.sub(r"\d{1,2}-\d{1,2}", " ", text)
-    text = re.sub(r"(오늘|내일|모레|글피|다음주|이번주)", " ", text)
+    text = re.sub(r"(오늘|내일|모레|글피|다음주|다음 주|이번주|이번 주)", " ", text)
     text = re.sub(r"([월화수목금토일])요일", " ", text)
     text = re.sub(r"(오전|오후)\s*\d{1,2}시\s*\d{1,2}분", " ", text)
     text = re.sub(r"(오전|오후)\s*\d{1,2}시\s*반", " ", text)
@@ -446,7 +654,7 @@ def _clean_title_source_text(text: str) -> str:
 
 def _extract_tokens(text: str) -> list[str]:
     tokens = re.findall(r"[가-힣A-Za-z0-9]+", text)
-    results = []
+    results: list[str] = []
     for token in tokens:
         if token in STOPWORDS or token in TIME_WORDS:
             continue
@@ -458,6 +666,9 @@ def _extract_tokens(text: str) -> list[str]:
 
 def _pattern_based_title(text: str) -> str | None:
     patterns = [
+        (r"아들(?:이랑|과|하고).*(약속|만남)?", "아들 약속"),
+        (r"딸(?:이랑|과|하고).*(약속|만남)?", "딸 약속"),
+        (r"친구(?:랑|와|하고).*(약속|만남)?", "친구 약속"),
         (r"가족\s*여행", "가족 여행"),
         (r"\b여행\b", "여행"),
         (r"정형외과", "정형외과"),
@@ -501,209 +712,49 @@ def _pattern_based_title(text: str) -> str | None:
     return None
 
 
-def extract_title_from_text(raw_text: str) -> str:
-    if not raw_text or not raw_text.strip():
-        return "일정"
-
-    cleaned = _clean_title_source_text(raw_text)
-
-    pattern_title = _pattern_based_title(cleaned)
-    if pattern_title:
-        return pattern_title
-
-    tokens = _extract_tokens(cleaned)
-    if not tokens:
-        return "일정"
-
-    for keyword in TITLE_PRIORITY_KEYWORDS:
-        if keyword in cleaned:
-            return keyword[:20]
-
-    title = " ".join(tokens[:3]).strip()
-    return title[:20] if title else "일정"
-
-
-def extract_description_from_text(raw_text: str) -> str:
-    return _normalize_whitespace(raw_text) if raw_text else ""
-
-
-def parse_schedule_intent_from_slots(slots: AgentSlots) -> ParsedScheduleIntent:
-    raw_text = _get_raw_text_from_slots(slots)
-
-    explicit_date = getattr(slots, "date", None)
-    explicit_time = getattr(slots, "time", None)
-    explicit_title = getattr(slots, "title", None)
-    explicit_description = getattr(slots, "description", None) or getattr(slots, "content", None)
-
-    parsed_date = _normalize_korean_date(explicit_date) if explicit_date else None
-    if not parsed_date and raw_text:
-        parsed_date = extract_date_from_text(raw_text)
-
-    parsed_time = _normalize_korean_time(explicit_time) if explicit_time else None
-    if not parsed_time and raw_text:
-        parsed_time = _normalize_korean_time(extract_time_from_text(raw_text))
-
-    if explicit_title and str(explicit_title).strip() and str(explicit_title).strip() not in {"일정", "스케줄", "약속"}:
-        title = _normalize_whitespace(str(explicit_title))[:20]
-    else:
-        title = extract_title_from_text(raw_text)
-
-    if explicit_description and str(explicit_description).strip():
-        description = _normalize_whitespace(str(explicit_description))
-    else:
-        description = extract_description_from_text(raw_text)
-
-    missing_slots = []
-    if not parsed_date:
-        missing_slots.append("date")
-    if not parsed_time:
-        missing_slots.append("time")
-
-    return ParsedScheduleIntent(
-        raw_text=raw_text,
-        date=parsed_date,
-        time=parsed_time,
-        title=title,
-        description=description,
-        missing_slots=missing_slots,
-    )
-
-
-def create_schedule_from_slots(
-    db: Session,
-    slots: AgentSlots,
-    mode: CareMode,
-    elder_user_id: str | None = None,
-) -> dict:
-    if not elder_user_id:
-        raise ValueError("elder_user_id가 없어 일정을 저장할 수 없습니다.")
-
-    parsed = parse_schedule_intent_from_slots(slots)
-
-    if parsed.missing_slots:
-        missing_korean = []
-        if "date" in parsed.missing_slots:
-            missing_korean.append("날짜")
-        if "time" in parsed.missing_slots:
-            missing_korean.append("시간")
-        raise ValueError(f"일정 저장에 필요한 정보가 부족합니다: {', '.join(missing_korean)}")
-
-    scheduled_at = _combine_datetime(parsed.date, parsed.time)
-    schedule_id = str(uuid4())
-    schedule_type = "general"
-    status = "scheduled"
-
-    db.execute(
+def _get_primary_elder_id(db: Session) -> str | None:
+    row = db.execute(
         text(
             """
-            INSERT INTO schedules (
-                id,
-                senior_user_id,
-                title,
-                description,
-                scheduled_at,
-                type,
-                status,
-                created_at
-            )
-            VALUES (
-                :id,
-                :senior_user_id,
-                :title,
-                :description,
-                :scheduled_at,
-                :type,
-                :status,
-                NOW()
-            )
+            SELECT id
+            FROM users
+            WHERE role = 'elder'
+            ORDER BY created_at ASC
+            LIMIT 1
             """
-        ),
-        {
-            "id": schedule_id,
-            "senior_user_id": elder_user_id,
-            "title": parsed.title,
-            "description": parsed.description,
-            "scheduled_at": scheduled_at,
-            "type": schedule_type,
-            "status": status,
-        },
-    )
-    db.commit()
-
-    return {
-        "id": schedule_id,
-        "elder_user_id": elder_user_id,
-        "senior_user_id": elder_user_id,
-        "title": parsed.title,
-        "description": parsed.description,
-        "scheduled_at": scheduled_at.isoformat(),
-        "date": scheduled_at.strftime("%Y-%m-%d"),
-        "time": scheduled_at.strftime("%H:%M"),
-        "type": schedule_type,
-        "status": status,
-        "raw_text": parsed.raw_text,
-    }
-
-
-def list_schedules(
-    db: Session,
-    senior_user_id: str | None = None,
-) -> list[dict]:
-    if senior_user_id:
-        rows = db.execute(
-            text(
-                """
-                SELECT
-                    id,
-                    senior_user_id,
-                    title,
-                    description,
-                    scheduled_at,
-                    type,
-                    status,
-                    created_at
-                FROM schedules
-                WHERE senior_user_id = :senior_user_id
-                ORDER BY scheduled_at ASC
-                """
-            ),
-            {"senior_user_id": senior_user_id},
-        ).mappings().all()
-    else:
-        rows = db.execute(
-            text(
-                """
-                SELECT
-                    id,
-                    senior_user_id,
-                    title,
-                    description,
-                    scheduled_at,
-                    type,
-                    status,
-                    created_at
-                FROM schedules
-                ORDER BY scheduled_at ASC
-                """
-            )
-        ).mappings().all()
-
-    items: list[dict] = []
-    for row in rows:
-        scheduled_at = row["scheduled_at"]
-        items.append(
-            {
-                "id": row["id"],
-                "elder_user_id": row["senior_user_id"],
-                "senior_user_id": row["senior_user_id"],
-                "title": row["title"],
-                "description": row["description"] or "",
-                "scheduled_at": scheduled_at.isoformat() if scheduled_at else "",
-                "date": scheduled_at.strftime("%Y-%m-%d") if scheduled_at else "",
-                "time": scheduled_at.strftime("%H:%M") if scheduled_at else "",
-                "type": row["type"],
-                "status": row["status"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-            }
         )
-    return items
+    ).mappings().first()
+    return row["id"] if row else None
+
+
+def _looks_like_noisy_schedule_title(value: str) -> bool:
+    normalized = _normalize_whitespace(value)
+    return any(keyword in normalized for keyword in ("오전", "오후", "오늘", "내일", "모레", "시", "분"))
+
+
+def _ensure_aware_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def _as_seoul(value: datetime) -> datetime:
+    return _ensure_aware_datetime(value).astimezone(SEOUL_TZ)
+
+
+def _serialize_datetime(value: datetime) -> str:
+    return _ensure_aware_datetime(value).isoformat()
+
+
+def _format_schedule_date_label(value: datetime) -> str:
+    local_value = _as_seoul(value)
+    today = datetime.now(SEOUL_TZ).date()
+    if local_value.date() == today:
+        return "오늘"
+    if local_value.date() == today + timedelta(days=1):
+        return "내일"
+    return local_value.strftime("%Y-%m-%d")
+
+
+def _format_schedule_time(value: datetime) -> str:
+    return _as_seoul(value).strftime("%H:%M")

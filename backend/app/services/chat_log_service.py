@@ -8,6 +8,7 @@ def append_chat_log(
     content: str,
     mode: str,
     senior_user_id: str | None = None,
+    requester_role: str = "parent",
 ) -> None:
     normalized_content = content.strip()
     if not normalized_content:
@@ -22,12 +23,14 @@ def append_chat_log(
             """
             INSERT INTO chat_logs (
                 senior_user_id,
+                requester_role,
                 role,
                 content,
                 mode
             )
             VALUES (
                 :senior_user_id,
+                :requester_role,
                 :role,
                 :content,
                 :mode
@@ -36,6 +39,7 @@ def append_chat_log(
         ),
         {
             "senior_user_id": senior_user_id,
+            "requester_role": requester_role,
             "role": role,
             "content": normalized_content,
             "mode": mode,
@@ -48,22 +52,28 @@ def list_chat_logs_for_elder(
     db: Session,
     senior_user_id: str,
     limit: int = 50,
+    requester_role: str | None = None,
 ) -> list[dict[str, str]]:
-    rows = db.execute(
-        text(
-            """
-            SELECT role, content, mode, created_at
-            FROM chat_logs
-            WHERE senior_user_id = :senior_user_id
-            ORDER BY created_at DESC
-            LIMIT :limit
-            """
-        ),
-        {
-            "senior_user_id": senior_user_id,
-            "limit": limit,
-        },
-    ).mappings().all()
+    query = """
+        SELECT role, content, mode, created_at, requester_role
+        FROM chat_logs
+        WHERE senior_user_id = :senior_user_id
+    """
+    parameters: dict[str, object] = {
+        "senior_user_id": senior_user_id,
+        "limit": limit,
+    }
+
+    if requester_role:
+        query += " AND requester_role = :requester_role"
+        parameters["requester_role"] = requester_role
+
+    query += """
+        ORDER BY created_at DESC
+        LIMIT :limit
+    """
+
+    rows = db.execute(text(query), parameters).mappings().all()
 
     return [
         {
@@ -71,6 +81,7 @@ def list_chat_logs_for_elder(
             "content": row["content"],
             "mode": row["mode"],
             "created_at": row["created_at"].isoformat(),
+            "requester_role": row["requester_role"],
         }
         for row in reversed(rows)
     ]
@@ -80,6 +91,7 @@ def list_chat_logs(
     db: Session,
     limit: int = 50,
     senior_user_id: str | None = None,
+    requester_role: str | None = None,
 ) -> list[dict[str, str]]:
     senior_user_id = senior_user_id or _get_primary_elder_id(db)
     if not senior_user_id:
@@ -89,6 +101,7 @@ def list_chat_logs(
         db,
         senior_user_id=senior_user_id,
         limit=limit,
+        requester_role=requester_role,
     )
 
 
