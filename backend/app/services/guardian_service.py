@@ -10,6 +10,7 @@ from app.models.elder_profile import ElderProfile
 from app.models.guardian_link import GuardianLink
 from app.schemas.alerts import AlertItem
 from app.schemas.guardian import GuardianLoginRequest
+from app.services.guardian_care_score_service import build_guardian_care_score
 from app.services.chat_log_service import list_chat_logs_for_elder
 
 SEOUL_TZ = ZoneInfo("Asia/Seoul")
@@ -77,6 +78,10 @@ def _get_guardian_link(db: Session, elder_user_id: str, link_code: str) -> Guard
         raise ValueError("연동된 보호자 정보를 찾을 수 없습니다.")
 
     return link
+
+
+def validate_guardian_access(db: Session, elder_user_id: str, link_code: str) -> None:
+    _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
 
 
 def _normalize_schedule_status(value: str | None, fallback: str = "scheduled") -> str:
@@ -196,11 +201,14 @@ def get_parent_by_code(db: Session, link_code: str):
 
 def get_guardian_dashboard(db: Session, elder_user_id: str, link_code: str):
     _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
+    return get_guardian_dashboard_snapshot(db, elder_user_id)
 
+
+def get_guardian_dashboard_snapshot(db: Session, elder_user_id: str):
     care_profile = db.execute(
         text(
             """
-            SELECT mode
+            SELECT mode, always_on_location_enabled
             FROM care_profiles
             WHERE senior_user_id = :elder_user_id
             LIMIT 1
@@ -225,20 +233,40 @@ def get_guardian_dashboard(db: Session, elder_user_id: str, link_code: str):
     alert_row = db.execute(
         text(
             """
-            SELECT COUNT(*) AS open_alert_count
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE status = 'open'
+                      AND type <> 'location_request'
+                ) AS open_alert_count,
+                COUNT(*) FILTER (
+                    WHERE status = 'open'
+                      AND type <> 'location_request'
+                      AND severity = 'high'
+                ) AS open_high_alert_count,
+                COUNT(*) FILTER (
+                    WHERE status = 'open'
+                      AND type <> 'location_request'
+                      AND severity = 'medium'
+                ) AS open_medium_alert_count,
+                COUNT(*) FILTER (
+                    WHERE status = 'open'
+                      AND type <> 'location_request'
+                      AND severity = 'low'
+                ) AS open_low_alert_count
             FROM alerts
             WHERE senior_user_id = :elder_user_id
-              AND status = 'open'
-              AND type <> 'location_request'
             """
         ),
         {"elder_user_id": elder_user_id},
     ).mappings().one()
 
-    medication_row = db.execute(
+    medication_rows = db.execute(
         text(
             """
-            SELECT COUNT(*) AS pending_count
+            SELECT
+                m.name,
+                m.scheduled_time,
+                COALESCE(latest_log.status, 'scheduled') AS status
             FROM medications AS m
             LEFT JOIN LATERAL (
                 SELECT status
@@ -251,11 +279,10 @@ def get_guardian_dashboard(db: Session, elder_user_id: str, link_code: str):
             ) AS latest_log ON TRUE
             WHERE m.senior_user_id = :elder_user_id
               AND m.active = TRUE
-              AND COALESCE(latest_log.status, 'scheduled') <> 'taken'
             """
         ),
         {"elder_user_id": elder_user_id},
-    ).mappings().one()
+    ).mappings().all()
 
     schedule_row = db.execute(
         text(
@@ -272,7 +299,7 @@ def get_guardian_dashboard(db: Session, elder_user_id: str, link_code: str):
     check_in_row = db.execute(
         text(
             """
-            SELECT status
+            SELECT status, requested_at
             FROM check_ins
             WHERE senior_user_id = :elder_user_id
             ORDER BY requested_at DESC
@@ -282,24 +309,95 @@ def get_guardian_dashboard(db: Session, elder_user_id: str, link_code: str):
         {"elder_user_id": elder_user_id},
     ).mappings().first()
 
+    location_monitoring_enabled = bool(
+        care_profile["always_on_location_enabled"]
+    ) if care_profile and care_profile["always_on_location_enabled"] is not None else False
+
     latest_location_captured_at = ""
-    latest_location_status = "unavailable"
-    latest_location_label = "위치 기록 없음"
+    latest_location_status = "disabled" if not location_monitoring_enabled else "unavailable"
+    latest_location_label = "위치 공유 꺼짐" if not location_monitoring_enabled else "위치 기록 없음"
+    location_staleness_minutes = None
 
     if latest_location and latest_location["captured_at"]:
-        latest_location_status = "available"
-        latest_location_label = "확인 가능"
         latest_location_captured_at = latest_location["captured_at"].isoformat()
+        location_staleness_minutes = int(
+            (datetime.now(timezone.utc) - latest_location["captured_at"]).total_seconds() // 60
+        )
 
-    return {
+        if not location_monitoring_enabled:
+            latest_location_status = "disabled"
+            latest_location_label = "위치 공유 꺼짐"
+        elif location_staleness_minutes >= 24 * 60:
+            latest_location_status = "stale"
+            latest_location_label = "24시간 이상 미갱신"
+        elif location_staleness_minutes >= 12 * 60:
+            latest_location_status = "stale"
+            latest_location_label = "12시간 이상 미갱신"
+        else:
+            latest_location_status = "available"
+            latest_location_label = "확인 가능"
+
+    medication_snapshot = _build_medication_monitoring_snapshot(medication_rows)
+
+    snapshot = {
         "care_mode": care_profile["mode"] if care_profile else "basic",
         "check_in_status": check_in_row["status"] if check_in_row else "responded",
+        "check_in_requested_at": check_in_row["requested_at"] if check_in_row else None,
         "latest_location_status": latest_location_status,
         "latest_location_label": latest_location_label,
         "latest_location_captured_at": latest_location_captured_at,
+        "location_monitoring_enabled": location_monitoring_enabled,
+        "location_staleness_minutes": location_staleness_minutes,
         "open_alert_count": int(alert_row["open_alert_count"] or 0),
-        "today_medication_pending_count": int(medication_row["pending_count"] or 0),
+        "open_high_alert_count": int(alert_row["open_high_alert_count"] or 0),
+        "open_medium_alert_count": int(alert_row["open_medium_alert_count"] or 0),
+        "open_low_alert_count": int(alert_row["open_low_alert_count"] or 0),
+        "today_medication_pending_count": medication_snapshot["today_medication_pending_count"],
+        "overdue_medication_count": medication_snapshot["overdue_medication_count"],
+        "severe_overdue_medication_count": medication_snapshot["severe_overdue_medication_count"],
+        "missed_medication_count": medication_snapshot["missed_medication_count"],
         "today_schedule_count": int(schedule_row["today_schedule_count"] or 0),
+    }
+    snapshot.update(build_guardian_care_score(snapshot))
+    return snapshot
+
+
+def _build_medication_monitoring_snapshot(rows) -> dict[str, int]:
+    now_local = datetime.now(SEOUL_TZ)
+    now_minutes = now_local.hour * 60 + now_local.minute
+
+    today_pending_count = 0
+    overdue_medication_count = 0
+    severe_overdue_medication_count = 0
+    missed_medication_count = 0
+
+    for row in rows:
+        status = row["status"] or "scheduled"
+        scheduled_time = row["scheduled_time"]
+
+        if status != "taken":
+            today_pending_count += 1
+
+        if status == "missed":
+            missed_medication_count += 1
+            continue
+
+        if status == "taken" or not scheduled_time:
+            continue
+
+        scheduled_minutes = scheduled_time.hour * 60 + scheduled_time.minute
+        delay_minutes = now_minutes - scheduled_minutes
+
+        if delay_minutes >= 120:
+            severe_overdue_medication_count += 1
+        elif delay_minutes >= 60:
+            overdue_medication_count += 1
+
+    return {
+        "today_medication_pending_count": today_pending_count,
+        "overdue_medication_count": overdue_medication_count,
+        "severe_overdue_medication_count": severe_overdue_medication_count,
+        "missed_medication_count": missed_medication_count,
     }
 
 
@@ -346,6 +444,7 @@ def list_guardian_conversations(
         db,
         senior_user_id=elder_user_id,
         limit=limit,
+        requester_role="parent",
     )
 
 

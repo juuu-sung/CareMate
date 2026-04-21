@@ -27,6 +27,11 @@ import {
   GuardianAlertItem,
 } from '@/services/guardian';
 import { GuardianDashboard } from '@/types/guardian';
+import {
+  formatGuardianCareScore,
+  formatGuardianCheckInStatus,
+  getGuardianCareStatus,
+} from '@/utils/guardianCare';
 
 type StatItem = {
   label: string;
@@ -73,37 +78,6 @@ function formatRelativeTime(timestamp: string) {
   }
 
   return `${target.getMonth() + 1}/${target.getDate()}`;
-}
-
-function formatCheckInStatus(status: GuardianDashboard['check_in_status']) {
-  switch (status) {
-    case 'pending':
-      return '응답 대기';
-    case 'missed':
-      return '확인 필요';
-    case 'responded':
-    default:
-      return '응답 완료';
-  }
-}
-
-function getHealthStatus(dashboard: GuardianDashboard | null, hasError: boolean) {
-  if (hasError) {
-    return { label: '오류', color: '#EF4444' };
-  }
-  if (!dashboard) {
-    return { label: '확인중', color: '#6B7280' };
-  }
-  if (
-    dashboard.open_alert_count > 0 ||
-    dashboard.check_in_status === 'missed'
-  ) {
-    return { label: '주의', color: '#F97316' };
-  }
-  if (dashboard.today_medication_pending_count > 0) {
-    return { label: '확인', color: '#EAB308' };
-  }
-  return { label: '안정', color: '#05B547' };
 }
 
 export default function GuardianHomeScreen() {
@@ -167,7 +141,9 @@ export default function GuardianHomeScreen() {
   const quickStats: StatItem[] = [
     {
       label: '체크인 상태',
-      value: dashboard ? formatCheckInStatus(dashboard.check_in_status) : '불러오는 중',
+      value: dashboard
+        ? formatGuardianCheckInStatus(dashboard.check_in_status)
+        : '불러오는 중',
       iconType: 'Ionicons',
       iconName: 'chatbubble-ellipses-outline',
     },
@@ -199,10 +175,16 @@ export default function GuardianHomeScreen() {
       iconName: 'document-text-outline',
     },
     {
-      title: '건강 상태',
-      subtitle: '건강 기록과 상태를 봐요',
+      title: '오늘 돌봄 점수',
+      subtitle: '체크인, 복약, 알림 상태를 봐요',
       iconType: 'MaterialCommunityIcons',
       iconName: 'stethoscope',
+    },
+    {
+      title: '음성 질문',
+      subtitle: '부모님 상태를 바로 물어봐요',
+      iconType: 'Ionicons',
+      iconName: 'mic-outline',
     },
     {
       title: '편지 쓰기',
@@ -266,14 +248,12 @@ export default function GuardianHomeScreen() {
     }, [loadGuardianData])
   );
 
-  const healthStatus = getHealthStatus(dashboard, !!dashboardError);
+  const careStatus = getGuardianCareStatus(dashboard, !!dashboardError);
   const headerStatusText = dashboardError
     ? '데이터 연결 확인 필요'
-    : dashboard?.latest_location_captured_at
-      ? `위치 갱신 ${formatRelativeTime(dashboard.latest_location_captured_at)}`
-      : dashboard
-        ? `체크인 ${formatCheckInStatus(dashboard.check_in_status)}`
-        : '데이터 불러오는 중';
+    : dashboard
+      ? `오늘 돌봄 점수 ${formatGuardianCareScore(dashboard.care_score)} · ${careStatus.label}`
+      : '데이터 불러오는 중';
 
   const openGuardianLocation = React.useCallback(() => {
     router.push({
@@ -316,6 +296,44 @@ export default function GuardianHomeScreen() {
 
     if (title === '병원 일정') {
       openGuardianSchedules();
+      return;
+    }
+
+    if (title === '음성 질문') {
+      router.push({
+        pathname: '/chat',
+        params: {
+          input: 'voice',
+          autostart: '1',
+          elderUserId: parentId,
+          elder_user_id: parentId,
+          parentId,
+          parentName,
+          linkCode,
+          link_code: linkCode,
+          requesterRole: 'guardian',
+        },
+      });
+      return;
+    }
+
+    if (title === '오늘 돌봄 점수') {
+      router.push({
+        pathname: '/guardian-health',
+        params: {
+          parentId,
+          parentName,
+          parentAge,
+          parentGender,
+          linkCode,
+          medications,
+          diseases,
+          allergies,
+          hospital,
+          doctorContact,
+          memo,
+        },
+      } as any);
       return;
     }
 
@@ -423,12 +441,12 @@ export default function GuardianHomeScreen() {
               <MaterialCommunityIcons
                 name="heart-pulse"
                 size={20}
-                color={healthStatus.color}
+                color={careStatus.color}
               />
-              <Text style={[styles.scoreValue, { color: healthStatus.color }]}>
-                {healthStatus.label}
+              <Text style={[styles.scoreValue, { color: careStatus.color }]}>
+                {formatGuardianCareScore(dashboard?.care_score)}
               </Text>
-              <Text style={styles.scoreLabel}>건강 상태</Text>
+              <Text style={styles.scoreLabel}>오늘 돌봄 점수</Text>
             </View>
           </View>
         </View>
@@ -691,12 +709,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   scoreBox: {
-    width: 90,
+    width: 112,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scoreValue: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: '800',
     color: '#05B547',
     marginTop: 4,

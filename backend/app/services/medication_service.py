@@ -88,8 +88,12 @@ def list_medication_items(db: Session, elder_user_id: str | None = None) -> list
     return []
 
 
-def record_medication_taken(db: Session, slots: AgentSlots) -> dict[str, str]:
-    senior_id = _get_primary_senior_id(db)
+def record_medication_taken(
+    db: Session,
+    slots: AgentSlots,
+    elder_user_id: str | None = None,
+) -> dict[str, str]:
+    senior_id = elder_user_id or _get_primary_senior_id(db)
     medication_name = slots.medication_name or "약"
     time_scope = slots.time_scope or "지금"
     status = slots.status or "taken"

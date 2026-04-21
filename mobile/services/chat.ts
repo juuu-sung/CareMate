@@ -1,6 +1,8 @@
 import { apiGet, apiPatch, apiPost, apiPostForm, buildApiUrl } from "@/services/api";
 import { CareMode } from "@/types/care";
 
+export type ChatRequesterRole = "parent" | "guardian";
+
 export type ChatMessageRequest = {
   text: string;
   mode: CareMode;
@@ -8,6 +10,8 @@ export type ChatMessageRequest = {
   client_message_id?: string;
   session_id?: string;
   elder_user_id?: string;
+  requester_role?: ChatRequesterRole;
+  link_code?: string;
   latitude?: number;
   longitude?: number;
 };
@@ -59,6 +63,8 @@ export type ChatSpeechRequest = {
   clientMessageId?: string;
   sessionId?: string;
   elderUserId?: string;
+  requesterRole?: ChatRequesterRole;
+  linkCode?: string;
   transcriptVisibility: TranscriptVisibility;
   latitude?: number;
   longitude?: number;
@@ -91,6 +97,7 @@ export type ChatHistoryItem = {
   content: string;
   mode: CareMode;
   created_at: string;
+  requester_role: ChatRequesterRole;
 };
 
 type ChatHistoryResponse = {
@@ -238,6 +245,14 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
     formData.append("elder_user_id", payload.elderUserId);
   }
 
+  if (payload.requesterRole) {
+    formData.append("requester_role", payload.requesterRole);
+  }
+
+  if (payload.linkCode) {
+    formData.append("link_code", payload.linkCode);
+  }
+
   formData.append("transcript_visibility", payload.transcriptVisibility);
 
   if (payload.latitude !== undefined) {
@@ -251,13 +266,21 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
   return apiPostForm<ChatSpeechResponse>("/chat/speech", formData);
 }
 
-export function getChatHistory(limit = 50, elderUserId?: string) {
+export function getChatHistory(
+  limit = 50,
+  elderUserId?: string,
+  requesterRole?: ChatRequesterRole
+) {
   const searchParams = new URLSearchParams({
     limit: String(limit),
   });
 
   if (elderUserId) {
     searchParams.append("elder_user_id", elderUserId);
+  }
+
+  if (requesterRole) {
+    searchParams.append("requester_role", requesterRole);
   }
 
   return apiGet<ChatHistoryResponse>(`/chat/history?${searchParams.toString()}`);

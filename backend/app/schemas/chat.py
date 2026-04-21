@@ -3,9 +3,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 CareMode = Literal["basic", "cognitive_support", "health_support"]
+RequesterRole = Literal["parent", "guardian"]
 ChatIntent = Literal[
     "schedule_lookup",
     "medication_lookup",
+    "health_status_lookup",
     "hospital_visit_support",
     "nearby_hospital_request",
     "symptom_support",
@@ -24,6 +26,8 @@ class ChatMessageRequest(BaseModel):
     client_message_id: str | None = None
     session_id: str | None = None
     elder_user_id: str | None = Field(default=None, min_length=1)
+    requester_role: RequesterRole = "parent"
+    link_code: str | None = Field(default=None, min_length=1)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
 
@@ -87,6 +91,8 @@ class ChatSpeechRequest(BaseModel):
     client_message_id: str | None = None
     session_id: str | None = None
     elder_user_id: str | None = Field(default=None, min_length=1)
+    requester_role: RequesterRole = "parent"
+    link_code: str | None = Field(default=None, min_length=1)
     transcript_visibility: TranscriptVisibility = "on_low_confidence"
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
@@ -106,6 +112,7 @@ class ChatHistoryItem(BaseModel):
     content: str
     mode: CareMode
     created_at: str
+    requester_role: RequesterRole = "parent"
 
 
 class ChatHistoryResponse(BaseModel):

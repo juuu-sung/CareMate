@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from app.schemas.modes import CareModeResponse, CareModeUpdateRequest, GuardianOptions
 
 
-def get_current_mode(db: Session) -> CareModeResponse:
-    senior_id = _get_primary_senior_id(db)
+def get_current_mode(db: Session, elder_user_id: str | None = None) -> CareModeResponse:
+    senior_id = elder_user_id or _get_primary_senior_id(db)
 
     if not senior_id:
         return CareModeResponse(mode="basic", options=GuardianOptions())
@@ -35,8 +35,12 @@ def get_current_mode(db: Session) -> CareModeResponse:
     )
 
 
-def update_mode(db: Session, payload: CareModeUpdateRequest) -> CareModeResponse:
-    senior_id = _get_primary_senior_id(db)
+def update_mode(
+    db: Session,
+    payload: CareModeUpdateRequest,
+    elder_user_id: str | None = None,
+) -> CareModeResponse:
+    senior_id = elder_user_id or _get_primary_senior_id(db)
 
     if not senior_id:
         raise ValueError("No senior user found for care profile update.")
@@ -79,13 +83,17 @@ def update_mode(db: Session, payload: CareModeUpdateRequest) -> CareModeResponse
     )
     db.commit()
 
-    return get_current_mode(db)
+    return get_current_mode(db, elder_user_id=senior_id)
 
 
-def change_mode_from_agent(db: Session, mode: str) -> CareModeResponse:
-    current = get_current_mode(db)
+def change_mode_from_agent(
+    db: Session,
+    mode: str,
+    elder_user_id: str | None = None,
+) -> CareModeResponse:
+    current = get_current_mode(db, elder_user_id=elder_user_id)
     payload = CareModeUpdateRequest(mode=mode, options=current.options)
-    return update_mode(db, payload)
+    return update_mode(db, payload, elder_user_id=elder_user_id)
 
 
 def _get_primary_senior_id(db: Session):

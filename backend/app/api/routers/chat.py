@@ -23,17 +23,26 @@ router = APIRouter()
 
 @router.post("/message", response_model=ChatMessageResponse)
 def send_message(payload: ChatMessageRequest, db: Session = Depends(get_db)) -> ChatMessageResponse:
-    return build_chat_response(payload, db)
+    try:
+        return build_chat_response(payload, db)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/history", response_model=ChatHistoryResponse)
 def get_history(
     limit: int = Query(50, ge=1, le=100),
     elder_user_id: str | None = Query(default=None),
+    requester_role: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> ChatHistoryResponse:
     return ChatHistoryResponse(
-        items=list_chat_logs(db, limit=limit, senior_user_id=elder_user_id)
+        items=list_chat_logs(
+            db,
+            limit=limit,
+            senior_user_id=elder_user_id,
+            requester_role=requester_role,
+        )
     )
 
 
@@ -62,6 +71,8 @@ async def send_speech(
     client_message_id: str | None = Form(default=None),
     session_id: str | None = Form(default=None),
     elder_user_id: str | None = Form(default=None),
+    requester_role: str = Form("parent"),
+    link_code: str | None = Form(default=None),
     transcript_visibility: str = Form("on_low_confidence"),
     latitude: float | None = Form(default=None),
     longitude: float | None = Form(default=None),
@@ -75,6 +86,8 @@ async def send_speech(
         client_message_id=client_message_id,
         session_id=session_id,
         elder_user_id=elder_user_id,
+        requester_role=requester_role,
+        link_code=link_code,
         transcript_visibility=transcript_visibility,
         latitude=latitude,
         longitude=longitude,
@@ -82,13 +95,16 @@ async def send_speech(
 
     print("DEBUG /speech payload:", payload.model_dump())
 
-    return build_speech_response(
-        db,
-        payload,
-        audio_filename=audio_file.filename,
-        audio_bytes=audio_bytes,
-        audio_content_type=audio_file.content_type,
-    )
+    try:
+        return build_speech_response(
+            db,
+            payload,
+            audio_filename=audio_file.filename,
+            audio_bytes=audio_bytes,
+            audio_content_type=audio_file.content_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/tts")
