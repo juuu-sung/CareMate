@@ -28,7 +28,6 @@ import {
 } from '@/services/guardian';
 import { GuardianDashboard } from '@/types/guardian';
 import {
-  formatGuardianCheckInStatus,
   getGuardianCareStatus,
 } from '@/utils/guardianCare';
 
@@ -37,7 +36,7 @@ type StatItem = {
   value: string;
   iconType: 'Ionicons' | 'MaterialCommunityIcons' | 'Feather' | 'FontAwesome6';
   iconName: string;
-  action?: 'health' | 'medication' | 'schedules';
+  action?: 'health' | 'medication' | 'schedules' | 'location';
 };
 
 type MenuItem = {
@@ -142,14 +141,6 @@ export default function GuardianHomeScreen() {
 
   const quickStats: StatItem[] = [
     {
-      label: '체크인 상태',
-      value: dashboard
-        ? formatGuardianCheckInStatus(dashboard.check_in_status)
-        : '불러오는 중',
-      iconType: 'Ionicons',
-      iconName: 'chatbubble-ellipses-outline',
-    },
-    {
       label: '건강 상황판',
       value: dashboard ? careStatus.label : '-',
       iconType: 'MaterialCommunityIcons',
@@ -157,11 +148,11 @@ export default function GuardianHomeScreen() {
       action: 'health',
     },
     {
-      label: '복약 남음',
-      value: dashboard ? `${dashboard.today_medication_pending_count}건` : '-',
-      iconType: 'MaterialCommunityIcons',
-      iconName: 'heart-pulse',
-      action: 'medication',
+      label: '위치 확인',
+      value: dashboard ? dashboard.latest_location_label : '-',
+      iconType: 'Feather',
+      iconName: 'map-pin',
+      action: 'location',
     },
     {
       label: '오늘 일정',
@@ -169,6 +160,13 @@ export default function GuardianHomeScreen() {
       iconType: 'Ionicons',
       iconName: 'calendar-outline',
       action: 'schedules',
+    },
+    {
+      label: '복약 남음',
+      value: dashboard ? `${dashboard.today_medication_pending_count}건` : '-',
+      iconType: 'MaterialCommunityIcons',
+      iconName: 'heart-pulse',
+      action: 'medication',
     },
   ];
 
@@ -196,12 +194,6 @@ export default function GuardianHomeScreen() {
       subtitle: '다가오는 일정을 관리해요',
       iconType: 'Ionicons',
       iconName: 'medical-outline',
-    },
-    {
-      title: '위치 확인',
-      subtitle: '현재 위치를 확인해요',
-      iconType: 'Feather',
-      iconName: 'map-pin',
     },
     {
       title: '알림 기록',
@@ -319,6 +311,7 @@ export default function GuardianHomeScreen() {
       pathname: '/calendar',
       params: {
         parentId,
+        viewerRole: 'guardian',
       },
     });
   }, [parentId, router]);
@@ -399,11 +392,16 @@ export default function GuardianHomeScreen() {
         return;
       }
 
+      if (item.action === 'location') {
+        openGuardianLocation();
+        return;
+      }
+
       if (item.action === 'medication') {
         openGuardianMedications();
       }
     },
-    [openGuardianHealth, openGuardianMedications, openParentCalendar]
+    [openGuardianHealth, openGuardianLocation, openGuardianMedications, openParentCalendar]
   );
 
   const handleMenuPress = (title: string) => {
@@ -430,18 +428,6 @@ export default function GuardianHomeScreen() {
           linkCode,
           link_code: linkCode,
           requesterRole: 'guardian',
-        },
-      });
-      return;
-    }
-
-    if (title === '위치 확인') {
-      router.push({
-        pathname: '/guardian-location',
-        params: {
-          parentId,
-          parentName,
-          linkCode,
         },
       });
       return;
