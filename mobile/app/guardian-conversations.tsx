@@ -12,15 +12,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
-  getGuardianConversations,
+  GuardianConversationDay,
   GuardianConversationItem,
+  getGuardianConversations,
 } from '@/services/guardian';
 import { CareMode } from '@/types/care';
-
-type ConversationSection = {
-  title: string;
-  items: GuardianConversationItem[];
-};
 
 function formatModeLabel(mode: CareMode) {
   if (mode === 'cognitive_support') {
@@ -32,9 +28,24 @@ function formatModeLabel(mode: CareMode) {
   return '기본 모드';
 }
 
+function parseConversationDate(value: string) {
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    const parsed = new Date(`${normalized}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function formatConversationTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseConversationDate(value);
+  if (!date) {
     return value;
   }
 
@@ -45,8 +56,8 @@ function formatConversationTime(value: string) {
 }
 
 function formatConversationDateLabel(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseConversationDate(value);
+  if (!date) {
     return '기록 없음';
   }
 
@@ -74,27 +85,23 @@ function formatConversationDateLabel(value: string) {
   });
 }
 
-function buildConversationSections(
-  items: GuardianConversationItem[]
-): ConversationSection[] {
-  const sections: ConversationSection[] = [];
+function formatConversationTimeRange(startedAt: string, endedAt: string) {
+  if (!startedAt && !endedAt) {
+    return '시간 정보 없음';
+  }
 
-  items.forEach((item) => {
-    const title = formatConversationDateLabel(item.created_at);
-    const currentSection = sections[sections.length - 1];
+  const startLabel = startedAt ? formatConversationTime(startedAt) : '';
+  const endLabel = endedAt ? formatConversationTime(endedAt) : '';
 
-    if (currentSection && currentSection.title === title) {
-      currentSection.items.push(item);
-      return;
-    }
+  if (!startLabel) {
+    return endLabel;
+  }
 
-    sections.push({
-      title,
-      items: [item],
-    });
-  });
+  if (!endLabel || startLabel === endLabel) {
+    return startLabel;
+  }
 
-  return sections;
+  return `${startLabel} - ${endLabel}`;
 }
 
 function getRoleLabel(role: GuardianConversationItem['role']) {
@@ -109,14 +116,15 @@ export default function GuardianConversationsScreen() {
   const parentName = String(params.parentName || '부모님');
   const linkCode = String(params.linkCode || '');
 
-  const [items, setItems] = React.useState<GuardianConversationItem[]>([]);
+  const [days, setDays] = React.useState<GuardianConversationDay[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [expandedDays, setExpandedDays] = React.useState<Record<string, boolean>>({});
 
   const loadConversations = React.useCallback(async (isManualRefresh = false) => {
     if (!parentId || !linkCode) {
-      setItems([]);
+      setDays([]);
       setError('연동 정보가 없어 대화 기록을 불러올 수 없어요.');
       setIsLoading(false);
       setIsRefreshing(false);
@@ -131,12 +139,13 @@ export default function GuardianConversationsScreen() {
 
     try {
       const response = await getGuardianConversations(parentId, linkCode, 40);
-      setItems(response.items);
+      setDays(response.days);
+      setExpandedDays({});
       setError(null);
     } catch (conversationError) {
       console.log('보호자 대화 조회 오류:', conversationError);
-      setItems([]);
-      setError('대화 기록을 불러오지 못했어요.');
+      setDays([]);
+      setError('대화 요약을 불러오지 못했어요.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -150,9 +159,18 @@ export default function GuardianConversationsScreen() {
     }, [loadConversations])
   );
 
-  const conversationSections = buildConversationSections(items);
-  const lastConversationAt =
-    items.length > 0 ? items[items.length - 1]?.created_at ?? '' : '';
+  const totalMessageCount = days.reduce(
+    (count, day) => count + day.message_count,
+    0
+  );
+  const lastConversationAt = days.length > 0 ? days[0]?.ended_at ?? '' : '';
+
+  const toggleTranscript = React.useCallback((dateKey: string) => {
+    setExpandedDays((current) => ({
+      ...current,
+      [dateKey]: !current[dateKey],
+    }));
+  }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -166,9 +184,9 @@ export default function GuardianConversationsScreen() {
         </TouchableOpacity>
 
         <View style={styles.headerTextWrap}>
-          <Text style={styles.headerTitle}>대화 확인</Text>
+          <Text style={styles.headerTitle}>대화 요약</Text>
           <Text style={styles.headerSubtitle}>
-            {parentName} 님의 최근 대화를 확인해요
+            {parentName} 님이 CareMate와 어떤 대화를 했는지 요약해서 확인해요
           </Text>
         </View>
       </View>
@@ -188,12 +206,12 @@ export default function GuardianConversationsScreen() {
       >
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>최근 대화 수</Text>
-            <Text style={styles.summaryValue}>{items.length}개</Text>
+            <Text style={styles.summaryLabel}>요약 일수</Text>
+            <Text style={styles.summaryValue}>{days.length}일</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>마지막 기록</Text>
+            <Text style={styles.summaryLabel}>마지막 대화</Text>
             <Text style={styles.summaryValue}>
               {lastConversationAt
                 ? `${formatConversationDateLabel(lastConversationAt)} ${formatConversationTime(lastConversationAt)}`
@@ -205,7 +223,7 @@ export default function GuardianConversationsScreen() {
         {isLoading ? (
           <View style={styles.centerState}>
             <ActivityIndicator size="small" color="#05B547" />
-            <Text style={styles.stateTitle}>대화 기록을 불러오는 중이에요</Text>
+            <Text style={styles.stateTitle}>대화 요약을 불러오는 중이에요</Text>
           </View>
         ) : error ? (
           <View style={styles.centerState}>
@@ -219,7 +237,7 @@ export default function GuardianConversationsScreen() {
               잠시 뒤 다시 시도해 주세요.
             </Text>
           </View>
-        ) : items.length === 0 ? (
+        ) : days.length === 0 ? (
           <View style={styles.centerState}>
             <MaterialCommunityIcons
               name="message-text-outline"
@@ -228,40 +246,107 @@ export default function GuardianConversationsScreen() {
             />
             <Text style={styles.stateTitle}>아직 대화 기록이 없어요</Text>
             <Text style={styles.stateDescription}>
-              부모님이 CareMate와 대화를 시작하면 여기에 최근 기록이 표시됩니다.
+              부모님이 CareMate와 대화를 시작하면 요약이 여기에 표시됩니다.
             </Text>
           </View>
         ) : (
-          conversationSections.map((section) => (
-            <View key={section.title} style={styles.sectionWrap}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
+          <>
+            <Text style={styles.listCaption}>
+              최근 {totalMessageCount}개의 대화를 날짜별로 요약했어요.
+            </Text>
 
-              {section.items.map((item, index) => {
-                const isUser = item.role === 'user';
+            {days.map((day) => {
+              const isExpanded = Boolean(expandedDays[day.date_key]);
 
-                return (
-                  <View
-                    key={`${item.created_at}-${item.role}-${index}`}
-                    style={[
-                      styles.messageCard,
-                      isUser ? styles.userMessageCard : styles.assistantMessageCard,
-                    ]}
-                  >
-                    <View style={styles.messageMetaRow}>
-                      <Text style={styles.messageRole}>
-                        {getRoleLabel(item.role)}
+              return (
+                <View key={day.date_key} style={styles.dayCard}>
+                  <View style={styles.dayHeader}>
+                    <View style={styles.dayTitleWrap}>
+                      <Text style={styles.dayDate}>
+                        {formatConversationDateLabel(day.date_key)}
                       </Text>
-                      <Text style={styles.messageMeta}>
-                        {formatConversationTime(item.created_at)} · {formatModeLabel(item.mode)}
+                      <Text style={styles.dayMeta}>
+                        {formatConversationTimeRange(day.started_at, day.ended_at)} ·{' '}
+                        {day.message_count}개 대화
                       </Text>
                     </View>
 
-                    <Text style={styles.messageText}>{item.content}</Text>
+                    {day.attention_needed ? (
+                      <View style={styles.attentionBadge}>
+                        <Text style={styles.attentionBadgeText}>주의</Text>
+                      </View>
+                    ) : null}
                   </View>
-                );
-              })}
-            </View>
-          ))
+
+                  <Text style={styles.dayHeadline}>{day.headline}</Text>
+                  <Text style={styles.daySummary}>{day.summary}</Text>
+
+                  {day.attention_needed && day.attention_reason ? (
+                    <Text style={styles.attentionReason}>{day.attention_reason}</Text>
+                  ) : null}
+
+                  {day.topics.length > 0 ? (
+                    <View style={styles.topicRow}>
+                      {day.topics.map((topic) => (
+                        <View key={`${day.date_key}-${topic}`} style={styles.topicChip}>
+                          <Text style={styles.topicChipText}>{topic}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  <TouchableOpacity
+                    style={styles.toggleButton}
+                    activeOpacity={0.85}
+                    onPress={() => toggleTranscript(day.date_key)}
+                  >
+                    <Text style={styles.toggleButtonText}>
+                      {isExpanded ? '원문 숨기기' : '원문 보기'}
+                    </Text>
+                    <Ionicons
+                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={18}
+                      color="#0F172A"
+                    />
+                  </TouchableOpacity>
+
+                  {isExpanded ? (
+                    <View style={styles.transcriptWrap}>
+                      {day.items.map((item, index) => {
+                        const isUser = item.role === 'user';
+
+                        return (
+                          <View
+                            key={`${day.date_key}-${item.created_at}-${index}`}
+                            style={[
+                              styles.messageCard,
+                              isUser ? styles.userMessageCard : styles.assistantMessageCard,
+                            ]}
+                          >
+                            <View style={styles.messageMetaRow}>
+                              <Text
+                                style={[
+                                  styles.messageRole,
+                                  isUser ? styles.userMessageRole : styles.assistantMessageRole,
+                                ]}
+                              >
+                                {getRoleLabel(item.role)}
+                              </Text>
+                              <Text style={styles.messageMeta}>
+                                {formatModeLabel(item.mode)} ·{' '}
+                                {formatConversationTime(item.created_at)}
+                              </Text>
+                            </View>
+                            <Text style={styles.messageText}>{item.content}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -301,6 +386,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     marginTop: 4,
     fontSize: 14,
+    lineHeight: 20,
     color: '#64748B',
   },
   container: {
@@ -314,7 +400,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 18,
     paddingVertical: 18,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   summaryItem: {
     flex: 1,
@@ -333,6 +419,11 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: '#E2E8F0',
     marginHorizontal: 16,
+  },
+  listCaption: {
+    marginBottom: 12,
+    fontSize: 13,
+    color: '#64748B',
   },
   centerState: {
     alignItems: 'center',
@@ -356,38 +447,124 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
   },
-  sectionWrap: {
-    marginBottom: 20,
+  dayCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 16,
   },
-  sectionTitle: {
-    marginBottom: 10,
+  dayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  dayTitleWrap: {
+    flex: 1,
+  },
+  dayDate: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  dayMeta: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#64748B',
+  },
+  attentionBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#FEF2F2',
+  },
+  attentionBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  dayHeadline: {
+    marginTop: 14,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  daySummary: {
+    marginTop: 10,
     fontSize: 15,
+    lineHeight: 23,
+    color: '#334155',
+  },
+  attentionReason: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#DC2626',
+  },
+  topicRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  topicChip: {
+    borderRadius: 999,
+    backgroundColor: '#ECFDF3',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  topicChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  toggleButton: {
+    marginTop: 16,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  toggleButtonText: {
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  transcriptWrap: {
+    marginTop: 12,
   },
   messageCard: {
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    marginBottom: 10,
+    marginTop: 10,
   },
   userMessageCard: {
     backgroundColor: '#DCFCE7',
   },
   assistantMessageCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
   messageMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
     gap: 12,
+    marginBottom: 8,
   },
   messageRole: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#05B547',
+  },
+  userMessageRole: {
+    color: '#047857',
+  },
+  assistantMessageRole: {
+    color: '#2563EB',
   },
   messageMeta: {
     flex: 1,
