@@ -28,7 +28,6 @@ import {
 } from '@/services/guardian';
 import { GuardianDashboard } from '@/types/guardian';
 import {
-  formatGuardianCareScore,
   formatGuardianCheckInStatus,
   getGuardianCareStatus,
 } from '@/utils/guardianCare';
@@ -38,6 +37,7 @@ type StatItem = {
   value: string;
   iconType: 'Ionicons' | 'MaterialCommunityIcons' | 'Feather' | 'FontAwesome6';
   iconName: string;
+  action?: 'health' | 'medication' | 'schedules';
 };
 
 type MenuItem = {
@@ -102,6 +102,8 @@ export default function GuardianHomeScreen() {
   const [isLoadingDashboard, setIsLoadingDashboard] = React.useState(true);
   const [dashboardError, setDashboardError] = React.useState<string | null>(null);
 
+  const careStatus = getGuardianCareStatus(dashboard, !!dashboardError);
+
   React.useEffect(() => {
     if (!parentId || !linkCode) {
       return;
@@ -148,22 +150,25 @@ export default function GuardianHomeScreen() {
       iconName: 'chatbubble-ellipses-outline',
     },
     {
+      label: '건강 상황판',
+      value: dashboard ? careStatus.label : '-',
+      iconType: 'MaterialCommunityIcons',
+      iconName: 'clipboard-pulse-outline',
+      action: 'health',
+    },
+    {
       label: '복약 남음',
       value: dashboard ? `${dashboard.today_medication_pending_count}건` : '-',
       iconType: 'MaterialCommunityIcons',
       iconName: 'heart-pulse',
+      action: 'medication',
     },
     {
       label: '오늘 일정',
       value: dashboard ? `${dashboard.today_schedule_count}건` : '-',
       iconType: 'Ionicons',
       iconName: 'calendar-outline',
-    },
-    {
-      label: '현재 위치',
-      value: dashboard ? dashboard.latest_location_label : '불러오는 중',
-      iconType: 'Ionicons',
-      iconName: 'location-outline',
+      action: 'schedules',
     },
   ];
 
@@ -173,12 +178,6 @@ export default function GuardianHomeScreen() {
       subtitle: '오늘 나눈 대화를 확인해요',
       iconType: 'Ionicons',
       iconName: 'document-text-outline',
-    },
-    {
-      title: '오늘 돌봄 점수',
-      subtitle: '체크인, 복약, 알림 상태를 봐요',
-      iconType: 'MaterialCommunityIcons',
-      iconName: 'stethoscope',
     },
     {
       title: '음성 질문',
@@ -203,6 +202,12 @@ export default function GuardianHomeScreen() {
       subtitle: '현재 위치를 확인해요',
       iconType: 'Feather',
       iconName: 'map-pin',
+    },
+    {
+      title: '알림 기록',
+      subtitle: '날짜별 알림을 확인해요',
+      iconType: 'Ionicons',
+      iconName: 'calendar-outline',
     },
     {
       title: '정보 수정',
@@ -248,16 +253,37 @@ export default function GuardianHomeScreen() {
     }, [loadGuardianData])
   );
 
-  const careStatus = getGuardianCareStatus(dashboard, !!dashboardError);
   const headerStatusText = dashboardError
     ? '데이터 연결 확인 필요'
     : dashboard
-      ? `오늘 돌봄 점수 ${formatGuardianCareScore(dashboard.care_score)} · ${careStatus.label}`
+      ? `오늘 상태 ${careStatus.label}`
       : '데이터 불러오는 중';
 
   const openGuardianLocation = React.useCallback(() => {
     router.push({
       pathname: '/guardian-location',
+      params: {
+        parentId,
+        parentName,
+        linkCode,
+      },
+    });
+  }, [linkCode, parentId, parentName, router]);
+
+  const openGuardianAlerts = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-alerts',
+      params: {
+        parentId,
+        parentName,
+        linkCode,
+      },
+    });
+  }, [linkCode, parentId, parentName, router]);
+
+  const openGuardianAlertHistory = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-alert-history',
       params: {
         parentId,
         parentName,
@@ -288,6 +314,98 @@ export default function GuardianHomeScreen() {
     });
   }, [linkCode, parentId, parentName, router]);
 
+  const openParentCalendar = React.useCallback(() => {
+    router.push({
+      pathname: '/calendar',
+      params: {
+        parentId,
+      },
+    });
+  }, [parentId, router]);
+
+  const openGuardianHealth = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-health',
+      params: {
+        parentId,
+        parentName,
+        parentAge,
+        parentGender,
+        linkCode,
+        medications,
+        diseases,
+        allergies,
+        hospital,
+        doctorContact,
+        memo,
+      },
+    } as any);
+  }, [
+    allergies,
+    diseases,
+    doctorContact,
+    hospital,
+    linkCode,
+    medications,
+    memo,
+    parentAge,
+    parentGender,
+    parentId,
+    parentName,
+    router,
+  ]);
+
+  const openGuardianMedications = React.useCallback(() => {
+      router.push({
+        pathname: '/guardian-medications',
+        params: {
+          parentId,
+          parentName,
+          parentAge,
+          parentGender,
+          linkCode,
+          medications,
+          diseases,
+          allergies,
+          hospital,
+          doctorContact,
+          memo,
+        },
+      } as any);
+  }, [
+    allergies,
+    diseases,
+    doctorContact,
+    hospital,
+    linkCode,
+    medications,
+    memo,
+    parentAge,
+    parentGender,
+    parentId,
+    parentName,
+    router,
+  ]);
+
+  const handleQuickStatPress = React.useCallback(
+    (item: StatItem) => {
+      if (item.action === 'health') {
+        openGuardianHealth();
+        return;
+      }
+
+      if (item.action === 'schedules') {
+        openParentCalendar();
+        return;
+      }
+
+      if (item.action === 'medication') {
+        openGuardianMedications();
+      }
+    },
+    [openGuardianHealth, openGuardianMedications, openParentCalendar]
+  );
+
   const handleMenuPress = (title: string) => {
     if (title === '대화 요약') {
       openGuardianConversations();
@@ -317,26 +435,6 @@ export default function GuardianHomeScreen() {
       return;
     }
 
-    if (title === '오늘 돌봄 점수') {
-      router.push({
-        pathname: '/guardian-health',
-        params: {
-          parentId,
-          parentName,
-          parentAge,
-          parentGender,
-          linkCode,
-          medications,
-          diseases,
-          allergies,
-          hospital,
-          doctorContact,
-          memo,
-        },
-      } as any);
-      return;
-    }
-
     if (title === '위치 확인') {
       router.push({
         pathname: '/guardian-location',
@@ -346,6 +444,11 @@ export default function GuardianHomeScreen() {
           linkCode,
         },
       });
+      return;
+    }
+
+    if (title === '알림 기록') {
+      openGuardianAlertHistory();
       return;
     }
 
@@ -444,16 +547,31 @@ export default function GuardianHomeScreen() {
                 color={careStatus.color}
               />
               <Text style={[styles.scoreValue, { color: careStatus.color }]}>
-                {formatGuardianCareScore(dashboard?.care_score)}
+                {careStatus.label}
               </Text>
-              <Text style={styles.scoreLabel}>오늘 돌봄 점수</Text>
+              <Text style={styles.scoreLabel}>오늘 상태</Text>
+              <Text style={styles.scoreSubLabel}>
+                {dashboard?.latest_location_captured_at
+                  ? `최근 업데이트 ${formatRelativeTime(dashboard.latest_location_captured_at)}`
+                  : '최근 업데이트 확인중'}
+              </Text>
             </View>
           </View>
         </View>
 
         <View style={styles.statsGrid}>
           {quickStats.map((item) => (
-            <View key={item.label} style={styles.statCard}>
+            <TouchableOpacity
+              key={item.label}
+              style={[
+                styles.statCard,
+                item.action ? styles.statCardInteractive : null,
+              ]}
+              activeOpacity={item.action ? 0.85 : 1}
+              onPress={() => handleQuickStatPress(item)}
+              disabled={!item.action}
+              accessibilityRole={item.action ? 'button' : undefined}
+            >
               <View style={styles.statIconWrap}>
                 <AppIcon
                   type={item.iconType}
@@ -464,7 +582,7 @@ export default function GuardianHomeScreen() {
               </View>
               <Text style={styles.statLabel}>{item.label}</Text>
               <Text style={styles.statValue}>{item.value}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -564,7 +682,7 @@ export default function GuardianHomeScreen() {
                 <TouchableOpacity
                   style={styles.alertRow}
                   activeOpacity={0.85}
-                  onPress={openGuardianLocation}
+                  onPress={openGuardianAlerts}
                   disabled={!parentId || !linkCode}
                 >
                   <View style={styles.alertIconWrap}>
@@ -709,20 +827,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   scoreBox: {
-    width: 112,
+    width: 124,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scoreValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: '#05B547',
     marginTop: 4,
+    textAlign: 'center',
   },
   scoreLabel: {
     fontSize: 13,
     color: '#6B7280',
     marginTop: 2,
+  },
+  scoreSubLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 4,
+    fontWeight: '700',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -738,6 +863,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  statCardInteractive: {
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
   statIconWrap: {
     width: 42,

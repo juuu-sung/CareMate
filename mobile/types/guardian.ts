@@ -1,6 +1,6 @@
 import { CareMode } from "@/types/care";
 
-export type GuardianCareLevel = "stable" | "check" | "caution";
+export type GuardianCareLevel = "stable" | "check" | "caution" | "urgent";
 
 export type GuardianCarePenalties = {
   alerts: number;
@@ -15,8 +15,27 @@ export type GuardianCarePenaltyItem = {
   penalty: number;
 };
 
+export type GuardianHealthDomainScores = {
+  clinical_stability: number;
+  medication_stability: number;
+  engagement_stability: number;
+};
+
+export type GuardianCareProcessScores = {
+  medication_execution: number;
+  check_in_execution: number;
+  monitoring_continuity: number | null;
+};
+
 export type GuardianDashboard = {
   care_mode: CareMode;
+  scoring_version: string;
+  today_risk_level: GuardianCareLevel;
+  today_risk_reasons: string[];
+  health_reserve_score: number;
+  care_execution_score: number;
+  health_domain_scores: GuardianHealthDomainScores;
+  care_process_scores: GuardianCareProcessScores;
   care_score: number;
   care_level: GuardianCareLevel;
   care_summary: string;
@@ -29,6 +48,9 @@ export type GuardianDashboard = {
   latest_location_captured_at: string;
   open_alert_count: number;
   today_medication_pending_count: number;
+  overdue_medication_count: number;
+  severe_overdue_medication_count: number;
+  missed_medication_count: number;
   today_schedule_count: number;
 };
 

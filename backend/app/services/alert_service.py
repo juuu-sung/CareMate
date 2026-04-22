@@ -8,7 +8,10 @@ from app.services.guardian_alert_service import create_guardian_alert
 def list_alerts() -> list[AlertItem]:
     return [
         AlertItem(
+            id="demo-alert",
             type="medication_missed",
+            severity="high",
+            status="open",
             message="복약 알림 3회 미응답",
             created_at="2026-03-24T09:30:00+09:00",
         )

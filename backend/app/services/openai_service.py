@@ -199,6 +199,131 @@ def generate_place_status_summary(
     return output_text.strip(), _extract_url_citations(body)
 
 
+def summarize_guardian_conversation_days(
+    days: list[dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    if not settings.openai_api_key:
+        raise OpenAIServiceError("OPENAI_API_KEY is not configured.")
+
+    serialized_days: list[dict[str, object]] = []
+    for day in days:
+        date_key = str(day.get("date_key") or "").strip()
+        raw_items = day.get("items")
+        if not date_key or not isinstance(raw_items, list):
+            continue
+
+        messages: list[dict[str, str]] = []
+        for raw_item in raw_items[:20]:
+            if not isinstance(raw_item, dict):
+                continue
+
+            content = re.sub(r"\s+", " ", str(raw_item.get("content") or "")).strip()
+            role = str(raw_item.get("role") or "").strip()
+            mode = str(raw_item.get("mode") or "").strip()
+            if role not in {"user", "assistant"} or not content:
+                continue
+
+            messages.append(
+                {
+                    "role": "부모님" if role == "user" else "CareMate",
+                    "mode": mode or "basic",
+                    "content": content[:180],
+                }
+            )
+
+        if not messages:
+            continue
+
+        serialized_days.append(
+            {
+                "date_key": date_key,
+                "message_count": len(messages),
+                "messages": messages,
+            }
+        )
+
+    if not serialized_days:
+        return {}
+
+    model = settings.llm_model or DEFAULT_OPENAI_MODEL
+    payload = {
+        "model": model,
+        "input": [
+            {
+                "role": "developer",
+                "content": (
+                    "당신은 보호자용 대화 요약 도우미입니다.\n"
+                    "항상 한국어로만 답합니다.\n"
+                    "부모님과 CareMate의 대화를 날짜별로 짧고 사실적으로 요약합니다.\n"
+                    "추측, 과장, 진단, 감정 확대 해석을 하지 않습니다.\n"
+                    "각 날짜마다 headline은 8~16자 정도의 짧은 제목으로 작성합니다.\n"
+                    "summary는 보호자에게 보고하듯 1문장 또는 2문장으로 작성합니다.\n"
+                    "topics는 핵심 주제 1~3개만 간단한 명사구로 작성합니다.\n"
+                    "증상 악화, 약 누락, 강한 혼란, 병원/응급 대응이 분명히 보일 때만 attention_needed를 true로 설정합니다.\n"
+                    "attention_reason은 주의가 필요한 이유를 아주 짧게 적고, 아니면 빈 문자열로 둡니다.\n"
+                    "반드시 아래 형식의 JSON 객체만 출력합니다.\n"
+                    '{"summaries":[{"date_key":"2026-04-21","headline":"복약과 일정 확인","summary":"혈압약 복용 여부와 오늘 일정, 몸 상태를 주로 확인했어요.","topics":["복약","일정","건강 상태"],"attention_needed":false,"attention_reason":""}]}'
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "다음 날짜별 대화 로그를 요약해 주세요.\n"
+                    "날짜별로 정확히 1개씩 summary를 반환해야 합니다.\n"
+                    "입력에 없는 사실은 추가하지 마세요.\n"
+                    f"{json.dumps(serialized_days, ensure_ascii=False)}"
+                ),
+            },
+        ],
+    }
+
+    _apply_reasoning_settings(payload, model)
+
+    body = _post_responses_api(payload, failure_prefix="OpenAI guardian summary request failed")
+    output_text = _extract_output_text(body)
+    if not output_text:
+        raise OpenAIServiceError("OpenAI guardian summary response did not include output text.")
+
+    result = _extract_json_object(output_text)
+    raw_summaries = result.get("summaries")
+    if not isinstance(raw_summaries, list):
+        raise OpenAIServiceError("OpenAI guardian summary response was missing summaries.")
+
+    normalized: dict[str, dict[str, object]] = {}
+    for raw_summary in raw_summaries:
+        if not isinstance(raw_summary, dict):
+            continue
+
+        date_key = str(raw_summary.get("date_key") or "").strip()
+        if not date_key:
+            continue
+
+        topics = raw_summary.get("topics")
+        normalized_topics = []
+        if isinstance(topics, list):
+            normalized_topics = [
+                str(topic).strip()
+                for topic in topics
+                if str(topic).strip()
+            ][:3]
+
+        attention_needed = bool(raw_summary.get("attention_needed"))
+        attention_reason = str(raw_summary.get("attention_reason") or "").strip()
+
+        normalized[date_key] = {
+            "headline": str(raw_summary.get("headline") or "대화 요약").strip() or "대화 요약",
+            "summary": str(raw_summary.get("summary") or "").strip(),
+            "topics": normalized_topics,
+            "attention_needed": attention_needed,
+            "attention_reason": attention_reason if attention_needed else "",
+        }
+
+    if not normalized:
+        raise OpenAIServiceError("OpenAI guardian summary response was empty.")
+
+    return normalized
+
+
 def _build_developer_prompt(
     intent: ChatIntent,
     mode: CareMode,

@@ -7,7 +7,10 @@ import {
 } from "@/types/guardian";
 
 export type GuardianAlertItem = {
+  id: string;
   type: string;
+  severity: string;
+  status: "open" | "acknowledged" | "resolved";
   message: string;
   created_at: string;
 };
@@ -17,6 +20,19 @@ export type GuardianConversationItem = {
   content: string;
   mode: CareMode;
   created_at: string;
+};
+
+export type GuardianConversationDay = {
+  date_key: string;
+  headline: string;
+  summary: string;
+  topics: string[];
+  message_count: number;
+  started_at: string;
+  ended_at: string;
+  attention_needed: boolean;
+  attention_reason: string;
+  items: GuardianConversationItem[];
 };
 
 export type GuardianSchedulePayload = {
@@ -33,7 +49,7 @@ type GuardianAlertsResponse = {
 };
 
 type GuardianConversationsResponse = {
-  items: GuardianConversationItem[];
+  days: GuardianConversationDay[];
 };
 
 type GuardianSchedulesResponse = {
@@ -61,6 +77,45 @@ export function getGuardianAlerts(elderUserId: string, linkCode: string, limit =
   });
 
   return apiGet<GuardianAlertsResponse>(`/guardians/alerts?${searchParams.toString()}`);
+}
+
+export function getGuardianAlertHistory(
+  elderUserId: string,
+  linkCode: string,
+  limit = 120
+) {
+  const searchParams = new URLSearchParams({
+    elder_user_id: elderUserId,
+    link_code: linkCode,
+    limit: String(limit),
+  });
+
+  return apiGet<GuardianAlertsResponse>(
+    `/guardians/alert-history?${searchParams.toString()}`
+  );
+}
+
+export function updateGuardianAlertStatus(
+  elderUserId: string,
+  linkCode: string,
+  alertId: string | undefined,
+  alert: Pick<GuardianAlertItem, "type" | "message" | "created_at">,
+  status: "acknowledged" | "resolved"
+) {
+  const searchParams = new URLSearchParams({
+    elder_user_id: elderUserId,
+    link_code: linkCode,
+  });
+
+  return apiPatch<GuardianAlertItem>(
+    `/guardians/alerts/${alertId || "undefined"}?${searchParams.toString()}`,
+    {
+      status,
+      type: alert.type,
+      message: alert.message,
+      created_at: alert.created_at,
+    }
+  );
 }
 
 export function getGuardianConversations(elderUserId: string, linkCode: string, limit = 30) {

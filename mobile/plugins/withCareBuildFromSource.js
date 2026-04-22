@@ -11,7 +11,7 @@ function removeHermesBuildFromSource(contents) {
 
 const withCareBuildFromSource = (config) => {
   config = withPodfileProperties(config, (config) => {
-    delete config.modResults['ios.buildReactNativeFromSource'];
+    config.modResults['ios.buildReactNativeFromSource'] = 'true';
     return config;
   });
 
@@ -25,7 +25,15 @@ const withCareBuildFromSource = (config) => {
       }
 
       const currentContents = fs.readFileSync(podfilePath, 'utf8');
-      const nextContents = removeHermesBuildFromSource(currentContents);
+      let nextContents = removeHermesBuildFromSource(currentContents);
+      nextContents = nextContents.replace(
+        /ENV\['RCT_USE_RN_DEP'\] \|\|= '1' if podfile_properties\['ios\.buildReactNativeFromSource'\] != 'true'\n/g,
+        ''
+      );
+      nextContents = nextContents.replace(
+        /ENV\['RCT_USE_PREBUILT_RNCORE'\] \|\|= '1' if podfile_properties\['ios\.buildReactNativeFromSource'\] != 'true'\n/g,
+        ''
+      );
 
       if (currentContents !== nextContents) {
         fs.writeFileSync(podfilePath, nextContents);

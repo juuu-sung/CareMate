@@ -48,7 +48,7 @@ export function getGuardianCareStatus(
       label: '오류',
       color: '#DC2626',
       backgroundColor: '#FEE2E2',
-      description: '오늘 돌봄 점수 데이터를 다시 불러와 주세요.',
+      description: '오늘 건강 상황판 데이터를 다시 불러와 주세요.',
     };
   }
 
@@ -58,6 +58,15 @@ export function getGuardianCareStatus(
       color: '#6B7280',
       backgroundColor: '#F3F4F6',
       description: '최신 돌봄 신호를 확인하고 있어요.',
+    };
+  }
+
+  if (dashboard.care_level === 'urgent') {
+    return {
+      label: '즉시 확인',
+      color: '#DC2626',
+      backgroundColor: '#FEF2F2',
+      description: dashboard.care_summary,
     };
   }
 
@@ -72,7 +81,7 @@ export function getGuardianCareStatus(
 
   if (dashboard.care_level === 'check') {
     return {
-      label: '확인 필요',
+      label: '관찰 필요',
       color: '#CA8A04',
       backgroundColor: '#FEFCE8',
       description: dashboard.care_summary,

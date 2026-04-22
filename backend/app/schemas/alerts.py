@@ -1,8 +1,16 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
+AlertStatus = Literal["open", "acknowledged", "resolved"]
+
+
 class AlertItem(BaseModel):
+    id: str
     type: str
+    severity: str
+    status: AlertStatus
     message: str
     created_at: str
 
@@ -21,3 +29,10 @@ class AlertEventCreateResponse(BaseModel):
     type: str
     message: str
     created: bool
+
+
+class AlertStatusUpdateRequest(BaseModel):
+    status: Literal["acknowledged", "resolved"]
+    type: str | None = None
+    message: str | None = None
+    created_at: str | None = None
