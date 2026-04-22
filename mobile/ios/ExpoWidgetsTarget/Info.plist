@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>ExpoWidgetsAppGroupIdentifier</key>
-	<string>group.com.hongjusung.caremate</string>
+	<string>group.com.kimjaeho.caremate</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
