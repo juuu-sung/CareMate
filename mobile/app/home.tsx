@@ -530,7 +530,14 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push('/calendar')}
+              onPress={() =>
+                router.push({
+                  pathname: '/calendar',
+                  params: {
+                    viewerRole: 'parent',
+                  },
+                })
+              }
               activeOpacity={0.88}
             >
               <View style={styles.cardIconWrap}>

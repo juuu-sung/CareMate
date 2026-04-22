@@ -235,7 +235,7 @@ def create_schedule_from_slots(
             "id": schedule_id,
             "senior_user_id": elder_user_id,
             "title": parsed.title,
-            "description": parsed.description or f"{mode} mode agent action",
+            "description": parsed.description or None,
             "scheduled_at": scheduled_at,
             "type": schedule_type,
             "status": status,
