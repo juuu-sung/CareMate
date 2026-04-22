@@ -10,8 +10,16 @@ from app.models.elder_profile import ElderProfile
 from app.models.guardian_link import GuardianLink
 from app.schemas.alerts import AlertItem
 from app.schemas.guardian import GuardianLoginRequest
+from app.services.guardian_alert_service import (
+    resolve_guardian_alerts,
+    update_guardian_alert_status,
+)
 from app.services.guardian_care_score_service import build_guardian_care_score
 from app.services.chat_log_service import list_chat_logs_for_elder
+from app.services.openai_service import (
+    OpenAIServiceError,
+    summarize_guardian_conversation_days,
+)
 
 SEOUL_TZ = ZoneInfo("Asia/Seoul")
 VALID_SCHEDULE_STATUSES = {"scheduled", "completed", "cancelled"}
@@ -230,36 +238,6 @@ def get_guardian_dashboard_snapshot(db: Session, elder_user_id: str):
         {"elder_user_id": elder_user_id},
     ).mappings().first()
 
-    alert_row = db.execute(
-        text(
-            """
-            SELECT
-                COUNT(*) FILTER (
-                    WHERE status = 'open'
-                      AND type <> 'location_request'
-                ) AS open_alert_count,
-                COUNT(*) FILTER (
-                    WHERE status = 'open'
-                      AND type <> 'location_request'
-                      AND severity = 'high'
-                ) AS open_high_alert_count,
-                COUNT(*) FILTER (
-                    WHERE status = 'open'
-                      AND type <> 'location_request'
-                      AND severity = 'medium'
-                ) AS open_medium_alert_count,
-                COUNT(*) FILTER (
-                    WHERE status = 'open'
-                      AND type <> 'location_request'
-                      AND severity = 'low'
-                ) AS open_low_alert_count
-            FROM alerts
-            WHERE senior_user_id = :elder_user_id
-            """
-        ),
-        {"elder_user_id": elder_user_id},
-    ).mappings().one()
-
     medication_rows = db.execute(
         text(
             """
@@ -338,6 +316,43 @@ def get_guardian_dashboard_snapshot(db: Session, elder_user_id: str):
             latest_location_label = "확인 가능"
 
     medication_snapshot = _build_medication_monitoring_snapshot(medication_rows)
+    _sync_guardian_alert_resolutions(
+        db,
+        elder_user_id=elder_user_id,
+        check_in_status=check_in_row["status"] if check_in_row else "responded",
+        missed_medication_count=medication_snapshot["missed_medication_count"],
+        latest_location_status=latest_location_status,
+    )
+
+    alert_row = db.execute(
+        text(
+            """
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE status <> 'resolved'
+                      AND type <> 'location_request'
+                ) AS open_alert_count,
+                COUNT(*) FILTER (
+                    WHERE status <> 'resolved'
+                      AND type <> 'location_request'
+                      AND severity = 'high'
+                ) AS open_high_alert_count,
+                COUNT(*) FILTER (
+                    WHERE status <> 'resolved'
+                      AND type <> 'location_request'
+                      AND severity = 'medium'
+                ) AS open_medium_alert_count,
+                COUNT(*) FILTER (
+                    WHERE status <> 'resolved'
+                      AND type <> 'location_request'
+                      AND severity = 'low'
+                ) AS open_low_alert_count
+            FROM alerts
+            WHERE senior_user_id = :elder_user_id
+            """
+        ),
+        {"elder_user_id": elder_user_id},
+    ).mappings().one()
 
     snapshot = {
         "care_mode": care_profile["mode"] if care_profile else "basic",
@@ -412,7 +427,57 @@ def list_guardian_alerts(
     rows = db.execute(
         text(
             """
-            SELECT type, message, created_at
+            SELECT
+                id::text AS id,
+                type,
+                severity,
+                status,
+                message,
+                created_at
+            FROM alerts
+            WHERE senior_user_id = :elder_user_id
+              AND type <> 'location_request'
+              AND status <> 'resolved'
+            ORDER BY
+                CASE WHEN status = 'open' THEN 0 ELSE 1 END,
+                created_at DESC
+            LIMIT :limit
+            """
+        ),
+        {"elder_user_id": elder_user_id, "limit": limit},
+    ).mappings().all()
+
+    return [
+        AlertItem(
+            id=row["id"],
+            type=row["type"],
+            severity=row["severity"],
+            status=row["status"],
+            message=row["message"],
+            created_at=row["created_at"].isoformat() if row["created_at"] else "",
+        )
+        for row in rows
+    ]
+
+
+def list_guardian_alert_history(
+    db: Session,
+    elder_user_id: str,
+    link_code: str,
+    limit: int = 120,
+) -> list[AlertItem]:
+    _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
+
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                id::text AS id,
+                type,
+                severity,
+                status,
+                message,
+                created_at
             FROM alerts
             WHERE senior_user_id = :elder_user_id
               AND type <> 'location_request'
@@ -425,7 +490,10 @@ def list_guardian_alerts(
 
     return [
         AlertItem(
+            id=row["id"],
             type=row["type"],
+            severity=row["severity"],
+            status=row["status"],
             message=row["message"],
             created_at=row["created_at"].isoformat() if row["created_at"] else "",
         )
@@ -433,19 +501,279 @@ def list_guardian_alerts(
     ]
 
 
+def update_guardian_alert_for_guardian(
+    db: Session,
+    *,
+    elder_user_id: str,
+    link_code: str,
+    alert_id: str,
+    status: str,
+    alert_type: str | None = None,
+    message: str | None = None,
+    created_at: str | None = None,
+) -> AlertItem:
+    _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
+
+    normalized_alert_id = (alert_id or "").strip()
+    row = None
+    if normalized_alert_id and normalized_alert_id not in {"undefined", "null"}:
+        row = update_guardian_alert_status(
+            db,
+            elder_user_id=elder_user_id,
+            alert_id=normalized_alert_id,
+            status=status,
+        )
+
+    if not row and alert_type and message and created_at:
+        row = db.execute(
+            text(
+                """
+                UPDATE alerts
+                SET status = :status
+                WHERE id IN (
+                    SELECT id
+                    FROM alerts
+                    WHERE senior_user_id = :elder_user_id
+                      AND type = :alert_type
+                      AND message = :message
+                      AND created_at = :created_at
+                      AND status <> 'resolved'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                )
+                RETURNING
+                    id::text AS id,
+                    type,
+                    severity,
+                    status,
+                    message,
+                    created_at
+                """
+            ),
+            {
+                "elder_user_id": elder_user_id,
+                "alert_type": alert_type,
+                "message": message,
+                "created_at": created_at,
+                "status": status,
+            },
+        ).mappings().first()
+
+    if not row:
+        raise ValueError("알림을 찾을 수 없습니다.")
+
+    db.commit()
+
+    return AlertItem(
+        id=row["id"],
+        type=row["type"],
+        severity=row["severity"],
+        status=row["status"],
+        message=row["message"],
+        created_at=row["created_at"].isoformat() if row["created_at"] else "",
+    )
+
+
+def _sync_guardian_alert_resolutions(
+    db: Session,
+    *,
+    elder_user_id: str,
+    check_in_status: str,
+    missed_medication_count: int,
+    latest_location_status: str,
+):
+    changed = False
+
+    if check_in_status == "responded":
+        changed = resolve_guardian_alerts(
+            db,
+            elder_user_id=elder_user_id,
+            alert_type="check_in_pending",
+        ) or changed
+        changed = resolve_guardian_alerts(
+            db,
+            elder_user_id=elder_user_id,
+            alert_type="check_in_missed",
+        ) or changed
+
+    if missed_medication_count == 0:
+        changed = resolve_guardian_alerts(
+            db,
+            elder_user_id=elder_user_id,
+            alert_type="medication_missed",
+        ) or changed
+
+    if latest_location_status == "available":
+        changed = resolve_guardian_alerts(
+            db,
+            elder_user_id=elder_user_id,
+            alert_type="location_request",
+        ) or changed
+
+    if changed:
+        db.commit()
+
+
+def _parse_chat_log_datetime(value: str) -> datetime | None:
+    normalized = (value or "").strip()
+    if not normalized:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+
+    return parsed.astimezone(timezone.utc)
+
+
+def _build_guardian_conversation_fallback_summary(
+    items: list[dict[str, str]],
+) -> dict[str, object]:
+    combined_text = " ".join(str(item.get("content") or "") for item in items).strip()
+
+    topic_definitions = [
+        ("복약", ["약", "복약", "혈압약", "당뇨약", "약 먹", "약을", "복용"]),
+        ("일정", ["일정", "약속", "오늘 뭐", "내일 뭐", "예약"]),
+        ("병원", ["병원", "진료", "의사", "응급실"]),
+        ("건강 상태", ["아프", "통증", "어지", "열", "기침", "몸살", "혈압", "몸이", "건강"]),
+        ("식사", ["밥", "식사", "아침", "점심", "저녁", "간식"]),
+        ("수면", ["잠", "주무", "피곤", "졸려"]),
+        ("기분", ["외롭", "심심", "불안", "우울", "기분"]),
+        ("가족", ["아들", "딸", "가족", "전화", "편지"]),
+    ]
+
+    topics = [
+        label
+        for label, keywords in topic_definitions
+        if any(keyword in combined_text for keyword in keywords)
+    ][:3]
+
+    if not topics:
+        topics = ["일상 안부"]
+
+    if len(topics) >= 2:
+        headline = f"{topics[0]}·{topics[1]} 대화"
+        summary = f"{topics[0]}와 {topics[1]} 관련 이야기를 주로 나눴어요."
+    else:
+        headline = f"{topics[0]} 대화"
+        summary = f"{topics[0]} 관련 이야기를 주로 나눴어요."
+
+    attention_needed = False
+    attention_reason = ""
+    attention_rules = [
+        ("응급 대응이 언급됐어요.", ["응급", "숨", "가슴", "쓰러", "119"]),
+        ("약 복용 누락 언급이 있었어요.", ["약 안", "복용 못", "안 먹", "놓쳤", "missed"]),
+        ("증상 호소가 있었어요.", ["어지", "열", "통증", "아프", "기침"]),
+        ("혼란 표현이 있었어요.", ["기억이 안", "헷갈", "모르겠", "불안"]),
+    ]
+
+    for reason, keywords in attention_rules:
+        if any(keyword in combined_text for keyword in keywords):
+            attention_needed = True
+            attention_reason = reason
+            break
+
+    return {
+        "headline": headline,
+        "summary": summary,
+        "topics": topics,
+        "attention_needed": attention_needed,
+        "attention_reason": attention_reason,
+    }
+
+
+def _build_guardian_conversation_days(
+    items: list[dict[str, str]],
+) -> list[dict[str, object]]:
+    grouped_items: dict[str, list[dict[str, str]]] = {}
+    day_order: list[str] = []
+
+    for item in items:
+        parsed = _parse_chat_log_datetime(item.get("created_at", ""))
+        if parsed:
+            date_key = parsed.astimezone(SEOUL_TZ).date().isoformat()
+        else:
+            date_key = (item.get("created_at") or "unknown")[:10] or "unknown"
+
+        if date_key not in grouped_items:
+            grouped_items[date_key] = []
+            day_order.append(date_key)
+
+        grouped_items[date_key].append(item)
+
+    llm_summaries: dict[str, dict[str, object]] = {}
+    if grouped_items:
+        try:
+            llm_summaries = summarize_guardian_conversation_days(
+                [
+                    {
+                        "date_key": date_key,
+                        "items": grouped_items[date_key],
+                    }
+                    for date_key in day_order
+                ]
+            )
+        except OpenAIServiceError:
+            llm_summaries = {}
+
+    days: list[dict[str, object]] = []
+    for date_key in reversed(day_order):
+        day_items = grouped_items[date_key]
+        fallback_summary = _build_guardian_conversation_fallback_summary(day_items)
+        generated_summary = llm_summaries.get(date_key, {})
+
+        topics = generated_summary.get("topics")
+        normalized_topics = (
+            [str(topic).strip() for topic in topics if str(topic).strip()][:3]
+            if isinstance(topics, list)
+            else fallback_summary["topics"]
+        )
+
+        attention_needed = (
+            bool(generated_summary.get("attention_needed"))
+            if "attention_needed" in generated_summary
+            else bool(fallback_summary["attention_needed"])
+        )
+        attention_reason = str(
+            generated_summary.get("attention_reason") or fallback_summary["attention_reason"]
+        ).strip()
+
+        days.append(
+            {
+                "date_key": date_key,
+                "headline": str(generated_summary.get("headline") or fallback_summary["headline"]).strip(),
+                "summary": str(generated_summary.get("summary") or fallback_summary["summary"]).strip(),
+                "topics": normalized_topics,
+                "message_count": len(day_items),
+                "started_at": day_items[0].get("created_at", "") if day_items else "",
+                "ended_at": day_items[-1].get("created_at", "") if day_items else "",
+                "attention_needed": attention_needed,
+                "attention_reason": attention_reason if attention_needed else "",
+                "items": day_items,
+            }
+        )
+
+    return days
+
+
 def list_guardian_conversations(
     db: Session,
     elder_user_id: str,
     link_code: str,
     limit: int = 30,
-) -> list[dict[str, str]]:
+) -> list[dict[str, object]]:
     _get_guardian_link(db, elder_user_id=elder_user_id, link_code=link_code)
-    return list_chat_logs_for_elder(
+    items = list_chat_logs_for_elder(
         db,
         senior_user_id=elder_user_id,
         limit=limit,
         requester_role="parent",
     )
+    return _build_guardian_conversation_days(items)
 
 
 def list_guardian_schedules(

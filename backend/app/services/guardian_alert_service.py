@@ -23,7 +23,7 @@ def create_guardian_alert(
             WHERE senior_user_id = :elder_user_id
               AND type = :alert_type
               AND message = :message
-              AND status = 'open'
+              AND status <> 'resolved'
               AND created_at >= :threshold
             LIMIT 1
             """
@@ -75,14 +75,14 @@ def resolve_guardian_alerts(
     elder_user_id: str,
     alert_type: str,
 ):
-    db.execute(
+    result = db.execute(
         text(
             """
             UPDATE alerts
             SET status = 'resolved'
             WHERE senior_user_id = :elder_user_id
               AND type = :alert_type
-              AND status = 'open'
+              AND status <> 'resolved'
             """
         ),
         {
@@ -90,6 +90,64 @@ def resolve_guardian_alerts(
             "alert_type": alert_type,
         },
     )
+    return bool(result.rowcount)
+
+
+def update_guardian_alert_status(
+    db: Session,
+    *,
+    elder_user_id: str,
+    alert_id: str,
+    status: str,
+):
+    row = db.execute(
+        text(
+            """
+            UPDATE alerts
+            SET status = :status
+            WHERE senior_user_id = :elder_user_id
+              AND id::text = :alert_id
+              AND status <> 'resolved'
+            RETURNING
+                id::text AS id,
+                type,
+                severity,
+                message,
+                status,
+                created_at
+            """
+        ),
+        {
+            "elder_user_id": elder_user_id,
+            "alert_id": alert_id,
+            "status": status,
+        },
+    ).mappings().first()
+
+    if row:
+        return row
+
+    return db.execute(
+        text(
+            """
+            SELECT
+                id::text AS id,
+                type,
+                severity,
+                message,
+                status,
+                created_at
+            FROM alerts
+            WHERE senior_user_id = :elder_user_id
+              AND id::text = :alert_id
+            LIMIT 1
+            """
+        ),
+        {
+            "elder_user_id": elder_user_id,
+            "alert_id": alert_id,
+        },
+    ).mappings().first()
 
 
 def get_open_guardian_alert(
@@ -105,7 +163,7 @@ def get_open_guardian_alert(
             FROM alerts
             WHERE senior_user_id = :elder_user_id
               AND type = :alert_type
-              AND status = 'open'
+              AND status <> 'resolved'
             ORDER BY created_at DESC
             LIMIT 1
             """

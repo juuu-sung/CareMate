@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.agent import AgentSlots
 from app.schemas.medication import MedicationItem
-from app.services.guardian_alert_service import create_guardian_alert
+from app.services.guardian_alert_service import create_guardian_alert, resolve_guardian_alerts
 
 
 def list_medication_items(db: Session, elder_user_id: str | None = None) -> list[MedicationItem]:
@@ -140,6 +140,12 @@ def record_medication_taken(
             message=f"{time_scope} {medication_name} 복약 누락이 기록되었어요.",
             severity="high",
             dedupe_minutes=180,
+        )
+    elif status == "taken":
+        resolve_guardian_alerts(
+            db,
+            elder_user_id=senior_id,
+            alert_type="medication_missed",
         )
     db.commit()
 

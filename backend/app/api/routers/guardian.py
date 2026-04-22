@@ -17,6 +17,7 @@ from app.schemas.guardian import (
     GuardianSignupResponse,
     ParentInfoByCodeResponse,
 )
+from app.schemas.alerts import AlertItem, AlertStatusUpdateRequest
 from app.services.guardian_service import (
     create_guardian_and_link,
     create_guardian_schedule,
@@ -24,9 +25,11 @@ from app.services.guardian_service import (
     get_parent_by_code,
     get_guardian_dashboard,
     list_guardian_alerts,
+    list_guardian_alert_history,
     list_guardian_conversations,
     list_guardian_schedules,
     login_guardian,
+    update_guardian_alert_for_guardian,
     update_guardian_schedule,
 )
 
@@ -89,6 +92,49 @@ def read_guardian_alerts(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/alert-history", response_model=GuardianAlertsResponse)
+def read_guardian_alert_history(
+    elder_user_id: str = Query(...),
+    link_code: str = Query(...),
+    limit: int = Query(120, ge=1, le=180),
+    db: Session = Depends(get_db),
+):
+    try:
+        return {
+            "items": list_guardian_alert_history(
+                db,
+                elder_user_id=elder_user_id,
+                link_code=link_code,
+                limit=limit,
+            )
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch("/alerts/{alert_id}", response_model=AlertItem)
+def update_guardian_alert(
+    alert_id: str,
+    payload: AlertStatusUpdateRequest,
+    elder_user_id: str = Query(...),
+    link_code: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        return update_guardian_alert_for_guardian(
+            db,
+            elder_user_id=elder_user_id,
+            link_code=link_code,
+            alert_id=alert_id,
+            status=payload.status,
+            alert_type=payload.type,
+            message=payload.message,
+            created_at=payload.created_at,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/conversations", response_model=GuardianConversationsResponse)
 def read_guardian_conversations(
     elder_user_id: str = Query(...),
@@ -98,7 +144,7 @@ def read_guardian_conversations(
 ):
     try:
         return {
-            "items": list_guardian_conversations(
+            "days": list_guardian_conversations(
                 db,
                 elder_user_id=elder_user_id,
                 link_code=link_code,

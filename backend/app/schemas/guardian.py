@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.alerts import AlertItem
 from app.schemas.chat import ChatHistoryItem
@@ -67,10 +67,29 @@ class GuardianCarePenaltyItemResponse(BaseModel):
     penalty: int
 
 
+class GuardianHealthDomainScoresResponse(BaseModel):
+    clinical_stability: int
+    medication_stability: int
+    engagement_stability: int
+
+
+class GuardianCareProcessScoresResponse(BaseModel):
+    medication_execution: int
+    check_in_execution: int
+    monitoring_continuity: int | None = None
+
+
 class GuardianDashboardResponse(BaseModel):
     care_mode: str
+    scoring_version: str = "caremate_v1"
+    today_risk_level: Literal["stable", "check", "caution", "urgent"]
+    today_risk_reasons: list[str]
+    health_reserve_score: int
+    care_execution_score: int
+    health_domain_scores: GuardianHealthDomainScoresResponse
+    care_process_scores: GuardianCareProcessScoresResponse
     care_score: int
-    care_level: Literal["stable", "check", "caution"]
+    care_level: Literal["stable", "check", "caution", "urgent"]
     care_summary: str
     care_reasons: list[str]
     care_penalties: GuardianCarePenaltyResponse
@@ -81,6 +100,9 @@ class GuardianDashboardResponse(BaseModel):
     latest_location_captured_at: str = ""
     open_alert_count: int
     today_medication_pending_count: int
+    overdue_medication_count: int
+    severe_overdue_medication_count: int
+    missed_medication_count: int
     today_schedule_count: int
 
 
@@ -88,8 +110,21 @@ class GuardianAlertsResponse(BaseModel):
     items: list[AlertItem]
 
 
-class GuardianConversationsResponse(BaseModel):
+class GuardianConversationDay(BaseModel):
+    date_key: str
+    headline: str
+    summary: str
+    topics: list[str] = Field(default_factory=list)
+    message_count: int
+    started_at: str = ""
+    ended_at: str = ""
+    attention_needed: bool = False
+    attention_reason: str = ""
     items: list[ChatHistoryItem]
+
+
+class GuardianConversationsResponse(BaseModel):
+    days: list[GuardianConversationDay]
 
 
 class GuardianScheduleItem(BaseModel):

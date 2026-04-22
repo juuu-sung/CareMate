@@ -216,41 +216,51 @@ def _build_health_status_answer(
         return "지금 상태를 아직 확인하지 못했어요."
 
     care_level = _health_status_level(dashboard)
-    care_score = dashboard.get("care_score", 0)
     reason_preview = _format_care_reason_preview(dashboard.get("care_reasons", []))
 
-    if care_level == "주의 필요":
+    if care_level == "즉시 확인":
         if requester_role == "guardian":
             return (
-                f"부모님 오늘 돌봄 점수는 {care_score}점으로 주의 단계예요. "
+                f"부모님 상태는 지금 즉시 확인 단계예요. "
                 f"{reason_preview} "
                 f"체크인 상태는 {_format_check_in_status(dashboard['check_in_status'])}이에요."
             )
         return (
-            f"오늘 돌봄 점수는 {care_score}점으로 확인이 더 필요해요. "
+            f"지금 바로 확인이 필요한 상태예요. "
             f"{reason_preview} "
             f"체크인 상태는 {_format_check_in_status(dashboard['check_in_status'])}예요."
         )
 
-    if care_level == "확인 필요":
+    if care_level == "주의":
         if requester_role == "guardian":
             return (
-                f"부모님 오늘 돌봄 점수는 {care_score}점으로 확인 단계예요. "
+                f"부모님 상태는 주의 단계예요. "
                 f"{reason_preview}"
             )
         return (
-            f"오늘 돌봄 점수는 {care_score}점으로 확인 단계예요. "
+            f"오늘 상태는 주의 단계예요. "
+            f"{reason_preview}"
+        )
+
+    if care_level == "관찰 필요":
+        if requester_role == "guardian":
+            return (
+                f"부모님 상태는 관찰 필요 단계예요. "
+                f"{reason_preview}"
+            )
+        return (
+            f"오늘 상태는 관찰 필요 단계예요. "
             f"{reason_preview}"
         )
 
     if requester_role == "guardian":
         return (
-            f"부모님 오늘 돌봄 점수는 {care_score}점으로 안정 단계예요. "
+            f"부모님 상태는 안정 단계예요. "
             f"{reason_preview}"
         )
 
     return (
-        f"오늘 돌봄 점수는 {care_score}점으로 안정 단계예요. "
+        f"오늘 상태는 안정 단계예요. "
         f"{reason_preview}"
     )
 
@@ -331,11 +341,10 @@ def _build_health_status_grounded_hint(
 
     lines.extend(
         [
-            f"- 오늘 돌봄 점수: {dashboard.get('care_score', 0)}",
-            f"- 상태 판정: {_health_status_level(dashboard)}",
+            f"- 오늘 상태 단계: {_health_status_level(dashboard)}",
             f"- 체크인 상태: {_format_check_in_status(dashboard['check_in_status'])}",
             f"- 열린 알림 수: {dashboard['open_alert_count']}",
-            f"- 점수 반영 알림 수: {dashboard.get('open_high_alert_count', 0) + dashboard.get('open_medium_alert_count', 0)}",
+            f"- 단계 반영 알림 수: {dashboard.get('open_high_alert_count', 0) + dashboard.get('open_medium_alert_count', 0)}",
             f"- 오늘 미확인 복약 수: {dashboard['today_medication_pending_count']}",
             f"- 1시간 이상 지난 복약 수: {dashboard.get('overdue_medication_count', 0)}",
             f"- 2시간 이상 지난 복약 수: {dashboard.get('severe_overdue_medication_count', 0)}",
@@ -349,16 +358,18 @@ def _build_health_status_grounded_hint(
 
 
 def _health_status_level(dashboard: dict) -> str:
+    if dashboard.get("care_level") == "urgent":
+        return "즉시 확인"
     if dashboard.get("care_level") == "caution":
-        return "주의 필요"
+        return "주의"
     if dashboard.get("care_level") == "check":
-        return "확인 필요"
-    return "안정적"
+        return "관찰 필요"
+    return "안정"
 
 
 def _format_care_reason_preview(reasons: list[str]) -> str:
     if not reasons:
-        return "현재 점수에 반영된 위험 신호는 없어요."
+        return "현재 단계에 반영된 위험 신호는 없어요."
     if len(reasons) == 1:
         return f"주요 반영 항목은 {reasons[0]}예요."
     return f"주요 반영 항목은 {reasons[0]}, {reasons[1]}예요."
