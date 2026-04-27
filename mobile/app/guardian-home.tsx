@@ -259,17 +259,6 @@ export default function GuardianHomeScreen() {
       ? `오늘 상태 ${careStatus.label}`
       : '데이터 불러오는 중';
 
-  const openGuardianLocation = React.useCallback(() => {
-    router.push({
-      pathname: '/guardian-location',
-      params: {
-        parentId,
-        parentName,
-        linkCode,
-      },
-    });
-  }, [linkCode, parentId, parentName, router]);
-
   const openGuardianAlerts = React.useCallback(() => {
     router.push({
       pathname: '/guardian-alerts',
@@ -356,22 +345,22 @@ export default function GuardianHomeScreen() {
   ]);
 
   const openGuardianMedications = React.useCallback(() => {
-      router.push({
-        pathname: '/guardian-medications',
-        params: {
-          parentId,
-          parentName,
-          parentAge,
-          parentGender,
-          linkCode,
-          medications,
-          diseases,
-          allergies,
-          hospital,
-          doctorContact,
-          memo,
-        },
-      } as any);
+    router.push({
+      pathname: '/guardian-medications',
+      params: {
+        parentId,
+        parentName,
+        parentAge,
+        parentGender,
+        linkCode,
+        medications,
+        diseases,
+        allergies,
+        hospital,
+        doctorContact,
+        memo,
+      },
+    } as any);
   }, [
     allergies,
     diseases,
@@ -594,27 +583,34 @@ export default function GuardianHomeScreen() {
             value={linkCode || '-'}
           />
           <Divider />
-          <InfoRow
+
+          <ExpandableInfoRow
             icon={<MaterialCommunityIcons name="pill" size={16} color="#05B547" />}
             label="복용 중인 약"
             value={medications || '-'}
-            multiline
           />
           <Divider />
-          <InfoRow
+
+          <ExpandableInfoRow
             icon={<FontAwesome6 name="virus" size={14} color="#05B547" />}
             label="보유 질환"
             value={diseases || '-'}
-            multiline
           />
           <Divider />
-          <InfoRow
-            icon={<MaterialCommunityIcons name="alert-circle-outline" size={16} color="#05B547" />}
+
+          <ExpandableInfoRow
+            icon={
+              <MaterialCommunityIcons
+                name="alert-circle-outline"
+                size={16}
+                color="#05B547"
+              />
+            }
             label="알레르기"
             value={allergies || '-'}
-            multiline
           />
           <Divider />
+
           <InfoRow
             icon={<Ionicons name="medical-outline" size={16} color="#05B547" />}
             label="주치의 / 병원"
@@ -674,7 +670,9 @@ export default function GuardianHomeScreen() {
           ) : alerts.length === 0 ? (
             <View style={styles.loadingAlertRow}>
               <Text style={styles.alertTitle}>최근 알림이 없어요</Text>
-              <Text style={styles.alertTime}>새로운 보호 알림이 생기면 여기에 표시됩니다.</Text>
+              <Text style={styles.alertTime}>
+                새로운 보호 알림이 생기면 여기에 표시됩니다.
+              </Text>
             </View>
           ) : (
             alerts.map((item, index) => (
@@ -690,7 +688,9 @@ export default function GuardianHomeScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.alertTitle}>{item.message}</Text>
-                    <Text style={styles.alertTime}>{formatRelativeTime(item.created_at)}</Text>
+                    <Text style={styles.alertTime}>
+                      {formatRelativeTime(item.created_at)}
+                    </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
                 </TouchableOpacity>
@@ -755,6 +755,53 @@ function InfoRow({
       </View>
       <Text style={[styles.infoValue, multiline && { flex: 1, textAlign: 'right' }]}>
         {value}
+      </Text>
+    </View>
+  );
+}
+
+function ExpandableInfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+
+  const trimmedValue = value?.trim() || '-';
+  const shouldShowToggle = trimmedValue !== '-' && trimmedValue.length > 18;
+
+  return (
+    <View style={styles.expandableInfoBlock}>
+      <View style={styles.expandableInfoHeader}>
+        <View style={styles.infoLabelWrap}>
+          <View style={styles.infoIcon}>{icon}</View>
+          <Text style={styles.infoLabel}>{label}</Text>
+        </View>
+
+        {shouldShowToggle ? (
+          <TouchableOpacity
+            style={styles.expandButton}
+            activeOpacity={0.85}
+            onPress={() => setExpanded((prev) => !prev)}
+          >
+            <Ionicons
+              name={expanded ? 'remove' : 'add'}
+              size={18}
+              color="#05B547"
+            />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <Text
+        style={styles.expandableInfoValue}
+        numberOfLines={expanded || !shouldShowToggle ? undefined : 1}
+      >
+        {trimmedValue}
       </Text>
     </View>
   );
@@ -934,6 +981,30 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '700',
     width: '54%',
+    textAlign: 'right',
+  },
+  expandableInfoBlock: {
+    paddingVertical: 14,
+  },
+  expandableInfoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  expandButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#EEFDF3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expandableInfoValue: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '700',
+    lineHeight: 22,
     textAlign: 'right',
   },
   divider: {

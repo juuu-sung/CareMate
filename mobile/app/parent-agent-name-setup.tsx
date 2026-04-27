@@ -381,6 +381,7 @@ export default function ParentAgentNameSetupScreen() {
           link_code: linkCode,
           selectedVoice,
           agentName: recognizedName,
+          agent_name: recognizedName,
         },
       });
     } catch (saveError) {

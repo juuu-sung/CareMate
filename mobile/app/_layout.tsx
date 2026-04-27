@@ -1,18 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, AppStateStatus } from 'react-native';
 import { Stack, usePathname, useRouter } from 'expo-router';
+
 import type { AuthSession } from '../services/authSession';
 import {
   getAuthSessionHomeRoute,
   loadAuthSession,
 } from '../services/authSession';
+
 import {
   checkForNewGuardianLetter,
   primeGuardianLetterNotificationState,
 } from '../services/letterNotifications';
+
 import '../services/locationTask';
+
 import { consumePendingSiriShortcutAction } from '../services/siriShortcut';
-import { destroyWakeWord, startWakeWordListening, stopWakeWordListening } from '../services/wakeWord';
+
+import {
+  destroyWakeWord,
+  startWakeWordListening,
+  stopWakeWordListening,
+} from '../services/wakeWord';
+
 import { initializeWidgets } from '../services/widgets';
 
 const PUBLIC_ENTRY_PATHS = new Set([
@@ -27,44 +37,68 @@ const PUBLIC_ENTRY_PATHS = new Set([
 export default function RootLayout() {
   const router = useRouter();
   const pathname = usePathname();
-  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+
+  const [appState, setAppState] = useState<AppStateStatus>(
+    AppState.currentState
+  );
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const [isSessionHydrated, setIsSessionHydrated] = useState(false);
+
+  const pathnameRef = useRef(pathname);
+  const authSessionRef = useRef<AuthSession | null>(null);
+
   const isHandlingShortcutRef = useRef(false);
   const isShowingGuardianLetterAlertRef = useRef(false);
 
-  const handlePendingSiriShortcut = useCallback(async () => {
-    if (isHandlingShortcutRef.current) {
-      return;
+  const wakeStartedRef = useRef(false);
+  const wakeNavigatingRef = useRef(false);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+
+    if (pathname === '/home') {
+      wakeNavigatingRef.current = false;
     }
+  }, [pathname]);
+
+  useEffect(() => {
+    authSessionRef.current = authSession;
+  }, [authSession]);
+
+  const handlePendingSiriShortcut = useCallback(async () => {
+    if (isHandlingShortcutRef.current) return;
 
     isHandlingShortcutRef.current = true;
 
     try {
       const action = await consumePendingSiriShortcutAction();
 
-      if (action !== 'startVoiceChat') {
-        return;
+      if (action !== 'startVoiceChat') return;
+
+      if (wakeStartedRef.current) {
+        wakeStartedRef.current = false;
+        await stopWakeWordListening();
       }
 
-      await stopWakeWordListening();
-
-      if (pathname !== '/chat') {
+      if (pathnameRef.current !== '/chat') {
         router.push('/chat?input=voice&autostart=1&shortcut=siri');
       }
+    } catch (error) {
+      console.log('[SiriShortcut] error:', error);
     } finally {
       isHandlingShortcutRef.current = false;
     }
-  }, [pathname, router]);
+  }, [router]);
 
   useEffect(() => {
     initializeWidgets();
 
-    const subscription = AppState.addEventListener('change', setAppState);
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      setAppState(nextState);
+    });
 
     return () => {
       subscription.remove();
-      void destroyWakeWord();
     };
   }, []);
 
@@ -73,19 +107,21 @@ export default function RootLayout() {
 
     const restoreSession = async () => {
       try {
+        console.log('SESSION RESTORE START');
+
         const storedSession = await loadAuthSession();
 
-        if (!cancelled) {
-          setAuthSession(storedSession);
-        }
+        console.log('SESSION RESTORE RESULT', storedSession);
 
-        if (
-          !cancelled &&
-          storedSession &&
-          PUBLIC_ENTRY_PATHS.has(pathname)
-        ) {
+        if (cancelled) return;
+
+        setAuthSession(storedSession);
+
+        if (storedSession && PUBLIC_ENTRY_PATHS.has(pathnameRef.current)) {
           router.replace(getAuthSessionHomeRoute(storedSession));
         }
+      } catch (error) {
+        console.log('SESSION RESTORE ERROR:', error);
       } finally {
         if (!cancelled) {
           setIsSessionHydrated(true);
@@ -98,50 +134,95 @@ export default function RootLayout() {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+  }, [router]);
 
   useEffect(() => {
-    void handlePendingSiriShortcut();
-  }, [handlePendingSiriShortcut]);
-
-  useEffect(() => {
-    let disposed = false;
-    const shouldListen = appState === 'active' && pathname !== '/chat';
-
     if (appState === 'active') {
       void handlePendingSiriShortcut();
     }
+  }, [appState, handlePendingSiriShortcut]);
 
-    if (shouldListen) {
-      void startWakeWordListening({
-        onDetected: async () => {
-          if (disposed) {
-            return;
-          }
+  useEffect(() => {
+    let disposed = false;
 
-          await stopWakeWordListening();
+    const shouldListen =
+      isSessionHydrated &&
+      appState === 'active' &&
+      pathname === '/home' &&
+      authSession?.role === 'parent';
 
-          if (pathname !== '/chat') {
-            router.push('/chat?input=voice&autostart=1&wakeup=1');
-          }
-        },
-        onError: (message) => {
-          console.log('Wake word:', message);
-        },
-      });
-    } else {
-      void stopWakeWordListening();
+    console.log('WAKE EFFECT', {
+      appState,
+      pathname,
+      role: authSession?.role,
+      shouldListen,
+      wakeStarted: wakeStartedRef.current,
+    });
+
+    /*
+      핵심:
+      /home이 아니면 여기서 destroyWakeWord를 호출하지 않는다.
+      그래야 "/" 또는 로그인 화면에서 destroy 로그가 반복되지 않는다.
+    */
+    if (!shouldListen) {
+      return () => {
+        disposed = true;
+      };
     }
+
+    if (wakeStartedRef.current) {
+      return () => {
+        disposed = true;
+      };
+    }
+
+    wakeStartedRef.current = true;
+
+    console.log('[WakeWord] start on /home');
+
+    void startWakeWordListening({
+      owner: 'elder-home',
+      wakeName: authSession?.agentName || '케어',
+      onDetected: async () => {
+        if (disposed) return;
+        if (pathnameRef.current !== '/home') return;
+        if (wakeNavigatingRef.current) return;
+
+        wakeNavigatingRef.current = true;
+        wakeStartedRef.current = false;
+
+        await destroyWakeWord();
+
+        if (pathnameRef.current !== '/chat') {
+          router.push('/chat?input=voice&autostart=1&wakeup=1');
+        }
+      },
+      onError: (message) => {
+        console.log('[WakeWord] error:', message);
+      },
+    });
 
     return () => {
       disposed = true;
     };
-  }, [appState, handlePendingSiriShortcut, pathname, router]);
+  }, [
+    isSessionHydrated,
+    appState,
+    pathname,
+    authSession?.role,
+    authSession?.agentName,
+    router,
+  ]);
 
   useEffect(() => {
     let disposed = false;
 
-    if (appState !== 'active' || authSession?.role !== 'parent') {
+    const shouldRunLetterCheck =
+      isSessionHydrated &&
+      appState === 'active' &&
+      authSession?.role === 'parent';
+
+    if (!shouldRunLetterCheck) {
       return () => {
         disposed = true;
       };
@@ -193,7 +274,12 @@ export default function RootLayout() {
               text: '확인하기',
               onPress: () => {
                 isShowingGuardianLetterAlertRef.current = false;
-                router.replace(getAuthSessionHomeRoute(authSession));
+
+                const latestSession = authSessionRef.current;
+
+                if (latestSession) {
+                  router.replace(getAuthSessionHomeRoute(latestSession));
+                }
               },
             },
           ]
@@ -207,13 +293,13 @@ export default function RootLayout() {
 
     const interval = setInterval(() => {
       void checkGuardianLetter(false);
-    }, 5000);
+    }, 30000);
 
     return () => {
       disposed = true;
       clearInterval(interval);
     };
-  }, [appState, authSession, router]);
+  }, [isSessionHydrated, appState, authSession, router]);
 
   if (!isSessionHydrated) {
     return null;

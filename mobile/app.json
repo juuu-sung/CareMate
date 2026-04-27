@@ -13,7 +13,6 @@
     },
     "plugins": [
       "expo-router",
-      "./plugins/withCareBuildFromSource",
       [
         "./plugins/withCareSiriShortcuts",
         {

@@ -70,6 +70,21 @@ export type ChatSpeechRequest = {
   longitude?: number;
 };
 
+export type WakeSpeechRequest = {
+  fileUri: string;
+  fileName: string;
+  mimeType: string;
+  mode: CareMode;
+  audioFormat: "m4a" | "wav" | "mp3" | "webm";
+  audioDurationMs?: number;
+  elderUserId?: string;
+};
+
+export type WakeSpeechResponse = {
+  transcript: string;
+  stt_confidence: number;
+};
+
 export type ChatSpeechResponse = {
   transcript: string;
   stt_confidence: number;
@@ -210,7 +225,6 @@ export async function getAgentProfile(
   return apiGet(`/elder-profile/agent?elder_user_id=${encodeURIComponent(elderUserId)}`);
 }
 
-
 export function sendChatMessage(payload: ChatMessageRequest) {
   return apiPost<ChatMessageResponse>("/chat/message", payload);
 }
@@ -226,6 +240,7 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
       type: payload.mimeType,
     } as unknown as Blob
   );
+
   formData.append("mode", payload.mode);
   formData.append("audio_format", payload.audioFormat);
 
@@ -264,6 +279,33 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
   }
 
   return apiPostForm<ChatSpeechResponse>("/chat/speech", formData);
+}
+
+export function sendWakeSpeech(payload: WakeSpeechRequest) {
+  const formData = new FormData();
+
+  formData.append(
+    "audio_file",
+    {
+      uri: payload.fileUri,
+      name: payload.fileName,
+      type: payload.mimeType,
+    } as unknown as Blob
+  );
+
+  formData.append("mode", payload.mode);
+  formData.append("audio_format", payload.audioFormat);
+  formData.append("transcript_visibility", "hidden");
+
+  if (payload.audioDurationMs !== undefined) {
+    formData.append("audio_duration_ms", String(payload.audioDurationMs));
+  }
+
+  if (payload.elderUserId) {
+    formData.append("elder_user_id", payload.elderUserId);
+  }
+
+  return apiPostForm<WakeSpeechResponse>("/chat/speech", formData);
 }
 
 export function getChatHistory(
