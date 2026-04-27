@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -13,6 +15,7 @@ from app.services.parent_service import (
     get_parent_by_code,
     login_parent,
     update_parent_care_info,
+    update_parent_care_info_with_images,
 )
 
 router = APIRouter(prefix="/parents", tags=["parents"])
@@ -57,3 +60,43 @@ def parent_care_info_update(
         return update_parent_care_info(db, parent_user_id, payload)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/{parent_user_id}/care-info-with-images")
+async def parent_care_info_update_with_images(
+    parent_user_id: str,
+    medications: str = Form(""),
+    diseases: str = Form(""),
+    allergies: str = Form(""),
+    hospital: str = Form(""),
+    doctor_contact: str = Form(""),
+    memo: str = Form(""),
+    prescription_images: Optional[List[UploadFile]] = File(None),
+    disease_document_images: Optional[List[UploadFile]] = File(None),
+    allergy_document_images: Optional[List[UploadFile]] = File(None),
+    db: Session = Depends(get_db),
+):
+    try:
+        return await update_parent_care_info_with_images(
+            db=db,
+            parent_user_id=parent_user_id,
+            medications=medications,
+            diseases=diseases,
+            allergies=allergies,
+            hospital=hospital,
+            doctor_contact=doctor_contact,
+            memo=memo,
+            prescription_images=prescription_images or [],
+            disease_document_images=disease_document_images or [],
+            allergy_document_images=allergy_document_images or [],
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception as e:
+        print("care-info-with-images error:", repr(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"care-info-with-images 서버 오류: {str(e)}",
+        )

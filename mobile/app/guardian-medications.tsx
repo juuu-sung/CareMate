@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -37,17 +38,54 @@ function getMedicationBadgeStyle(status: MedicationItem['status']) {
   if (status === 'taken') {
     return { backgroundColor: '#DCFCE7', color: '#166534' };
   }
+
   if (status === 'missed') {
     return { backgroundColor: '#FEE2E2', color: '#B91C1C' };
   }
+
   return { backgroundColor: '#E5E7EB', color: '#374151' };
 }
 
-function splitValues(value: string) {
-  return value
-    .split(/[,/\n]/)
-    .map((item) => item.trim())
+function extractMedicationNamesFromSummary(summary: string) {
+  const text = String(summary || '').trim();
+
+  if (!text) {
+    return [];
+  }
+
+  const sectionMatch = text.match(/\[복용 중인 약\]([\s\S]*?)(?=\n\s*\[|$)/);
+
+  if (!sectionMatch) {
+    return [];
+  }
+
+  const sectionText = sectionMatch[1];
+
+  return sectionText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('-'))
+    .map((line) => line.replace(/^-+\s*/, '').trim())
+    .map((line) => line.replace(/^약\s*이름\s*[:：]?\s*/g, '').trim())
+    .map((line) => line.replace(/^약\s*이름만\s*[:：]?\s*/g, '').trim())
+    .map((line) => line.replace(/\([^)]*\)/g, '').trim())
+    .map((line) => line.replace(/\[[^\]]*\]/g, '').trim())
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => line !== '확인 불가')
+    .filter((line) => !line.includes('확인 불가'))
+    .filter((line) => !line.includes('복약 안내'))
+    .filter((line) => !line.includes('언제 먹는지'))
+    .filter((line) => !line.includes('한 번에'))
+    .filter((line) => !line.includes('하루에'))
+    .filter((line) => !line.includes('쉬운 안내'))
+    .filter((line) => !line.includes('이미지에서'))
+    .filter((line) => !line.includes('개인정보'))
     .filter(Boolean);
+}
+
+function buildGoogleSearchUrl(name: string) {
+  return `https://www.google.com/search?q=${encodeURIComponent(name + ' 약')}`;
 }
 
 export default function GuardianMedicationsScreen() {
@@ -104,11 +142,16 @@ export default function GuardianMedicationsScreen() {
     }, [loadMedicationData])
   );
 
-  const medicationProfile = React.useMemo(() => splitValues(medicationsText), [medicationsText]);
+  const medicationProfile = React.useMemo(() => {
+    const names = extractMedicationNamesFromSummary(medicationsText);
+    return Array.from(new Set(names));
+  }, [medicationsText]);
+
   const medicationSummary = React.useMemo(() => {
     return medicationItems.reduce(
       (summary, item) => {
         summary.total += 1;
+
         if (item.status === 'taken') {
           summary.taken += 1;
         } else if (item.status === 'missed') {
@@ -116,6 +159,7 @@ export default function GuardianMedicationsScreen() {
         } else {
           summary.scheduled += 1;
         }
+
         return summary;
       },
       { total: 0, taken: 0, scheduled: 0, missed: 0 }
@@ -139,11 +183,10 @@ export default function GuardianMedicationsScreen() {
           <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={22} color="#111827" />
           </TouchableOpacity>
+
           <Text style={styles.topTitle}>복약 현황</Text>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => void loadMedicationData(true)}
-          >
+
+          <TouchableOpacity style={styles.iconButton} onPress={() => void loadMedicationData(true)}>
             <Ionicons name="refresh" size={20} color="#111827" />
           </TouchableOpacity>
         </View>
@@ -170,7 +213,9 @@ export default function GuardianMedicationsScreen() {
               <Text style={styles.heroSummaryLabel}>등록된 복약 기록</Text>
               <Text style={styles.heroSummaryValue}>{medicationSummary.total}건</Text>
             </View>
+
             <View style={styles.heroDivider} />
+
             <View style={styles.heroSummaryItem}>
               <Text style={styles.heroSummaryLabel}>복용 중인 약</Text>
               <Text style={styles.heroSummaryValue}>
@@ -195,6 +240,7 @@ export default function GuardianMedicationsScreen() {
         ) : null}
 
         <Text style={styles.sectionTitle}>오늘 복약 요약</Text>
+
         <View style={styles.medicationSummaryRow}>
           <MiniStatCard label="완료" value={`${medicationSummary.taken}건`} />
           <MiniStatCard label="대기" value={`${medicationSummary.scheduled}건`} />
@@ -214,6 +260,7 @@ export default function GuardianMedicationsScreen() {
           ) : (
             medicationItems.map((item, index) => {
               const badgeStyle = getMedicationBadgeStyle(item.status);
+
               return (
                 <View
                   key={`${item.name}-${item.time}-${index}`}
@@ -229,18 +276,14 @@ export default function GuardianMedicationsScreen() {
                       최근 기록 {formatMedicationRecord(item)}
                     </Text>
                   </View>
+
                   <View
                     style={[
                       styles.medicationStatusBadge,
                       { backgroundColor: badgeStyle.backgroundColor },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.medicationStatusText,
-                        { color: badgeStyle.color },
-                      ]}
-                    >
+                    <Text style={[styles.medicationStatusText, { color: badgeStyle.color }]}>
                       {item.status_label}
                     </Text>
                   </View>
@@ -251,8 +294,9 @@ export default function GuardianMedicationsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>복용 중인 약</Text>
+
         <View style={styles.infoCard}>
-          <TagSection
+          <MedicationNameSection
             icon={<MaterialCommunityIcons name="pill" size={18} color="#05B547" />}
             label="약 목록"
             values={medicationProfile}
@@ -273,7 +317,7 @@ function MiniStatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TagSection({
+function MedicationNameSection({
   icon,
   label,
   values,
@@ -284,6 +328,21 @@ function TagSection({
   values: string[];
   fallback: string;
 }) {
+  const uniqueValues = React.useMemo(() => {
+    return Array.from(
+      new Set(
+        (values ?? [])
+          .map((value) => String(value).trim())
+          .filter((value) => value.length > 0)
+      )
+    );
+  }, [values]);
+
+  const openDetail = async (name: string) => {
+    const url = buildGoogleSearchUrl(name);
+    await Linking.openURL(url);
+  };
+
   return (
     <View style={styles.tagSection}>
       <View style={styles.infoHeader}>
@@ -291,13 +350,28 @@ function TagSection({
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
 
-      {values.length === 0 ? (
+      {uniqueValues.length === 0 ? (
         <Text style={styles.emptyText}>{fallback}</Text>
       ) : (
-        <View style={styles.tagsWrap}>
-          {values.map((value) => (
-            <View key={`${label}-${value}`} style={styles.tagChip}>
-              <Text style={styles.tagChipText}>{value}</Text>
+        <View style={styles.medicationNameList}>
+          {uniqueValues.map((name, index) => (
+            <View
+              key={`${label}-${name}-${index}`}
+              style={[
+                styles.medicationNameItem,
+                index !== uniqueValues.length - 1 && styles.withDivider,
+              ]}
+            >
+              <Text style={styles.onlyMedicationName}>{name}</Text>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.detailButton}
+                onPress={() => void openDetail(name)}
+              >
+                <Text style={styles.detailButtonText}>상세보기</Text>
+                <Ionicons name="open-outline" size={14} color="#047857" />
+              </TouchableOpacity>
             </View>
           ))}
         </View>
@@ -571,21 +645,38 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '700',
   },
-  tagsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  medicationNameList: {
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
   },
-  tagChip: {
-    borderRadius: 999,
+  medicationNameItem: {
+    paddingVertical: 13,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#EEFDF3',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
   },
-  tagChipText: {
-    fontSize: 13,
+  onlyMedicationName: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '800',
+  },
+  detailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    backgroundColor: '#EEFDF3',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  detailButtonText: {
+    fontSize: 12,
     color: '#047857',
-    fontWeight: '700',
+    fontWeight: '800',
   },
   withDivider: {
     borderBottomWidth: 1,

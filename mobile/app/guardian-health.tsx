@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -62,18 +63,36 @@ function formatRelativeTime(timestamp: string) {
 function splitValues(value: string) {
   return value
     .split(/[,/\n]/)
-    .map((item) => item.trim())
+    .map((item) => cleanHealthName(item))
     .filter(Boolean);
 }
 
-function summarizeValues(values: string[], fallback: string) {
-  if (values.length === 0) {
-    return fallback;
+function cleanHealthName(value: string) {
+  return String(value || '')
+    .replace(/\n/g, ' ')
+    .replace(/요약[:：]?.*/g, '')
+    .replace(/설명[:：]?.*/g, '')
+    .replace(/증상[:：]?.*/g, '')
+    .replace(/복용.*$/g, '')
+    .replace(/관리.*$/g, '')
+    .replace(/[{}[\]"']/g, '')
+    .replace(/name\s*:/gi, '')
+    .replace(/disease_name\s*:/gi, '')
+    .replace(/allergy_name\s*:/gi, '')
+    .replace(/medication_name\s*:/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function openGoogleSearch(keyword: string) {
+  const cleanKeyword = cleanHealthName(keyword);
+
+  if (!cleanKeyword) {
+    return;
   }
-  if (values.length <= 2) {
-    return values.join(', ');
-  }
-  return `${values.slice(0, 2).join(', ')} 외 ${values.length - 2}개`;
+
+  const url = `https://www.google.com/search?q=${encodeURIComponent(cleanKeyword)}`;
+  await Linking.openURL(url);
 }
 
 type SignalTone = 'good' | 'warning' | 'danger' | 'neutral';
@@ -95,7 +114,6 @@ export default function GuardianHealthScreen() {
   const parentGender = String(params.parentGender || '');
   const linkCode = String(params.linkCode || '');
 
-  const medicationsText = String(params.medications || '');
   const diseasesText = String(params.diseases || '');
   const allergiesText = String(params.allergies || '');
   const hospital = String(params.hospital || '');
@@ -173,7 +191,6 @@ export default function GuardianHealthScreen() {
     !dashboard &&
     alerts.length === 0;
 
-  const medicationProfile = React.useMemo(() => splitValues(medicationsText), [medicationsText]);
   const diseaseProfile = React.useMemo(() => splitValues(diseasesText), [diseasesText]);
   const allergyProfile = React.useMemo(() => splitValues(allergiesText), [allergiesText]);
 
@@ -421,9 +438,9 @@ export default function GuardianHealthScreen() {
                 onPress={() => setIsProfileExpanded((current) => !current)}
               >
                 <View style={styles.expandTextWrap}>
-                  <Text style={styles.cardTitle}>약, 질환, 병원 정보</Text>
+                  <Text style={styles.cardTitle}>질환, 알레르기 정보</Text>
                   <Text style={styles.cardSubtitle}>
-                    등록된 건강 프로필을 확인할 수 있어요.
+                    등록된 질환과 알레르기 이름만 확인할 수 있어요.
                   </Text>
                 </View>
                 <Ionicons
@@ -441,20 +458,21 @@ export default function GuardianHealthScreen() {
                     value={`${parentAge ? `${parentAge}세` : '-'}${parentGender ? ` · ${parentGender}` : ''}`}
                   />
                   <Divider />
-                  <SummaryRow
-                    label="복용 중인 약"
-                    value={summarizeValues(medicationProfile, '등록된 약 정보가 없습니다.')}
-                  />
-                  <Divider />
-                  <SummaryRow
+
+                  <HealthNameList
                     label="보유 질환"
-                    value={summarizeValues(diseaseProfile, '등록된 질환 정보가 없습니다.')}
+                    values={diseaseProfile}
+                    emptyText="등록된 질환 정보가 없습니다."
                   />
+
                   <Divider />
-                  <SummaryRow
+
+                  <HealthNameList
                     label="알레르기"
-                    value={summarizeValues(allergyProfile, '등록된 알레르기 정보가 없습니다.')}
+                    values={allergyProfile}
+                    emptyText="등록된 알레르기 정보가 없습니다."
                   />
+
                   <Divider />
                   <SummaryRow label="주치의 / 병원" value={hospital || '-'} />
                   <Divider />
@@ -468,7 +486,7 @@ export default function GuardianHealthScreen() {
                 </View>
               ) : (
                 <Text style={styles.collapsedHint}>
-                  약, 질환, 알레르기, 병원, 메모를 접어서 보고 있습니다.
+                  질환, 알레르기, 병원, 메모를 접어서 보고 있습니다.
                 </Text>
               )}
             </View>
@@ -483,6 +501,42 @@ function MetaPill({ label }: { label: string }) {
   return (
     <View style={styles.metaPill}>
       <Text style={styles.metaPillText}>{label}</Text>
+    </View>
+  );
+}
+
+function HealthNameList({
+  label,
+  values,
+  emptyText,
+}: {
+  label: string;
+  values: string[];
+  emptyText: string;
+}) {
+  return (
+    <View style={styles.healthListSection}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+
+      <View style={styles.healthListValueWrap}>
+        {values.length === 0 ? (
+          <Text style={styles.summaryValue}>{emptyText}</Text>
+        ) : (
+          values.map((value, index) => (
+            <View key={`${label}-${value}-${index}`} style={styles.healthNameRow}>
+              <Text style={styles.healthNameText}>{value}</Text>
+
+              <TouchableOpacity
+                style={styles.searchButton}
+                activeOpacity={0.85}
+                onPress={() => void openGoogleSearch(value)}
+              >
+                <Text style={styles.searchButtonText}>상세보기</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
+      </View>
     </View>
   );
 }
@@ -1072,6 +1126,45 @@ const styles = StyleSheet.create({
   },
   summaryValueMultiline: {
     textAlign: 'left',
+  },
+  healthListSection: {
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  healthListValueWrap: {
+    width: '62%',
+    gap: 8,
+  },
+  healthNameRow: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  healthNameText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  searchButton: {
+    minHeight: 34,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EEFDF3',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  searchButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#15803D',
   },
   divider: {
     height: 1,

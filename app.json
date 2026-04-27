@@ -1,0 +1,8 @@
+{
+  "android": {
+    "package": "com.anonymous.caremate"
+  },
+  "ios": {
+    "bundleIdentifier": "com.anonymous.caremate"
+  }
+}

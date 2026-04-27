@@ -4,12 +4,15 @@
     "slug": "caremate",
     "scheme": "caremate",
     "ios": {
-      "bundleIdentifier": "com.hongjusung.caremate",
-      "jsEngine": "jsc"
+      "bundleIdentifier": "com.kimjaeho.caremate",
+      "jsEngine": "jsc",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "CareMate가 '케어'를 인식해 바로 대화를 시작하려면 음성 인식 접근이 필요합니다.",
+        "NSMicrophoneUsageDescription": "CareMate가 음성 대화와 웨이크워드를 위해 마이크 접근이 필요합니다."
+      }
     },
     "plugins": [
       "expo-router",
-      "./plugins/withCareBuildFromSource",
       [
         "./plugins/withCareSiriShortcuts",
         {
@@ -69,6 +72,17 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "android": {
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.kimjaeho.caremate"
     }
   }
 }

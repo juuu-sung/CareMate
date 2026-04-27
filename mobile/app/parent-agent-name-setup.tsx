@@ -22,7 +22,6 @@ import {
   buildParentAuthSession,
   saveAuthSession,
 } from "@/services/authSession";
-
 import {
   buildChatTtsUrl,
   sendChatSpeech,
@@ -46,8 +45,10 @@ export default function ParentAgentNameSetupScreen() {
   const player = useAudioPlayer(null, { downloadFirst: true });
   const playerStatus = useAudioPlayerStatus(player);
 
+  const playerStatusRef = useRef<any>(null);
   const introHasStartedRef = useRef(false);
   const isMountedRef = useRef(true);
+  const speechTokenRef = useRef(0);
 
   const [isPlayingIntro, setIsPlayingIntro] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
@@ -69,14 +70,16 @@ export default function ParentAgentNameSetupScreen() {
   );
 
   useEffect(() => {
+    playerStatusRef.current = playerStatus;
+  }, [playerStatus]);
+
+  useEffect(() => {
     isMountedRef.current = true;
     void playAgentVoiceIntro();
 
     return () => {
       isMountedRef.current = false;
-      try {
-        player.pause();
-      } catch {}
+      void stopPlayerSafely();
       void setAudioModeAsync({ allowsRecording: false });
     };
   }, []);
@@ -86,25 +89,62 @@ export default function ParentAgentNameSetupScreen() {
       return;
     }
 
-    if (playerStatus.playing) {
+    if (playerStatus?.playing) {
       introHasStartedRef.current = true;
       return;
     }
 
-    if (introHasStartedRef.current && !playerStatus.playing) {
+    if (introHasStartedRef.current && !playerStatus?.playing) {
       setIsPlayingIntro(false);
       setGuideText(
         "에이전트가 이름을 기다리고 있습니다.\n마이크를 눌러 원하는 이름을 말씀해주세요."
       );
     }
-  }, [isPlayingIntro, playerStatus.playing]);
+  }, [isPlayingIntro, playerStatus?.playing]);
 
   const sleep = (ms: number) =>
     new Promise((resolve) => {
       setTimeout(resolve, ms);
     });
 
-  const playTts = async (text: string) => {
+  const stopPlayerSafely = async () => {
+    try {
+      player.pause();
+    } catch {}
+    await sleep(120);
+  };
+
+  const waitForPlaybackToStart = async (timeoutMs = 5000) => {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < timeoutMs) {
+      if (playerStatusRef.current?.playing) {
+        return true;
+      }
+      await sleep(80);
+    }
+
+    return false;
+  };
+
+  const waitForPlaybackToEnd = async (timeoutMs = 15000) => {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < timeoutMs) {
+      if (!playerStatusRef.current?.playing) {
+        await sleep(150);
+        return true;
+      }
+      await sleep(100);
+    }
+
+    return false;
+  };
+
+  const playTts = async (text: string, waitUntilEnd = false) => {
+    const myToken = Date.now();
+    speechTokenRef.current = myToken;
+
     await setAudioModeAsync({
       allowsRecording: false,
       playsInSilentMode: true,
@@ -114,22 +154,32 @@ export default function ParentAgentNameSetupScreen() {
     });
 
     await setIsAudioActiveAsync(true);
+    await stopPlayerSafely();
 
     const url = buildChatTtsUrl(text, "basic", selectedVoice || undefined);
 
-    try {
-      player.pause();
-    } catch {}
-
     player.replace(url);
 
-    await sleep(350);
+    await sleep(450);
 
     try {
       await player.seekTo(0);
     } catch {}
 
     await player.play();
+
+    const started = await waitForPlaybackToStart(5000);
+    if (!started) {
+      throw new Error("음성 재생이 시작되지 않았습니다.");
+    }
+
+    if (speechTokenRef.current !== myToken) {
+      return;
+    }
+
+    if (waitUntilEnd) {
+      await waitForPlaybackToEnd(20000);
+    }
   };
 
   const playAgentVoiceIntro = async () => {
@@ -139,7 +189,7 @@ export default function ParentAgentNameSetupScreen() {
     introHasStartedRef.current = false;
 
     try {
-      await playTts(introText);
+      await playTts(introText, false);
     } catch (introError) {
       if (!isMountedRef.current) {
         return;
@@ -163,9 +213,7 @@ export default function ParentAgentNameSetupScreen() {
     setError(null);
 
     try {
-      try {
-        player.pause();
-      } catch {}
+      await stopPlayerSafely();
 
       const permission = await requestRecordingPermissionsAsync();
       setHasRecordingPermission(permission.granted);
@@ -208,6 +256,8 @@ export default function ParentAgentNameSetupScreen() {
     try {
       await recorder.stop();
 
+      setIsRecording(false);
+
       await setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
@@ -216,12 +266,16 @@ export default function ParentAgentNameSetupScreen() {
         shouldRouteThroughEarpiece: false,
       });
 
+      await setIsAudioActiveAsync(true);
+
       const status = recorder.getStatus();
       const fileUri = status.url;
 
       if (!fileUri) {
         throw new Error("녹음 파일을 찾을 수 없습니다.");
       }
+
+      await sleep(500);
 
       const response = await sendChatSpeech({
         fileUri,
@@ -242,7 +296,6 @@ export default function ParentAgentNameSetupScreen() {
         setGuideText(
           "이름을 정확히 확인하지 못했습니다.\n다시 한 번 천천히 이름을 말씀해주세요."
         );
-        setIsRecording(false);
         setIsConfirming(false);
         return;
       }
@@ -263,17 +316,16 @@ export default function ParentAgentNameSetupScreen() {
 
   const confirmAgentName = async (name: string) => {
     try {
-      const confirmText = `제 이름은 ${name}입니다. 필요하실 때 제이름을 불러주세요.`;
+      const confirmText = `제 이름은 ${name}입니다. 필요하실 때 제 이름을 불러주세요.`;
 
-      await playTts(confirmText);
+      setGuideText(`제 이름은 ${name}입니다.\n필요하실 때 제 이름을 불러주세요.`);
+      await sleep(250);
+      await playTts(confirmText, true);
 
-      setGuideText(`제 이름은 ${name}입니다.\n필요하실 때 제이름을 불러주세요.`);
       setIsNameConfirmed(true);
-      setIsRecording(false);
     } catch (confirmError) {
-      setGuideText(`제 이름은 ${name}입니다.\n필요하실 때 제이름을 불러주세요.`);
+      setGuideText(`제 이름은 ${name}입니다.\n필요하실 때 제 이름을 불러주세요.`);
       setIsNameConfirmed(true);
-      setIsRecording(false);
       setError(
         confirmError instanceof Error
           ? confirmError.message
@@ -281,6 +333,7 @@ export default function ParentAgentNameSetupScreen() {
       );
     } finally {
       setIsConfirming(false);
+      setIsRecording(false);
     }
   };
 
@@ -328,6 +381,7 @@ export default function ParentAgentNameSetupScreen() {
           link_code: linkCode,
           selectedVoice,
           agentName: recognizedName,
+          agent_name: recognizedName,
         },
       });
     } catch (saveError) {

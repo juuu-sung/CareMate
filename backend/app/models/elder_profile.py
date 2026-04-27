@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text
 
 from app.db.base import Base
 
@@ -11,12 +11,12 @@ class ElderProfile(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True)
 
     address = Column(String, nullable=True, default="")
-    medications = Column(String, nullable=True, default="")
-    diseases = Column(String, nullable=True, default="")
-    allergies = Column(String, nullable=True, default="")
+    medications = Column(Text, nullable=True, default="")
+    diseases = Column(Text, nullable=True, default="")
+    allergies = Column(Text, nullable=True, default="")
     hospital = Column(String, nullable=True, default="")
     doctor_contact = Column(String, nullable=True, default="")
-    memo = Column(String, nullable=True, default="")
+    memo = Column(Text, nullable=True, default="")
 
     agent_name = Column(String, nullable=True, default="")
     agent_voice = Column(String, nullable=True, default="")

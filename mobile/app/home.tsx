@@ -28,6 +28,12 @@ import {
 } from '@/services/locationTask';
 import { getMedications, MedicationItem } from '@/services/medications';
 import { getSchedules, ScheduleItem } from '@/services/schedules';
+import { getAgentProfile } from '@/services/chat';
+import {
+  startWakeWordListening,
+  stopWakeWordListening,
+  destroyWakeWord,
+} from '@/services/wakeWord';
 
 type LetterItem = {
   guardian_user_id: string;
@@ -38,6 +44,11 @@ type LetterItem = {
   sender_role: string;
 };
 
+const BLUE = '#4F7CFF';
+const BLUE_DARK = '#2F5FEA';
+const BLUE_LIGHT = '#EEF3FF';
+const BG = '#EEF4FF';
+
 export default function HomeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -46,9 +57,7 @@ export default function HomeScreen() {
     params.elderUserId || params.elder_user_id || params.parentId || ''
   );
   const parentName = String(params.parentName || '');
-  const linkCode = String(
-    params.linkCode || params.link_code || params.code || ''
-  );
+  const linkCode = String(params.linkCode || params.link_code || params.code || '');
   const guardianPhone = String(
     params.guardianPhone ||
       params.guardian_phone ||
@@ -56,59 +65,144 @@ export default function HomeScreen() {
       params.guardianPhoneNumber ||
       ''
   );
-  const selectedVoice = String(params.selectedVoice || '');
-  const agentName = String(params.agentName || '');
+
+  const initialSelectedVoice = String(params.selectedVoice || params.agent_voice || '');
+  const initialAgentName = String(params.agentName || params.agent_name || '케어');
+
+  const [agentName, setAgentName] = useState(initialAgentName || '케어');
+  const [selectedVoice, setSelectedVoice] = useState(initialSelectedVoice);
 
   const [latestLetter, setLatestLetter] = useState<LetterItem | null>(null);
   const [letters, setLetters] = useState<LetterItem[]>([]);
   const [loadingLetter, setLoadingLetter] = useState(true);
   const [isLetterModalVisible, setIsLetterModalVisible] = useState(false);
+
   const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [isLoadingMedications, setIsLoadingMedications] = useState(true);
   const [medicationError, setMedicationError] = useState<string | null>(null);
+
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
+  const [isWakeListening, setIsWakeListening] = useState(false);
+
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const locationRequestPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wakeLockedRef = useRef(false);
 
-  const handleMicPress = () => {
+  const stopHomeWakeWord = useCallback(async () => {
+    try {
+      await stopWakeWordListening();
+    } finally {
+      setIsWakeListening(false);
+    }
+  }, []);
+
+  const moveToChatByWakeWord = useCallback(() => {
+    if (wakeLockedRef.current) return;
+
+    wakeLockedRef.current = true;
+    void stopHomeWakeWord();
+
     router.push({
       pathname: '/chat',
       params: {
         input: 'voice',
         autostart: '1',
+        wake: '1',
         elderUserId,
         elder_user_id: elderUserId,
         linkCode,
         link_code: linkCode,
         selectedVoice,
         agentName,
+        agent_name: agentName,
+      },
+    });
+  }, [agentName, elderUserId, linkCode, router, selectedVoice, stopHomeWakeWord]);
+
+  const startHomeWakeWord = useCallback(async () => {
+    if (wakeLockedRef.current || !agentName.trim()) return;
+
+    try {
+      setIsWakeListening(true);
+
+      await startWakeWordListening({
+        wakeName: agentName || '케어',
+        onDetected: async () => {
+          console.log('홈에서 웨이크 감지됨. 채팅으로 이동합니다.');
+          moveToChatByWakeWord();
+        },
+        onError: (message) => {
+          console.log('홈 웨이크워드 오류:', message);
+          setIsWakeListening(false);
+        },
+      });
+    } catch (error) {
+      console.log('홈 웨이크워드 시작 오류:', error);
+      setIsWakeListening(false);
+    }
+  }, [agentName, moveToChatByWakeWord]);
+
+  const goToChat = (voiceStart = false) => {
+    wakeLockedRef.current = true;
+    void stopHomeWakeWord();
+
+    router.push({
+      pathname: '/chat',
+      params: {
+        input: voiceStart ? 'voice' : 'text',
+        autostart: voiceStart ? '1' : '0',
+        elderUserId,
+        elder_user_id: elderUserId,
+        linkCode,
+        link_code: linkCode,
+        selectedVoice,
+        agentName,
+        agent_name: agentName,
       },
     });
   };
 
-  const handleOpenChatHistory = () => {
+  const goToElderMedications = () => {
+    wakeLockedRef.current = true;
+    void stopHomeWakeWord();
+
     router.push({
-      pathname: '/chat',
+      pathname: '/elder-medication',
       params: {
         elderUserId,
         elder_user_id: elderUserId,
+        parentId: elderUserId,
+        parentName,
         linkCode,
         link_code: linkCode,
-        selectedVoice,
-        agentName,
       },
     });
+  };
+
+  const loadAgentProfile = async () => {
+    if (!elderUserId) return;
+
+    try {
+      const profile = await getAgentProfile(elderUserId);
+
+      if (profile.agent_name && profile.agent_name.trim()) {
+        setAgentName(profile.agent_name.trim());
+      }
+
+      if (profile.agent_voice && profile.agent_voice.trim()) {
+        setSelectedVoice(profile.agent_voice.trim());
+      }
+    } catch (error) {
+      console.log('에이전트 프로필 조회 오류:', error);
+    }
   };
 
   const formatToYearMonthDayHour = (dateString: string) => {
     const date = new Date(dateString);
-
-    if (Number.isNaN(date.getTime())) {
-      return '';
-    }
+    if (Number.isNaN(date.getTime())) return '';
 
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -122,10 +216,12 @@ export default function HomeScreen() {
     return phone.replace(/[^0-9+]/g, '');
   };
 
-  const notifyGuardianEvent = (type: string, message: string, severity: 'low' | 'medium' | 'high') => {
-    if (!elderUserId || !linkCode) {
-      return;
-    }
+  const notifyGuardianEvent = (
+    type: string,
+    message: string,
+    severity: 'low' | 'medium' | 'high'
+  ) => {
+    if (!elderUserId || !linkCode) return;
 
     void createGuardianEventAlert({
       elder_user_id: elderUserId,
@@ -161,6 +257,7 @@ export default function HomeScreen() {
         '부모님이 119 긴급 연락을 시도했어요. 위치 확인이 필요할 수 있어요.',
         'high'
       );
+
       await Linking.openURL(url);
     } catch (error) {
       console.log('119 전화 연결 오류:', error);
@@ -195,6 +292,7 @@ export default function HomeScreen() {
         '부모님이 보호자에게 긴급 연락을 시도했어요.',
         'high'
       );
+
       await Linking.openURL(url);
     } catch (error) {
       console.log('보호자 전화 연결 오류:', error);
@@ -211,9 +309,7 @@ export default function HomeScreen() {
     }
 
     try {
-      if (showLoading) {
-        setLoadingLetter(true);
-      }
+      if (showLoading) setLoadingLetter(true);
 
       const data = await fetchLettersForElder(elderUserId, linkCode);
 
@@ -242,7 +338,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.log('복약 조회 오류:', error);
       setMedications([]);
-      setMedicationError('복약 상태를 불러오지 못했습니다.');
+      setMedicationError('복약 정보를 불러오지 못했습니다.');
     } finally {
       setIsLoadingMedications(false);
     }
@@ -264,39 +360,27 @@ export default function HomeScreen() {
   };
 
   const syncLocation = async () => {
-    if (!elderUserId || !linkCode) {
-      return;
-    }
+    if (!elderUserId || !linkCode) return;
 
     try {
-      await syncCurrentElderLocation({
-        elderUserId,
-        linkCode,
-      });
+      await syncCurrentElderLocation({ elderUserId, linkCode });
     } catch (error) {
       console.log('위치 동기화 오류:', error);
     }
   };
 
   const syncRequestedLocation = async () => {
-    if (!elderUserId || !linkCode) {
-      return;
-    }
+    if (!elderUserId || !linkCode) return;
 
     try {
-      await syncRequestedElderLocation({
-        elderUserId,
-        linkCode,
-      });
+      await syncRequestedElderLocation({ elderUserId, linkCode });
     } catch (error) {
       console.log('위치 요청 처리 오류:', error);
     }
   };
 
   useEffect(() => {
-    if (!elderUserId || !linkCode) {
-      return;
-    }
+    if (!elderUserId || !linkCode) return;
 
     void saveAuthSession(
       buildParentAuthSession({
@@ -317,13 +401,10 @@ export default function HomeScreen() {
     void loadSchedules();
     void syncLocation();
     void syncRequestedLocation();
+    void loadAgentProfile();
 
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-    }
-    if (locationRequestPollingRef.current) {
-      clearInterval(locationRequestPollingRef.current);
-    }
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    if (locationRequestPollingRef.current) clearInterval(locationRequestPollingRef.current);
 
     if (elderUserId && linkCode) {
       pollingRef.current = setInterval(() => {
@@ -340,6 +421,7 @@ export default function HomeScreen() {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
+
       if (locationRequestPollingRef.current) {
         clearInterval(locationRequestPollingRef.current);
         locationRequestPollingRef.current = null;
@@ -349,249 +431,221 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      wakeLockedRef.current = false;
+
       void loadLetters(false);
       void loadMedications();
       void loadSchedules();
       void syncLocation();
       void syncRequestedLocation();
-      return undefined;
-    }, [elderUserId, linkCode])
+      void loadAgentProfile();
+
+      const timer = setTimeout(() => {
+        void startHomeWakeWord();
+      }, 500);
+
+      return () => {
+        clearTimeout(timer);
+        void stopHomeWakeWord();
+      };
+    }, [elderUserId, linkCode, agentName, selectedVoice, startHomeWakeWord, stopHomeWakeWord])
   );
+
+  useEffect(() => {
+    return () => {
+      void destroyWakeWord();
+    };
+  }, []);
+
+  const firstSchedule = schedules[0];
+  const firstMedication = medications[0];
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F7FB" />
+      <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      <View style={styles.container}>
-        <View style={styles.topSection}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>
-              안녕하세요!
-            </Text>
-
-            <View style={styles.linkCodeChip}>
-              <Text style={styles.linkCodeLabel}>연동코드</Text>
-              <Text style={styles.linkCodeValue}>{linkCode || '없음'}</Text>
-            </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.helloText}>안녕하세요!</Text>
+            <Text style={styles.subHelloText}>{agentName}가 기다리고 있어요</Text>
           </View>
+
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => router.push('/settings')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="settings-outline" size={30} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
 
-        <ScrollView
-          style={styles.middleSection}
-          contentContainerStyle={styles.middleSectionContent}
-          showsVerticalScrollIndicator={false}
+        <TouchableOpacity
+          style={styles.letterCard}
+          onPress={() => setIsLetterModalVisible(true)}
+          activeOpacity={0.9}
         >
-          <View style={styles.messageCard}>
-            <View style={styles.messageTopRow}>
-              <View style={styles.messageLeftArea}>
-                <Text style={styles.messageTitle}>보호자 메시지</Text>
-                <Text style={styles.messageSubInfo}>
-                  {letters.length > 0
-                    ? `총 ${letters.length}개의 메시지`
-                    : '최근 도착한 메시지를 확인하세요'}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.simpleMessageButton}
-                onPress={() => setIsLetterModalVisible(true)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.simpleMessageButtonText}>전체보기</Text>
-                <Ionicons name="chevron-forward" size={16} color="#2563EB" />
-              </TouchableOpacity>
+          <View style={styles.letterTopRow}>
+            <View style={styles.letterIconCircle}>
+              <Ionicons name="mail-outline" size={28} color={BLUE} />
             </View>
 
-            {loadingLetter ? (
-              <View style={styles.loadingWrap}>
-                <ActivityIndicator size="small" color="#3B82F6" />
-                <Text style={styles.loadingText}>메시지를 불러오는 중입니다</Text>
-              </View>
-            ) : latestLetter ? (
-              <>
-                <Text style={styles.messageText} numberOfLines={3}>
-                  {latestLetter.content}
-                </Text>
-                <Text style={styles.messageTime}>
-                  {formatToYearMonthDayHour(latestLetter.created_at)}
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.emptyMessageText}>
-                도착한 보호자 메시지가 없습니다.
+            <View style={styles.letterTitleArea}>
+              <Text style={styles.letterTitle}>보호자 메시지</Text>
+              <Text style={styles.letterCount}>
+                {letters.length > 0 ? `총 ${letters.length}개의 메시지` : '최근 메시지'}
               </Text>
-            )}
-          </View>
-
-          <View style={styles.infoCard}>
-            <View style={styles.infoCardHeader}>
-              <Text style={styles.messageTitle}>복약 상태</Text>
-              <Text style={styles.messageSubInfo}>최근 복약 기록이 반영된 목록입니다</Text>
             </View>
 
-            {isLoadingMedications ? (
-              <View style={styles.loadingWrap}>
-                <ActivityIndicator size="small" color="#3B82F6" />
-                <Text style={styles.loadingText}>복약 상태를 불러오는 중입니다</Text>
-              </View>
-            ) : null}
-
-            {!isLoadingMedications && medicationError ? (
-              <Text style={styles.errorText}>{medicationError}</Text>
-            ) : null}
-
-            {!isLoadingMedications && !medicationError && medications.length === 0 ? (
-              <Text style={styles.emptyMessageText}>등록된 복약 정보가 없습니다.</Text>
-            ) : null}
-
-            {!isLoadingMedications && !medicationError
-              ? medications.slice(0, 3).map((medication, index) => (
-                  <View key={`${medication.name}-${medication.time}-${index}`} style={styles.infoItem}>
-                    <View style={styles.infoItemHeader}>
-                      <Text style={styles.infoItemTitle}>{medication.name}</Text>
-                      <View style={[styles.statusBadge, getMedicationBadgeStyle(medication.status)]}>
-                        <Text style={styles.statusBadgeText}>{medication.status_label}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.infoItemMeta}>복약 시간: {medication.time}</Text>
-                    {medication.last_recorded_at ? (
-                      <Text style={styles.infoItemSubMeta}>
-                        최근 기록: {formatMedicationRecord(medication)}
-                      </Text>
-                    ) : null}
-                  </View>
-                ))
-              : null}
+            <Ionicons name="chevron-forward" size={24} color={BLUE_DARK} />
           </View>
 
-          <View style={styles.infoCard}>
-            <View style={styles.infoCardHeader}>
-              <Text style={styles.messageTitle}>오늘 일정</Text>
-              <Text style={styles.messageSubInfo}>등록된 일정과 방금 추가한 일정이 반영됩니다</Text>
+          {loadingLetter ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size="small" color={BLUE} />
+              <Text style={styles.loadingText}>메시지를 불러오는 중입니다</Text>
+            </View>
+          ) : latestLetter ? (
+            <>
+              <Text style={styles.letterText} numberOfLines={3}>
+                {latestLetter.content}
+              </Text>
+              <Text style={styles.letterTime}>
+                {formatToYearMonthDayHour(latestLetter.created_at)}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>도착한 보호자 메시지가 없습니다.</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.micArea}>
+          <TouchableOpacity
+            style={styles.bigMicButton}
+            onPress={() => goToChat(true)}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="mic-outline" size={112} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <Text style={styles.micGuide}>버튼을 눌러 말씀하세요</Text>
+          <Text style={styles.wakeGuide}>
+            {isWakeListening
+              ? `${agentName}야!라고 부르면 대화할 수 있어요`
+              : '터치하면 바로 대화가 시작됩니다'}
+          </Text>
+        </View>
+
+        <View style={styles.summaryGrid}>
+          <TouchableOpacity
+            style={styles.summaryCard}
+            onPress={() => router.push('/calendar')}
+            activeOpacity={0.88}
+          >
+            <View style={styles.summaryHeader}>
+              <Ionicons name="calendar-outline" size={34} color={BLUE_DARK} />
+              <Text style={styles.summaryTitle}>오늘 일정</Text>
             </View>
 
             {isLoadingSchedules ? (
-              <View style={styles.loadingWrap}>
-                <ActivityIndicator size="small" color="#3B82F6" />
-                <Text style={styles.loadingText}>일정을 불러오는 중입니다</Text>
-              </View>
-            ) : null}
+              <SmallLoading text="일정 확인 중" />
+            ) : scheduleError ? (
+              <Text style={styles.cardErrorText}>{scheduleError}</Text>
+            ) : firstSchedule ? (
+              <>
+                <View style={styles.pillBox}>
+                  <Text style={styles.pillTime}>{firstSchedule.time}</Text>
+                  <Text style={styles.pillText} numberOfLines={1}>
+                    {firstSchedule.title}
+                  </Text>
+                </View>
 
-            {!isLoadingSchedules && scheduleError ? (
-              <Text style={styles.errorText}>{scheduleError}</Text>
-            ) : null}
-
-            {!isLoadingSchedules && !scheduleError && schedules.length === 0 ? (
-              <Text style={styles.emptyMessageText}>등록된 일정이 없습니다.</Text>
-            ) : null}
-
-            {!isLoadingSchedules && !scheduleError
-              ? schedules.slice(0, 3).map((schedule, index) => (
-                  <View key={`${schedule.date}-${schedule.time}-${schedule.title}-${index}`} style={styles.infoItem}>
-                    <View style={styles.infoItemHeader}>
-                      <Text style={styles.infoItemTitle}>{schedule.title}</Text>
-                      <Text style={styles.scheduleStatusText}>{formatScheduleStatus(schedule.status)}</Text>
-                    </View>
-                    <Text style={styles.infoItemMeta}>
-                      {schedule.date} · {schedule.time}
+                {schedules[1] ? (
+                  <View style={styles.pillBox}>
+                    <Text style={styles.pillTime}>{schedules[1].time}</Text>
+                    <Text style={styles.pillText} numberOfLines={1}>
+                      {schedules[1].title}
                     </Text>
                   </View>
-                ))
-              : null}
-          </View>
-
-          <View style={styles.micWrap}>
-            <TouchableOpacity
-              style={styles.micButton}
-              onPress={handleMicPress}
-              activeOpacity={0.9}
-            >
-              <View style={styles.micIconWrap}>
-                <Ionicons name="mic" size={32} color="#FFFFFF" />
-              </View>
-
-              <Text style={styles.micText}>눌러서 말하기</Text>
-              <Text style={styles.micSubText}>터치하면 바로 시작됩니다</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.grid}>
-            <TouchableOpacity
-              style={styles.card}
-              onPress={handleOpenChatHistory}
-              activeOpacity={0.88}
-            >
-              <View style={styles.cardIconWrap}>
-                <Ionicons name="chatbubble-ellipses-outline" size={24} color="#2563EB" />
-              </View>
-              <Text style={styles.cardText}>대화 보기</Text>
-              <Text style={styles.cardSubText}>대화 내용을 확인합니다</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() =>
-                router.push({
-                  pathname: '/calendar',
-                  params: {
-                    viewerRole: 'parent',
-                  },
-                })
-              }
-              activeOpacity={0.88}
-            >
-              <View style={styles.cardIconWrap}>
-                <Ionicons name="calendar-outline" size={24} color="#2563EB" />
-              </View>
-              <Text style={styles.cardText}>일정 보기</Text>
-              <Text style={styles.cardSubText}>오늘 일정을 확인합니다</Text>
-            </TouchableOpacity>
-          </View>
+                ) : null}
+              </>
+            ) : (
+              <Text style={styles.emptyCardText}>오늘 일정이 없습니다</Text>
+            )}
+          </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.settingsShortcutCard}
-            onPress={() => router.push('/settings')}
+            style={styles.summaryCard}
+            onPress={goToElderMedications}
             activeOpacity={0.88}
           >
-            <View style={styles.settingsShortcutIconWrap}>
-              <Ionicons name="settings-outline" size={24} color="#2563EB" />
+            <View style={styles.summaryHeader}>
+              <Ionicons name="medical-outline" size={34} color={BLUE_DARK} />
+              <Text style={styles.summaryTitle}>복약 정보</Text>
             </View>
-            <View style={styles.settingsShortcutContent}>
-              <Text style={styles.cardText}>설정</Text>
-              <Text style={styles.cardSubText}>위치 권한과 앱 사용 설정을 확인합니다</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-          </TouchableOpacity>
-        </ScrollView>
 
-        <View style={styles.bottomSection}>
-          <TouchableOpacity
-            style={styles.callButton}
-            onPress={handleCall119}
-            activeOpacity={0.9}
-          >
-            <View style={styles.emergencyLeft}>
-              <Text style={styles.callLabel}>응급 상황</Text>
-              <Text style={styles.callText}>119 전화하기</Text>
-            </View>
-            <Ionicons name="call" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+            {isLoadingMedications ? (
+              <SmallLoading text="복약 확인 중" />
+            ) : medicationError ? (
+              <Text style={styles.cardErrorText}>{medicationError}</Text>
+            ) : firstMedication ? (
+              <>
+                <View style={styles.pillBox}>
+                  <Text style={styles.pillTime}>{firstMedication.time}</Text>
+                  <Text style={styles.pillText} numberOfLines={1}>
+                    {firstMedication.name}
+                  </Text>
+                </View>
 
-          <TouchableOpacity
-            style={styles.sosButton}
-            onPress={handleGuardianEmergencyCall}
-            activeOpacity={0.9}
-          >
-            <View style={styles.emergencyLeft}>
-              <Text style={styles.sosLabel}>보호자 긴급 연락</Text>
-              <Text style={styles.sosText}>
-                {guardianPhone ? guardianPhone : 'SOS 긴급 연락'}
-              </Text>
-            </View>
-            <Ionicons name="warning" size={24} color="#FFFFFF" />
+                {medications[1] ? (
+                  <View style={styles.pillBox}>
+                    <Text style={styles.pillTime}>{medications[1].time}</Text>
+                    <Text style={styles.pillText} numberOfLines={1}>
+                      {medications[1].name}
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <Text style={styles.emptyCardText}>등록된 약이 없습니다</Text>
+            )}
           </TouchableOpacity>
         </View>
-      </View>
+
+        <TouchableOpacity
+          style={styles.chatButton}
+          onPress={() => goToChat(false)}
+          activeOpacity={0.9}
+        >
+          <Ionicons name="chatbubble-outline" size={48} color="#FFFFFF" />
+          <View style={styles.chatTextArea}>
+            <Text style={styles.chatTitle}>대화기록 보기</Text>
+            
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.call119Button}
+          onPress={handleCall119}
+          activeOpacity={0.9}
+        >
+          <Ionicons name="call-outline" size={48} color="#FFFFFF" />
+          <Text style={styles.emergencyText}>119 긴급전화</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.guardianCallButton}
+          onPress={handleGuardianEmergencyCall}
+          activeOpacity={0.9}
+        >
+          <Ionicons name="call-outline" size={48} color="#FFFFFF" />
+          <Text style={styles.emergencyText}>보호자 전화</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       <Modal
         visible={isLetterModalVisible}
@@ -653,347 +707,301 @@ export default function HomeScreen() {
   );
 }
 
+function SmallLoading({ text }: { text: string }) {
+  return (
+    <View style={styles.smallLoading}>
+      <ActivityIndicator size="small" color={BLUE} />
+      <Text style={styles.smallLoadingText}>{text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F7FB',
+    backgroundColor: BG,
   },
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 18,
+    backgroundColor: BG,
   },
-  topSection: {
-    paddingTop: 4,
-    marginBottom: 12,
-  },
-  middleSection: {
-    flex: 1,
-  },
-  middleSectionContent: {
-    paddingBottom: 20,
-    gap: 12,
-  },
-  bottomSection: {
-    paddingTop: 8,
-    gap: 12,
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 36,
+    gap: 18,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: {
-    flex: 1,
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#111827',
-    letterSpacing: -0.5,
-    marginRight: 12,
+  helloText: {
+    fontSize: 34,
+    fontWeight: '900',
+    color: '#16213E',
+    letterSpacing: -0.8,
   },
-  subtitle: {
+  subHelloText: {
+    marginTop: 4,
     fontSize: 18,
-    color: '#6B7280',
-    marginTop: 8,
-    fontWeight: '500',
+    fontWeight: '700',
+    color: BLUE_DARK,
   },
-  linkCodeChip: {
+  settingsButton: {
+    width: 72,
+    height: 58,
+    borderRadius: 22,
+    backgroundColor: BLUE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: BLUE,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  letterCard: {
+    backgroundColor: '#BFD0FF',
+    borderRadius: 30,
+    padding: 22,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  letterTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 14,
+    gap: 12,
+  },
+  letterIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
     backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 8,
-  },
-  linkCodeLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '700',
-  },
-  linkCodeValue: {
-    fontSize: 14,
-    color: '#2563EB',
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  messageCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 18,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#EAECEF',
-  },
-  infoCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 18,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#EAECEF',
-  },
-  infoCardHeader: {
-    marginBottom: 8,
-  },
-  messageTopRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    marginBottom: 10,
-    gap: 10,
-  },
-  messageLeftArea: {
-    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  messageTitle: {
-    fontSize: 18,
+  letterTitleArea: {
+    flex: 1,
+  },
+  letterTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#163B91',
+  },
+  letterCount: {
+    marginTop: 2,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#3159B8',
+  },
+  letterText: {
+    fontSize: 27,
+    lineHeight: 42,
+    fontWeight: '900',
+    color: '#173E91',
+    textAlign: 'center',
+  },
+  letterTime: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#3159B8',
+    textAlign: 'right',
+  },
+  emptyText: {
+    fontSize: 22,
+    lineHeight: 32,
     fontWeight: '800',
-    color: '#111827',
-  },
-  messageSubInfo: {
-    marginTop: 4,
-    fontSize: 13,
-    color: '#9CA3AF',
-    fontWeight: '600',
-  },
-  simpleMessageButton: {
-    minHeight: 48,
-    minWidth: 106,
-    borderRadius: 16,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 4,
-  },
-  simpleMessageButtonText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#2563EB',
+    color: '#3159B8',
+    textAlign: 'center',
+    paddingVertical: 16,
   },
   loadingWrap: {
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 18,
   },
   loadingText: {
     marginTop: 8,
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  messageText: {
-    fontSize: 18,
-    color: '#111827',
-    lineHeight: 28,
-    fontWeight: '600',
-  },
-  emptyMessageText: {
-    fontSize: 17,
-    color: '#6B7280',
-    lineHeight: 26,
-  },
-  messageTime: {
-    marginTop: 10,
-    fontSize: 13,
-    color: '#9CA3AF',
-    fontWeight: '700',
-  },
-  infoItem: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingTop: 14,
-    marginTop: 14,
-  },
-  infoItemHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  infoItemTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  infoItemMeta: {
-    marginTop: 8,
     fontSize: 15,
-    color: '#475569',
-  },
-  infoItemSubMeta: {
-    marginTop: 6,
-    fontSize: 14,
-    color: '#64748B',
-  },
-  statusBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statusBadgeText: {
-    fontSize: 12,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#3159B8',
   },
-  scheduleStatusText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-  errorText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#B91C1C',
-  },
-  micWrap: {
+  micArea: {
     alignItems: 'center',
-    marginTop: 4,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
-  micButton: {
-    width: '100%',
-    borderRadius: 28,
-    paddingVertical: 26,
-    paddingHorizontal: 20,
-    backgroundColor: '#2563EB',
+  bigMicButton: {
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: BLUE,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2563EB',
+    shadowColor: BLUE,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  micGuide: {
+    marginTop: 24,
+    fontSize: 30,
+    fontWeight: '900',
+    color: '#1D3F8F',
+    letterSpacing: -0.7,
+  },
+  wakeGuide: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#5B6F9F',
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 18,
+    minHeight: 220,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+    gap: 8,
+  },
+  summaryTitle: {
+    flex: 1,
+    fontSize: 23,
+    fontWeight: '900',
+    color: '#1F3E8A',
+    letterSpacing: -0.5,
+  },
+  pillBox: {
+    backgroundColor: BLUE_LIGHT,
+    borderRadius: 20,
+    paddingVertical: 15,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  pillTime: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: BLUE_DARK,
+    marginBottom: 6,
+  },
+  pillText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#222B45',
+    textAlign: 'center',
+  },
+  emptyCardText: {
+    marginTop: 18,
+    fontSize: 18,
+    lineHeight: 27,
+    fontWeight: '800',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  cardErrorText: {
+    marginTop: 10,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '700',
+    color: '#DC2626',
+    textAlign: 'center',
+  },
+  smallLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+  },
+  smallLoadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  chatButton: {
+    backgroundColor: BLUE,
+    borderRadius: 26,
+    paddingVertical: 25,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+    shadowColor: BLUE,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.22,
     shadowRadius: 14,
     elevation: 6,
   },
-  micIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
+  chatTextArea: {
+    flex: 1,
   },
-  micText: {
+  chatTitle: {
+    fontSize: 30,
+    fontWeight: '900',
     color: '#FFFFFF',
+    letterSpacing: -0.8,
+  },
+  chatSubTitle: {
+    marginTop: 7,
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '700',
+    color: '#EAF0FF',
   },
-  micSubText: {
-    color: '#DBEAFE',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  grid: {
+  call119Button: {
+    backgroundColor: '#FF4D4F',
+    borderRadius: 26,
+    paddingVertical: 25,
+    paddingHorizontal: 28,
     flexDirection: 'row',
-    gap: 12,
-  },
-  card: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#EAECEF',
-    padding: 18,
-  },
-  cardIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#EEF4FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    gap: 18,
+    shadowColor: '#FF4D4F',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 6,
   },
-  cardText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  cardSubText: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 20,
-    color: '#6B7280',
-    fontWeight: '600',
-  },
-  settingsShortcutCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#EAECEF',
-    padding: 18,
+  guardianCallButton: {
+    backgroundColor: BLUE_DARK,
+    borderRadius: 26,
+    paddingVertical: 25,
+    paddingHorizontal: 28,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  settingsShortcutIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#EEF4FF',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 18,
+    shadowColor: BLUE_DARK,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 6,
   },
-  settingsShortcutContent: {
-    flex: 1,
-  },
-  callButton: {
-    backgroundColor: '#FF3B30',
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    borderRadius: 22,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#FF3B30',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  sosButton: {
-    backgroundColor: '#FF9500',
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    borderRadius: 22,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#FF9500',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  emergencyLeft: {
-    flex: 1,
-  },
-  callLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFE2E0',
-    marginBottom: 4,
-  },
-  callText: {
+  emergencyText: {
+    fontSize: 34,
+    fontWeight: '900',
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  sosLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFE7CC',
-    marginBottom: 4,
-  },
-  sosText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
+    letterSpacing: -0.8,
   },
   modalOverlay: {
     flex: 1,
@@ -1024,26 +1032,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 21,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '900',
     color: '#111827',
   },
   modalSubTitle: {
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 14,
     color: '#9CA3AF',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   closeButton: {
-    backgroundColor: '#EEF4FF',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
+    backgroundColor: BLUE_LIGHT,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
   },
   closeButtonText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#2563EB',
+    fontSize: 15,
+    fontWeight: '900',
+    color: BLUE_DARK,
   },
   modalScrollContent: {
     paddingBottom: 20,
@@ -1064,65 +1072,28 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   letterSender: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2563EB',
+    fontSize: 15,
+    fontWeight: '800',
+    color: BLUE_DARK,
   },
   letterItemContent: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#111827',
-    lineHeight: 24,
+    lineHeight: 27,
+    fontWeight: '600',
   },
   letterItemTime: {
     fontSize: 12,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   emptyBox: {
     paddingTop: 50,
     alignItems: 'center',
   },
   emptyLetterText: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#64748B',
     textAlign: 'center',
   },
 });
-
-function formatMedicationRecord(medication: MedicationItem) {
-  if (!medication.last_recorded_at) {
-    return medication.status_label;
-  }
-
-  const date = new Date(medication.last_recorded_at);
-  if (Number.isNaN(date.getTime())) {
-    return `${medication.last_time_scope ?? medication.time} · ${medication.status_label}`;
-  }
-
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const timeScope = medication.last_time_scope ? `${medication.last_time_scope} · ` : '';
-  return `${timeScope}${month}.${day} ${hours}:${minutes}`;
-}
-
-function getMedicationBadgeStyle(status: MedicationItem['status']) {
-  if (status === 'taken') {
-    return { backgroundColor: '#16A34A' };
-  }
-  if (status === 'missed') {
-    return { backgroundColor: '#DC2626' };
-  }
-  return { backgroundColor: '#64748B' };
-}
-
-function formatScheduleStatus(status: string) {
-  if (status === 'scheduled') {
-    return '예정';
-  }
-  if (status === 'completed') {
-    return '완료';
-  }
-  return status;
-}

@@ -702,7 +702,7 @@ export default function ChatPage() {
           {isGuardianRequester
             ? `${subjectName} 님 상태 질문하기`
             : agentName
-              ? `${agentName}와 대화하기`
+              ? `대화하기 `
               : '대화하기'}
         </Text>
         <Text style={styles.description}>
@@ -711,7 +711,7 @@ export default function ChatPage() {
               ? '보호자 질문으로 처리됩니다. 부모님 일정, 복약, 건강 상태를 바로 확인할 수 있습니다.'
               : '보호자 질문 기록을 날짜별로 골라 확인할 수 있습니다.'
             : isVoiceMode
-              ? '홈에서 바로 넘어왔습니다. 말씀하시면 전사와 답변을 이어서 확인할 수 있습니다.'
+              ? '편하게 말씀해주세요'
               : '이전에 주고받은 대화를 날짜별로 골라 확인할 수 있습니다.'}
         </Text>
 

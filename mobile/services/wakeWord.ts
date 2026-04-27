@@ -1,271 +1,180 @@
-import type { EventSubscription } from 'expo-modules-core';
-import {
-  AVAudioSessionCategory,
-  AVAudioSessionCategoryOptions,
-  AVAudioSessionMode,
-  ExpoSpeechRecognitionModule,
-  type ExpoSpeechRecognitionErrorEvent,
-  type ExpoSpeechRecognitionResultEvent,
-} from 'expo-speech-recognition';
-import { Platform } from 'react-native';
+import Voice from '@react-native-voice/voice';
 
-type WakeWordCallbacks = {
-  onDetected: (keywordLabel: string) => void;
+let isWakeWordListening = false;
+let isDetected = false;
+let currentWakeName = '케어';
+let currentOnDetected: (() => void | Promise<void>) | null = null;
+let currentOnError: ((message: string) => void) | null = null;
+
+type StartWakeWordListeningParams = {
+  wakeName?: string;
+  onDetected: () => void | Promise<void>;
   onError?: (message: string) => void;
 };
 
-type WakeWordStartResult = {
-  started: boolean;
-  keywordLabel: string;
-  reason?: string;
-};
-
-const defaultWakeWordLabel = process.env.EXPO_PUBLIC_WAKE_WORD_LABEL?.trim() || '케어';
-const configuredWakeWordPhrases =
-  process.env.EXPO_PUBLIC_WAKE_WORD_PHRASES?.split(',')
-    .map((value) => value.trim())
-    .filter(Boolean) ?? [];
-const wakeWordPhrases = Array.from(
-  new Set(
-    (configuredWakeWordPhrases.length > 0 ? configuredWakeWordPhrases : [defaultWakeWordLabel]).flatMap((value) => {
-      const compact = value.replace(/\s+/g, '');
-      return compact === value ? [value] : [value, compact];
-    })
-  )
-);
-
-let currentCallbacks: WakeWordCallbacks | null = null;
-let subscriptions: EventSubscription[] = [];
-let restartTimer: ReturnType<typeof setTimeout> | null = null;
-let shouldKeepListening = false;
-let isRecognitionActive = false;
-let isStopping = false;
-let isDetecting = false;
-let pendingStartPromise: Promise<WakeWordStartResult> | null = null;
-
-function normalizeTranscript(value: string) {
+function normalizeWakeText(value: string) {
   return value
-    .normalize('NFC')
-    .toLowerCase()
-    .replace(/[^0-9a-z가-힣]/gi, '');
+    .trim()
+    .replace(/\s/g, '')
+    .replace(/[.,!?~]/g, '')
+    .replace(/[^\w가-힣]/g, '')
+    .toLowerCase();
 }
 
-function clearRestartTimer() {
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-    restartTimer = null;
-  }
-}
+function buildWakeCandidates(wakeName: string) {
+  const name = normalizeWakeText(wakeName || '케어');
 
-function getNormalizedWakeWordPhrases() {
-  return wakeWordPhrases.map(normalizeTranscript).filter(Boolean);
-}
-
-function matchesWakeWord(transcript: string) {
-  const normalizedTranscript = normalizeTranscript(transcript);
-
-  if (!normalizedTranscript) {
-    return false;
-  }
-
-  return getNormalizedWakeWordPhrases().some((phrase) => normalizedTranscript.includes(phrase));
-}
-
-function emitError(message: string) {
-  currentCallbacks?.onError?.(message);
-}
-
-async function abortRecognitionIfNeeded() {
-  try {
-    const state = await ExpoSpeechRecognitionModule.getStateAsync();
-    if (state !== 'inactive') {
-      ExpoSpeechRecognitionModule.abort();
-    }
-  } catch {
-    ExpoSpeechRecognitionModule.abort();
-  }
-}
-
-async function beginRecognition() {
-  if (!shouldKeepListening || isRecognitionActive || isStopping) {
-    return;
-  }
-
-  ExpoSpeechRecognitionModule.start({
-    lang: 'ko-KR',
-    interimResults: true,
-    continuous: true,
-    maxAlternatives: 1,
-    addsPunctuation: false,
-    contextualStrings: wakeWordPhrases,
-    iosTaskHint: 'search',
-    iosCategory: {
-      category: AVAudioSessionCategory.playAndRecord,
-      categoryOptions: [AVAudioSessionCategoryOptions.defaultToSpeaker, AVAudioSessionCategoryOptions.allowBluetooth],
-      mode: AVAudioSessionMode.measurement,
-    },
-    iosVoiceProcessingEnabled: true,
-  });
-}
-
-function scheduleRestart(delay = 350) {
-  if (!shouldKeepListening || isStopping || isDetecting) {
-    return;
-  }
-
-  clearRestartTimer();
-  restartTimer = setTimeout(() => {
-    restartTimer = null;
-    void beginRecognition();
-  }, delay);
-}
-
-function ensureSubscriptions() {
-  if (subscriptions.length > 0) {
-    return;
-  }
-
-  subscriptions = [
-    ExpoSpeechRecognitionModule.addListener('start', () => {
-      isRecognitionActive = true;
-    }),
-    ExpoSpeechRecognitionModule.addListener('end', () => {
-      isRecognitionActive = false;
-
-      if (shouldKeepListening && !isStopping && !isDetecting) {
-        scheduleRestart();
-      }
-    }),
-    ExpoSpeechRecognitionModule.addListener('result', (event: ExpoSpeechRecognitionResultEvent) => {
-      if (!shouldKeepListening || isDetecting) {
-        return;
-      }
-
-      const transcript = event.results.map((result) => result.transcript).join(' ');
-
-      if (!matchesWakeWord(transcript)) {
-        return;
-      }
-
-      const activeCallbacks = currentCallbacks;
-      isDetecting = true;
-
-      void stopWakeWordListening({ preserveCallbacks: true }).finally(() => {
-        isDetecting = false;
-        activeCallbacks?.onDetected(defaultWakeWordLabel);
-      });
-    }),
-    ExpoSpeechRecognitionModule.addListener('error', (event: ExpoSpeechRecognitionErrorEvent) => {
-      isRecognitionActive = false;
-
-      if (!shouldKeepListening) {
-        return;
-      }
-
-      if (event.error === 'aborted' || event.error === 'no-speech') {
-        scheduleRestart();
-        return;
-      }
-
-      if (event.error === 'busy') {
-        scheduleRestart(700);
-        return;
-      }
-
-      const needsUserAction =
-        event.error === 'not-allowed' ||
-        event.error === 'service-not-allowed' ||
-        event.error === 'language-not-supported';
-
-      emitError(
-        needsUserAction
-          ? '음성 인식 권한 또는 서비스 설정을 확인해주세요.'
-          : `웨이크워드 대기 중 오류가 발생했습니다. (${event.error})`
-      );
-
-      if (!needsUserAction) {
-        scheduleRestart(700);
-      }
-    }),
+  return [
+    name,
+    `${name}야`,
+    `${name}아`,
+    `${name}해야`,
+    `${name}해줘`,
+    `${name}시작`,
+    `${name}불러`,
+    `야${name}`,
+    `안녕${name}`,
   ];
 }
 
-type StopWakeWordOptions = {
-  preserveCallbacks?: boolean;
-};
-
-export function getWakeWordLabel() {
-  return defaultWakeWordLabel;
-}
-
-export async function startWakeWordListening(callbacks: WakeWordCallbacks): Promise<WakeWordStartResult> {
-  if (pendingStartPromise) {
-    currentCallbacks = callbacks;
-    shouldKeepListening = true;
-    return pendingStartPromise;
-  }
-
-  pendingStartPromise = (async () => {
-    currentCallbacks = callbacks;
-    shouldKeepListening = true;
-
-    if (Platform.OS === 'web') {
-      callbacks.onError?.('웹에서는 웨이크워드를 사용하지 않습니다.');
-      return { started: false, keywordLabel: defaultWakeWordLabel, reason: 'unsupported-platform' };
-    }
-
-    if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
-      callbacks.onError?.('이 기기에서는 음성 인식 서비스를 사용할 수 없습니다.');
-      shouldKeepListening = false;
-      return { started: false, keywordLabel: defaultWakeWordLabel, reason: 'recognition-unavailable' };
-    }
-
-    const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!permission.granted) {
-      callbacks.onError?.('음성 인식과 마이크 권한이 필요합니다.');
-      shouldKeepListening = false;
-      return { started: false, keywordLabel: defaultWakeWordLabel, reason: 'permission-denied' };
-    }
-
-    ensureSubscriptions();
-    clearRestartTimer();
-
-    if (isRecognitionActive) {
-      return { started: true, keywordLabel: defaultWakeWordLabel };
-    }
-
-    await abortRecognitionIfNeeded();
-    await beginRecognition();
-
-    return { started: true, keywordLabel: defaultWakeWordLabel };
-  })().finally(() => {
-    pendingStartPromise = null;
-  });
-
-  return pendingStartPromise;
-}
-
-export async function stopWakeWordListening(options: StopWakeWordOptions = {}) {
-  shouldKeepListening = false;
-  isStopping = true;
-  clearRestartTimer();
-
-  if (!options.preserveCallbacks) {
-    currentCallbacks = null;
+async function restartListening() {
+  if (!isWakeWordListening || isDetected) {
+    return;
   }
 
   try {
-    await abortRecognitionIfNeeded();
+    await Voice.cancel();
+  } catch {
+    // ignore
+  }
+
+  try {
+    await Voice.start('ko-KR');
+    console.log('[WakeWord] restart listening');
+  } catch (error) {
+    console.log('[WakeWord] restart error:', error);
+    currentOnError?.(String(error));
+  }
+}
+
+function checkWakeWord(values?: string[]) {
+  if (isDetected) {
+    return;
+  }
+
+  const text = values?.join(' ') ?? '';
+  const normalizedText = normalizeWakeText(text);
+  const candidates = buildWakeCandidates(currentWakeName);
+
+  console.log('[WakeWord] raw:', text);
+  console.log('[WakeWord] normalized:', normalizedText);
+  console.log('[WakeWord] candidates:', candidates);
+
+  const detected = candidates.some((candidate) =>
+    normalizedText.includes(candidate)
+  );
+
+  if (!detected) {
+    return;
+  }
+
+  isDetected = true;
+  isWakeWordListening = false;
+
+  console.log('[WakeWord] detected:', currentWakeName);
+
+  void Voice.stop()
+    .catch(() => {})
+    .finally(() => {
+      void currentOnDetected?.();
+    });
+}
+
+export async function startWakeWordListening({
+  wakeName = '케어',
+  onDetected,
+  onError,
+}: StartWakeWordListeningParams) {
+  currentWakeName = wakeName || '케어';
+  currentOnDetected = onDetected;
+  currentOnError = onError ?? null;
+  isDetected = false;
+
+  if (isWakeWordListening) {
+    console.log('[WakeWord] already listening');
+    return;
+  }
+
+  Voice.removeAllListeners();
+
+  Voice.onSpeechStart = () => {
+    console.log('[WakeWord] speech start');
+  };
+
+  Voice.onSpeechPartialResults = (event) => {
+    checkWakeWord(event.value);
+  };
+
+  Voice.onSpeechResults = (event) => {
+    checkWakeWord(event.value);
+  };
+
+  Voice.onSpeechEnd = () => {
+    console.log('[WakeWord] speech end');
+
+    if (!isDetected && isWakeWordListening) {
+      setTimeout(() => {
+        void restartListening();
+      }, 300);
+    }
+  };
+
+  Voice.onSpeechError = (error) => {
+    const message = JSON.stringify(error);
+    console.log('[WakeWord] speech error:', error);
+    currentOnError?.(message);
+
+    if (!isDetected && isWakeWordListening) {
+      setTimeout(() => {
+        void restartListening();
+      }, 700);
+    }
+  };
+
+  try {
+    isWakeWordListening = true;
+    await Voice.start('ko-KR');
+    console.log('[WakeWord] start:', currentWakeName);
+  } catch (error) {
+    isWakeWordListening = false;
+    console.log('[WakeWord] start error:', error);
+    currentOnError?.(String(error));
+  }
+}
+
+export async function stopWakeWordListening() {
+  try {
+    if (isWakeWordListening) {
+      await Voice.stop();
+    }
+  } catch (error) {
+    console.log('[WakeWord] stop error:', error);
   } finally {
-    isRecognitionActive = false;
-    isStopping = false;
+    isWakeWordListening = false;
   }
 }
 
 export async function destroyWakeWord() {
-  await stopWakeWordListening();
-
-  subscriptions.forEach((subscription) => subscription.remove());
-  subscriptions = [];
-  currentCallbacks = null;
+  try {
+    await Voice.stop();
+    await Voice.destroy();
+    Voice.removeAllListeners();
+  } catch (error) {
+    console.log('[WakeWord] destroy error:', error);
+  } finally {
+    isWakeWordListening = false;
+    isDetected = false;
+    currentOnDetected = null;
+    currentOnError = null;
+  }
 }
