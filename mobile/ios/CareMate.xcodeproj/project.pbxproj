@@ -53,12 +53,12 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CareMate/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CareMate/Info.plist; sourceTree = "<group>"; };
 		1932ADA1D74FB2F3813BF7F9 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-CareMate/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		3527FE02F26F4AB6A98EC3CB /* CareQuickStartWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CareQuickStartWidget.swift; path = ExpoWidgetsTarget/CareQuickStartWidget.swift; sourceTree = "<group>"; };
-		3A3624755B1C46B6A0D89199 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = ExpoWidgetsTarget/Info.plist; sourceTree = "<group>"; };
+		3527FE02F26F4AB6A98EC3CB /* CareQuickStartWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CareQuickStartWidget.swift; path = CareQuickStartWidget.swift; sourceTree = "<group>"; };
+		3A3624755B1C46B6A0D89199 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
 		514D5E30B470D0F9FC27042F /* libPods-CareMate.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CareMate.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5930749ADE1E47C3AB713E58 /* CareAppIntents.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CareAppIntents.swift; path = CareMate/CareAppIntents.swift; sourceTree = "<group>"; };
 		5CB435312688CD2264CFB4FA /* libPods-ExpoWidgetsTarget.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-ExpoWidgetsTarget.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		9AE18ED7674547E5AB8EF5D7 /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
+		9AE18ED7674547E5AB8EF5D7 /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
 		9D8475054DB46E8FB7FE9AA8 /* Pods-ExpoWidgetsTarget.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.release.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.release.xcconfig"; sourceTree = "<group>"; };
 		A3C6ABF56CDC40A99730209A /* CareShortcutModule.m */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.objc; name = CareShortcutModule.m; path = CareMate/CareShortcutModule.m; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = CareMate/SplashScreen.storyboard; sourceTree = "<group>"; };
@@ -66,7 +66,7 @@
 		B33AB4DFDD064A5FBDCD0F10 /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		C02345DD301E68354DCEDF25 /* Pods-ExpoWidgetsTarget.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.debug.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.debug.xcconfig"; sourceTree = "<group>"; };
-		CC8B4A0F4792464992AED011 /* index.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = index.swift; path = ExpoWidgetsTarget/index.swift; sourceTree = "<group>"; };
+		CC8B4A0F4792464992AED011 /* index.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = index.swift; path = index.swift; sourceTree = "<group>"; };
 		D1C159DC42540CE3BE3CE331 /* Pods-CareMate.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CareMate.debug.xcconfig"; path = "Target Support Files/Pods-CareMate/Pods-CareMate.debug.xcconfig"; sourceTree = "<group>"; };
 		DAA09DD5F0895EA89CC5D8FC /* Pods-CareMate.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CareMate.release.xcconfig"; path = "Target Support Files/Pods-CareMate/Pods-CareMate.release.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -377,27 +377,37 @@
 			);
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-resources.sh",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoNotifications/ExpoNotifications_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/SDWebImage/SDWebImage.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/boost/boost_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-launcher/EXDevLauncher.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-menu/EXDevMenu.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/glog/glog_privacy.bundle",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoApplication_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/SDWebImage.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/boost_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXDevLauncher.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXDevMenu.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/glog_privacy.bundle",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -411,14 +421,10 @@
 			);
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
+				"${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios/hermesvm.framework",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -472,14 +478,20 @@
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/boost/boost_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/glog/glog_privacy.bundle",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/boost_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/glog_privacy.bundle",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

@@ -166,6 +166,15 @@ export default function GuardianMedicationsScreen() {
     );
   }, [medicationItems]);
 
+  const medicationCompletionRate =
+    medicationSummary.total > 0
+      ? Math.round((medicationSummary.taken / medicationSummary.total) * 100)
+      : 0;
+
+  const missedMedications = React.useMemo(() => {
+    return medicationItems.filter((item) => item.status === 'missed');
+  }, [medicationItems]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -210,8 +219,8 @@ export default function GuardianMedicationsScreen() {
 
           <View style={styles.heroSummary}>
             <View style={styles.heroSummaryItem}>
-              <Text style={styles.heroSummaryLabel}>등록된 복약 기록</Text>
-              <Text style={styles.heroSummaryValue}>{medicationSummary.total}건</Text>
+              <Text style={styles.heroSummaryLabel}>오늘 복약률</Text>
+              <Text style={styles.heroSummaryValue}>{medicationCompletionRate}%</Text>
             </View>
 
             <View style={styles.heroDivider} />
@@ -243,9 +252,23 @@ export default function GuardianMedicationsScreen() {
 
         <View style={styles.medicationSummaryRow}>
           <MiniStatCard label="완료" value={`${medicationSummary.taken}건`} />
-          <MiniStatCard label="대기" value={`${medicationSummary.scheduled}건`} />
           <MiniStatCard label="놓침" value={`${medicationSummary.missed}건`} />
+          <MiniStatCard label="남음" value={`${medicationSummary.scheduled}건`} />
         </View>
+
+        {missedMedications.length > 0 ? (
+          <View style={styles.missedCard}>
+            <View style={styles.missedHeader}>
+              <Ionicons name="alert-circle-outline" size={20} color="#B91C1C" />
+              <Text style={styles.missedTitle}>오늘 놓친 약</Text>
+            </View>
+            {missedMedications.map((item, index) => (
+              <Text key={`${item.name}-${item.time}-${index}`} style={styles.missedText}>
+                {item.name} · {item.time}
+              </Text>
+            ))}
+          </View>
+        ) : null}
 
         <View style={styles.listCard}>
           <View style={styles.sectionHeaderRow}>
@@ -527,6 +550,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  missedCard: {
+    backgroundColor: '#FFF1F2',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 18,
+  },
+  missedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  missedTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#B91C1C',
+  },
+  missedText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#7F1D1D',
+    fontWeight: '800',
   },
   miniStatCard: {
     width: '31%',

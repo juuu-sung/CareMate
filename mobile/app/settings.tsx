@@ -15,7 +15,16 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { clearAuthSession } from '@/services/authSession';
+import {
+  clearAuthSession,
+  loadAuthSession,
+  ParentAuthSession,
+} from '@/services/authSession';
+import {
+  getMedicationReminderStatus,
+  MedicationReminderStatus,
+} from '@/services/medicationReminders';
+import { CHAT_TTS_VOICE_OPTIONS } from '@/services/chat';
 
 type PermissionStatusLabel = '허용됨' | '한 번만 허용됨' | '허용 안 됨' | '확인 필요';
 
@@ -37,6 +46,14 @@ const voiceControlSteps = [
   '3. 동작은 "단축어 실행" 또는 케어 열기 흐름으로 연결하세요.',
 ];
 
+function getVoiceLabel(voiceId?: string) {
+  if (!voiceId) {
+    return '아직 선택되지 않음';
+  }
+
+  return CHAT_TTS_VOICE_OPTIONS.find((voice) => voice.id === voiceId)?.name || voiceId;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [isLoadingPermission, setIsLoadingPermission] = useState(true);
@@ -47,6 +64,9 @@ export default function SettingsPage() {
   );
   const [canAskAgain, setCanAskAgain] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [parentSession, setParentSession] = useState<ParentAuthSession | null>(null);
+  const [medicationReminderStatus, setMedicationReminderStatus] =
+    useState<MedicationReminderStatus | null>(null);
 
   const loadPermission = useCallback(async () => {
     try {
@@ -61,11 +81,32 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const loadCurrentSession = useCallback(async () => {
+    try {
+      const session = await loadAuthSession();
+      const nextParentSession = session?.role === 'parent' ? session : null;
+      setParentSession(nextParentSession);
+
+      if (nextParentSession) {
+        const reminderStatus = await getMedicationReminderStatus(
+          nextParentSession.elderUserId
+        );
+        setMedicationReminderStatus(reminderStatus);
+      } else {
+        setMedicationReminderStatus(null);
+      }
+    } catch {
+      setParentSession(null);
+      setMedicationReminderStatus(null);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void loadPermission();
+      void loadCurrentSession();
       return undefined;
-    }, [loadPermission])
+    }, [loadCurrentSession, loadPermission])
   );
 
   const handleAllowLocation = async () => {
@@ -102,6 +143,54 @@ export default function SettingsPage() {
     }
   };
 
+  const handleChangeAgentName = () => {
+    if (!parentSession) {
+      setError('부모님 로그인 정보를 먼저 확인해 주세요.');
+      return;
+    }
+
+    router.push({
+      pathname: '/parent-agent-name-setup',
+      params: {
+        returnTo: 'settings',
+        parentId: parentSession.parentId,
+        elderUserId: parentSession.elderUserId,
+        elder_user_id: parentSession.elderUserId,
+        parentName: parentSession.parentName,
+        linkCode: parentSession.linkCode,
+        link_code: parentSession.linkCode,
+        guardianPhone: parentSession.guardianPhone,
+        selectedVoice: parentSession.agentVoice,
+        agentName: parentSession.agentName,
+        agent_name: parentSession.agentName,
+      },
+    });
+  };
+
+  const handleChangeAgentVoice = () => {
+    if (!parentSession) {
+      setError('부모님 로그인 정보를 먼저 확인해 주세요.');
+      return;
+    }
+
+    router.push({
+      pathname: '/parent-agent-voice-setup',
+      params: {
+        returnTo: 'settings',
+        parentId: parentSession.parentId,
+        elderUserId: parentSession.elderUserId,
+        elder_user_id: parentSession.elderUserId,
+        parentName: parentSession.parentName,
+        linkCode: parentSession.linkCode,
+        link_code: parentSession.linkCode,
+        guardianPhone: parentSession.guardianPhone,
+        selectedVoice: parentSession.agentVoice,
+        agentName: parentSession.agentName,
+        agent_name: parentSession.agentName,
+      },
+    });
+  };
+
   const handleLogout = () => {
     Alert.alert('로그아웃', '현재 로그인 정보를 지우고 처음 화면으로 돌아갈까요?', [
       { text: '취소', style: 'cancel' },
@@ -131,6 +220,65 @@ export default function SettingsPage() {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>설정</Text>
         <Text style={styles.description}>앱 사용에 필요한 권한과 기본 설정을 확인할 수 있습니다.</Text>
+
+        {parentSession ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.sectionIconWrap, styles.agentIconWrap]}>
+                <Ionicons name="person-circle-outline" size={24} color="#2563EB" />
+              </View>
+              <View style={styles.sectionHeaderText}>
+                <Text style={styles.sectionTitle}>에이전트 설정</Text>
+                <Text style={styles.agentNameText}>{parentSession.agentName || '케어'}</Text>
+                <Text style={styles.agentVoiceText}>
+                  목소리: {getVoiceLabel(parentSession.agentVoice)}
+                </Text>
+                <Text style={styles.permissionDescription}>
+                  홈 화면 호출어와 음성 대화 안내에 사용하는 이름과 목소리입니다.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.inlineButtonRow}>
+              <TouchableOpacity style={styles.inlinePrimaryButton} onPress={handleChangeAgentName}>
+                <Text style={styles.inlinePrimaryButtonText}>이름 변경</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.inlineSecondaryButton} onPress={handleChangeAgentVoice}>
+                <Text style={styles.inlineSecondaryButtonText}>목소리 변경</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
+        {parentSession ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.sectionIconWrap, styles.reminderIconWrap]}>
+                <Ionicons name="notifications-outline" size={23} color="#0F766E" />
+              </View>
+              <View style={styles.sectionHeaderText}>
+                <Text style={styles.sectionTitle}>복약 알림 상태</Text>
+                <Text style={styles.reminderStateText}>
+                  {medicationReminderStatus?.statusLabel || '확인 중'}
+                </Text>
+                <Text style={styles.permissionDescription}>
+                  {medicationReminderStatus?.detail ||
+                    '복약 알림 권한과 예약 상태를 확인하고 있습니다.'}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => void loadCurrentSession()}>
+              <Text style={styles.secondaryButtonText}>상태 다시 확인</Text>
+            </TouchableOpacity>
+
+            {medicationReminderStatus?.permissionGranted === false ? (
+              <TouchableOpacity style={styles.primaryButton} onPress={() => void handleOpenDeviceSettings()}>
+                <Text style={styles.primaryButtonText}>기기 알림 설정 열기</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -360,8 +508,14 @@ const styles = StyleSheet.create({
   voiceControlIconWrap: {
     backgroundColor: '#CCFBF1',
   },
+  reminderIconWrap: {
+    backgroundColor: '#CCFBF1',
+  },
   widgetIconWrap: {
     backgroundColor: '#FFEDD5',
+  },
+  agentIconWrap: {
+    backgroundColor: '#DBEAFE',
   },
   logoutIconWrap: {
     backgroundColor: '#FEE2E2',
@@ -382,6 +536,55 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     color: '#475569',
+  },
+  agentNameText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#1D4ED8',
+    marginBottom: 6,
+  },
+  agentVoiceText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  inlineButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  inlinePrimaryButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inlineSecondaryButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inlinePrimaryButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  inlineSecondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  reminderStateText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F766E',
+    marginBottom: 6,
   },
   loadingRow: {
     flexDirection: 'row',

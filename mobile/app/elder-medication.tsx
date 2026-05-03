@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,7 +14,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { getMedications, MedicationItem } from '@/services/medications';
+import {
+  getMedications,
+  MedicationItem,
+  MedicationStatus,
+  recordMedicationStatus,
+} from '@/services/medications';
+import {
+  getMedicationReminderStatus,
+  scheduleDailyMedicationReminders,
+  syncMedicationRemindersIfEnabled,
+} from '@/services/medicationReminders';
 
 const BLUE = '#4F7CFF';
 const BLUE_DARK = '#2F5FEA';
@@ -246,6 +257,14 @@ export default function ElderMedicationsScreen() {
   const [medicationError, setMedicationError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isSchedulingReminders, setIsSchedulingReminders] = React.useState(false);
+  const [savingRecordKey, setSavingRecordKey] = React.useState<string | null>(null);
+  const [reminderStatus, setReminderStatus] = React.useState<string | null>(null);
+
+  const refreshReminderStatus = React.useCallback(async () => {
+    const status = await getMedicationReminderStatus(elderUserId);
+    setReminderStatus(`${status.statusLabel} · ${status.detail}`);
+  }, [elderUserId]);
 
   const easyNameMap = React.useMemo(() => {
     return extractEasyMedicationMapFromSummary(medicationsText);
@@ -271,6 +290,11 @@ export default function ElderMedicationsScreen() {
         const items = await getMedications(elderUserId);
         setMedicationItems(items);
         setMedicationError(null);
+        await syncMedicationRemindersIfEnabled({
+          elderUserId,
+          medications: items,
+        });
+        await refreshReminderStatus();
       } catch (error) {
         console.log('노인 복약 조회 오류:', error);
         setMedicationItems([]);
@@ -280,7 +304,7 @@ export default function ElderMedicationsScreen() {
         setIsRefreshing(false);
       }
     },
-    [elderUserId]
+    [elderUserId, refreshReminderStatus]
   );
 
   useFocusEffect(
@@ -288,6 +312,89 @@ export default function ElderMedicationsScreen() {
       void loadMedicationData();
       return undefined;
     }, [loadMedicationData])
+  );
+
+  const enableMedicationReminders = React.useCallback(async () => {
+    if (!elderUserId) {
+      Alert.alert('알림 설정', '사용자 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    if (medicationItems.length === 0) {
+      Alert.alert('알림 설정', '등록된 약이 없어 알림을 설정할 수 없습니다.');
+      return;
+    }
+
+    try {
+      setIsSchedulingReminders(true);
+
+      const result = await scheduleDailyMedicationReminders({
+        elderUserId,
+        medications: medicationItems,
+      });
+
+      if (!result.granted) {
+        const message =
+          'isSimulator' in result && result.isSimulator
+            ? 'iOS 시뮬레이터에서는 실제 복약 알림을 검증할 수 없습니다.'
+            : '복약 알림을 받으려면 알림 권한을 허용해주세요.';
+
+        setReminderStatus(message);
+        Alert.alert('알림 설정 확인', message);
+        return;
+      }
+
+      const message =
+        result.scheduledCount > 0
+          ? `매일 복약 시간에 ${result.scheduledCount}개 알림을 드릴게요.`
+          : '알림을 설정할 수 있는 복약 시간이 없습니다.';
+
+      setReminderStatus(message);
+      await refreshReminderStatus();
+      Alert.alert('복약 알림', message);
+    } catch (error) {
+      console.log('복약 알림 설정 오류:', error);
+      setReminderStatus('복약 알림을 설정하지 못했습니다.');
+      Alert.alert('알림 설정 실패', '복약 알림을 설정하지 못했습니다.');
+    } finally {
+      setIsSchedulingReminders(false);
+    }
+  }, [elderUserId, medicationItems, refreshReminderStatus]);
+
+  const recordMedication = React.useCallback(
+    async (medication: MedicationItem, status: Exclude<MedicationStatus, 'scheduled'>) => {
+      if (!elderUserId) {
+        Alert.alert('복약 기록', '사용자 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      const recordKey = `${medication.id || medication.name}-${medication.time}-${status}`;
+
+      try {
+        setSavingRecordKey(recordKey);
+
+        await recordMedicationStatus({
+          elder_user_id: elderUserId,
+          medication_id: medication.id,
+          medication_name: medication.name,
+          time_scope: medication.time,
+          status,
+        });
+
+        await loadMedicationData(true);
+
+        Alert.alert(
+          '복약 기록',
+          status === 'taken' ? '복용 완료로 기록했습니다.' : '복용하지 못함으로 기록했습니다.'
+        );
+      } catch (error) {
+        console.log('복약 기록 오류:', error);
+        Alert.alert('복약 기록 실패', '복약 상태를 기록하지 못했습니다.');
+      } finally {
+        setSavingRecordKey(null);
+      }
+    },
+    [elderUserId, loadMedicationData]
   );
 
   const medicationSummary = React.useMemo(() => {
@@ -307,6 +414,15 @@ export default function ElderMedicationsScreen() {
       },
       { total: 0, taken: 0, scheduled: 0, missed: 0 }
     );
+  }, [medicationItems]);
+
+  const medicationCompletionRate =
+    medicationSummary.total > 0
+      ? Math.round((medicationSummary.taken / medicationSummary.total) * 100)
+      : 0;
+
+  const missedMedications = React.useMemo(() => {
+    return medicationItems.filter((item) => item.status === 'missed');
   }, [medicationItems]);
 
   const nextMedication = React.useMemo(() => {
@@ -385,6 +501,36 @@ export default function ElderMedicationsScreen() {
           </View>
         ) : null}
 
+        <View style={styles.reminderCard}>
+          <View style={styles.reminderTextArea}>
+            <Text style={styles.reminderTitle}>복약 알림</Text>
+            <Text style={styles.reminderDescription}>
+              등록된 약 시간에 매일 알림을 보내드릴게요.
+            </Text>
+            {reminderStatus ? (
+              <Text style={styles.reminderStatus}>{reminderStatus}</Text>
+            ) : null}
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.reminderButton,
+              (isSchedulingReminders || medicationItems.length === 0) &&
+                styles.disabledActionButton,
+            ]}
+            onPress={() => void enableMedicationReminders()}
+            disabled={isSchedulingReminders || medicationItems.length === 0}
+            activeOpacity={0.88}
+          >
+            {isSchedulingReminders ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="alarm-outline" size={22} color="#FFFFFF" />
+            )}
+            <Text style={styles.reminderButtonText}>켜기</Text>
+          </TouchableOpacity>
+        </View>
+
         {nextMedication ? (
           <View style={styles.nextCard}>
             <View style={styles.nextHeader}>
@@ -410,16 +556,52 @@ export default function ElderMedicationsScreen() {
             <Text style={styles.nextRecordText}>
               최근 기록: {formatMedicationRecord(nextMedication)}
             </Text>
+
+            <View style={styles.nextActionRow}>
+              <TouchableOpacity
+                style={[styles.primaryActionButton, savingRecordKey !== null && styles.disabledActionButton]}
+                onPress={() => void recordMedication(nextMedication, 'taken')}
+                disabled={savingRecordKey !== null}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                <Text style={styles.primaryActionText}>복용했어요</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.secondaryActionButton, savingRecordKey !== null && styles.disabledActionButton]}
+                onPress={() => void recordMedication(nextMedication, 'missed')}
+                disabled={savingRecordKey !== null}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="close-circle-outline" size={24} color={BLUE_DARK} />
+                <Text style={styles.secondaryActionText}>못 먹었어요</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : null}
 
         <Text style={styles.sectionTitle}>오늘 복약 요약</Text>
 
         <View style={styles.summaryRow}>
-          <SummaryCard label="전체" value={`${medicationSummary.total}개`} />
+          <SummaryCard label="완료율" value={`${medicationCompletionRate}%`} />
           <SummaryCard label="완료" value={`${medicationSummary.taken}개`} />
-          <SummaryCard label="남음" value={`${medicationSummary.scheduled}개`} />
+          <SummaryCard label="놓침" value={`${medicationSummary.missed}개`} />
         </View>
+
+        {missedMedications.length > 0 ? (
+          <View style={styles.missedCard}>
+            <View style={styles.missedHeader}>
+              <Ionicons name="alert-circle-outline" size={26} color="#B91C1C" />
+              <Text style={styles.missedTitle}>오늘 못 먹은 약</Text>
+            </View>
+            {missedMedications.map((item, index) => (
+              <Text key={`${item.name}-${item.time}-${index}`} style={styles.missedText}>
+                {getEasyMedicationName(item, easyNameMap)} · {item.time}
+              </Text>
+            ))}
+          </View>
+        ) : null}
 
         <Text style={styles.sectionTitle}>약 목록</Text>
 
@@ -470,6 +652,32 @@ export default function ElderMedicationsScreen() {
                     <Text style={styles.medicationRecord}>
                       최근 기록 {formatMedicationRecord(item)}
                     </Text>
+
+                    <View style={styles.rowActionGroup}>
+                      <TouchableOpacity
+                        style={[
+                          styles.rowTakenButton,
+                          savingRecordKey !== null && styles.disabledActionButton,
+                        ]}
+                        onPress={() => void recordMedication(item, 'taken')}
+                        disabled={savingRecordKey !== null}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.rowTakenButtonText}>복용 완료</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.rowMissedButton,
+                          savingRecordKey !== null && styles.disabledActionButton,
+                        ]}
+                        onPress={() => void recordMedication(item, 'missed')}
+                        disabled={savingRecordKey !== null}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.rowMissedButtonText}>못 먹음</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   <View
@@ -658,6 +866,58 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#B91C1C',
   },
+  reminderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 20,
+    marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  reminderTextArea: {
+    flex: 1,
+  },
+  reminderTitle: {
+    fontSize: 23,
+    fontWeight: '900',
+    color: TEXT,
+  },
+  reminderDescription: {
+    marginTop: 5,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  reminderStatus: {
+    marginTop: 7,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '800',
+    color: BLUE_DARK,
+  },
+  reminderButton: {
+    minWidth: 82,
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: BLUE_DARK,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 14,
+  },
+  reminderButtonText: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
   nextCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 28,
@@ -719,6 +979,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748B',
   },
+  nextActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  primaryActionButton: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 20,
+    backgroundColor: BLUE_DARK,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  primaryActionText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  secondaryActionButton: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 20,
+    backgroundColor: BLUE_LIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryActionText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: BLUE_DARK,
+  },
+  disabledActionButton: {
+    opacity: 0.55,
+  },
   sectionTitle: {
     fontSize: 25,
     fontWeight: '900',
@@ -754,6 +1052,31 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '900',
     color: BLUE_DARK,
+  },
+  missedCard: {
+    backgroundColor: '#FFF1F2',
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  missedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  missedTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#B91C1C',
+  },
+  missedText: {
+    fontSize: 17,
+    lineHeight: 25,
+    fontWeight: '800',
+    color: '#7F1D1D',
   },
   listCard: {
     backgroundColor: '#FFFFFF',
@@ -815,6 +1138,35 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     fontWeight: '700',
     color: '#64748B',
+  },
+  rowActionGroup: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  rowTakenButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: BLUE_DARK,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  rowTakenButtonText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  rowMissedButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  rowMissedButtonText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: BLUE_DARK,
   },
   statusBadge: {
     minWidth: 88,

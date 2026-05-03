@@ -162,8 +162,8 @@ export default function GuardianHomeScreen() {
       action: 'schedules',
     },
     {
-      label: '복약 남음',
-      value: dashboard ? `${dashboard.today_medication_pending_count}건` : '-',
+      label: '복약 완료율',
+      value: dashboard ? `${dashboard.today_medication_completion_rate ?? 0}%` : '-',
       iconType: 'MaterialCommunityIcons',
       iconName: 'heart-pulse',
       action: 'medication',
@@ -304,6 +304,18 @@ export default function GuardianHomeScreen() {
       },
     });
   }, [parentId, router]);
+
+  const openGuardianLocation = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-location',
+      params: {
+        parentId,
+        elderUserId: parentId,
+        parentName,
+        linkCode,
+      },
+    } as any);
+  }, [linkCode, parentId, parentName, router]);
 
   const openGuardianHealth = React.useCallback(() => {
     router.push({

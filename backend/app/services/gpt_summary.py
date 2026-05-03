@@ -1,24 +1,12 @@
-import os
 import base64
+import json
 from pathlib import Path
+from urllib import error, request
 
-from dotenv import load_dotenv
-from openai import OpenAI
+from app.core.config import settings
 
 
-# =========================
-# ENV 로드
-# =========================
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-ENV_PATH = BACKEND_DIR / ".env"
-
-load_dotenv(ENV_PATH)
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-5.4-mini")
-
-if not OPENAI_API_KEY:
-    raise RuntimeError(f"OPENAI_API_KEY를 찾을 수 없습니다. 확인 경로: {ENV_PATH}")
+OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 
 
 # =========================
@@ -27,10 +15,6 @@ if not OPENAI_API_KEY:
 MODEL_ALIAS = {
     "gpt-5.4-mini": "gpt-4o",
 }
-
-OPENAI_MODEL = MODEL_ALIAS.get(LLM_MODEL, LLM_MODEL)
-
-client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # =========================
@@ -62,6 +46,13 @@ def get_mime_type(image_path: str) -> str:
 # =========================
 def extract_text(response) -> str:
     texts = []
+
+    if isinstance(response, dict):
+        for item in response.get("output", []):
+            for content in item.get("content", []):
+                if content.get("type") == "output_text":
+                    texts.append(content.get("text", ""))
+        return "\n".join(texts).strip()
 
     if not hasattr(response, "output"):
         return ""
@@ -245,9 +236,13 @@ def summarize_medical_image(image_path: str, document_type: str) -> str:
     prompt = build_medical_prompt(document_type)
 
     try:
-        response = client.responses.create(
-            model=OPENAI_MODEL,
-            input=[
+        if not settings.openai_api_key:
+            return "요약 실패: OPENAI_API_KEY가 설정되어 있지 않습니다."
+
+        openai_model = MODEL_ALIAS.get(settings.llm_model, settings.llm_model)
+        payload = {
+            "model": openai_model,
+            "input": [
                 {
                     "role": "user",
                     "content": [
@@ -259,14 +254,28 @@ def summarize_medical_image(image_path: str, document_type: str) -> str:
                     ],
                 }
             ],
+        }
+
+        req = request.Request(
+            OPENAI_RESPONSES_URL,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {settings.openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
         )
 
-        result = extract_text(response)
+        with request.urlopen(req, timeout=settings.llm_timeout_seconds) as response:
+            result = extract_text(json.loads(response.read().decode("utf-8")))
 
         if not result:
             return "이미지에서 내용을 인식하지 못했습니다."
 
         return result
 
+    except error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        return f"요약 실패: {e.code} {detail}"
     except Exception as e:
         return f"요약 실패: {str(e)}"

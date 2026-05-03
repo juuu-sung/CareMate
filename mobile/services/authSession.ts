@@ -7,6 +7,8 @@ export type ParentAuthSession = {
   parentName: string;
   linkCode: string;
   guardianPhone: string;
+  agentName: string;
+  agentVoice: string;
 };
 
 export type GuardianAuthSession = {
@@ -48,6 +50,10 @@ function parseAuthSession(value: unknown): AuthSession | null {
     const elderUserId = normalizeString(value.elderUserId) || parentId;
     const parentName = normalizeString(value.parentName);
     const linkCode = normalizeString(value.linkCode);
+    const agentName =
+      normalizeString(value.agentName) || normalizeString(value.agent_name);
+    const agentVoice =
+      normalizeString(value.agentVoice) || normalizeString(value.agent_voice);
 
     if (!parentId || !parentName || !linkCode) {
       return null;
@@ -60,6 +66,8 @@ function parseAuthSession(value: unknown): AuthSession | null {
       parentName,
       linkCode,
       guardianPhone: normalizeString(value.guardianPhone),
+      agentName: agentName || '케어',
+      agentVoice,
     };
   }
 
@@ -97,6 +105,8 @@ export function buildParentAuthSession(input: {
   parentName: string;
   linkCode: string;
   guardianPhone?: string;
+  agentName?: string;
+  agentVoice?: string;
 }): ParentAuthSession {
   return {
     role: 'parent',
@@ -105,6 +115,8 @@ export function buildParentAuthSession(input: {
     parentName: input.parentName,
     linkCode: input.linkCode,
     guardianPhone: input.guardianPhone || '',
+    agentName: input.agentName?.trim() || '케어',
+    agentVoice: input.agentVoice?.trim() || '',
   };
 }
 
@@ -147,6 +159,11 @@ export function getAuthSessionHomeRoute(session: AuthSession) {
         parentName: session.parentName,
         linkCode: session.linkCode,
         guardianPhone: session.guardianPhone,
+        agentName: session.agentName,
+        agent_name: session.agentName,
+        selectedVoice: session.agentVoice,
+        agentVoice: session.agentVoice,
+        agent_voice: session.agentVoice,
       },
     };
   }

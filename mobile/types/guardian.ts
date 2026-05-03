@@ -47,6 +47,9 @@ export type GuardianDashboard = {
   latest_location_label: string;
   latest_location_captured_at: string;
   open_alert_count: number;
+  today_medication_total_count: number;
+  today_medication_taken_count: number;
+  today_medication_completion_rate: number;
   today_medication_pending_count: number;
   overdue_medication_count: number;
   severe_overdue_medication_count: number;

@@ -29,11 +29,7 @@ import {
 import { getMedications, MedicationItem } from '@/services/medications';
 import { getSchedules, ScheduleItem } from '@/services/schedules';
 import { getAgentProfile } from '@/services/chat';
-import {
-  startWakeWordListening,
-  stopWakeWordListening,
-  destroyWakeWord,
-} from '@/services/wakeWord';
+import { syncMedicationRemindersIfEnabled } from '@/services/medicationReminders';
 
 type LetterItem = {
   guardian_user_id: string;
@@ -85,70 +81,11 @@ export default function HomeScreen() {
   const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-  const [isWakeListening, setIsWakeListening] = useState(false);
-
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const medicationPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const locationRequestPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const wakeLockedRef = useRef(false);
-
-  const stopHomeWakeWord = useCallback(async () => {
-    try {
-      await stopWakeWordListening();
-    } finally {
-      setIsWakeListening(false);
-    }
-  }, []);
-
-  const moveToChatByWakeWord = useCallback(() => {
-    if (wakeLockedRef.current) return;
-
-    wakeLockedRef.current = true;
-    void stopHomeWakeWord();
-
-    router.push({
-      pathname: '/chat',
-      params: {
-        input: 'voice',
-        autostart: '1',
-        wake: '1',
-        elderUserId,
-        elder_user_id: elderUserId,
-        linkCode,
-        link_code: linkCode,
-        selectedVoice,
-        agentName,
-        agent_name: agentName,
-      },
-    });
-  }, [agentName, elderUserId, linkCode, router, selectedVoice, stopHomeWakeWord]);
-
-  const startHomeWakeWord = useCallback(async () => {
-    if (wakeLockedRef.current || !agentName.trim()) return;
-
-    try {
-      setIsWakeListening(true);
-
-      await startWakeWordListening({
-        wakeName: agentName || '케어',
-        onDetected: async () => {
-          console.log('홈에서 웨이크 감지됨. 채팅으로 이동합니다.');
-          moveToChatByWakeWord();
-        },
-        onError: (message) => {
-          console.log('홈 웨이크워드 오류:', message);
-          setIsWakeListening(false);
-        },
-      });
-    } catch (error) {
-      console.log('홈 웨이크워드 시작 오류:', error);
-      setIsWakeListening(false);
-    }
-  }, [agentName, moveToChatByWakeWord]);
 
   const goToChat = (voiceStart = false) => {
-    wakeLockedRef.current = true;
-    void stopHomeWakeWord();
-
     router.push({
       pathname: '/chat',
       params: {
@@ -166,9 +103,6 @@ export default function HomeScreen() {
   };
 
   const goToElderMedications = () => {
-    wakeLockedRef.current = true;
-    void stopHomeWakeWord();
-
     router.push({
       pathname: '/elder-medication',
       params: {
@@ -187,13 +121,24 @@ export default function HomeScreen() {
 
     try {
       const profile = await getAgentProfile(elderUserId);
+      const syncedAgentName = profile.agent_name?.trim() || agentName || '케어';
+      const syncedAgentVoice = profile.agent_voice?.trim() || selectedVoice || '';
 
-      if (profile.agent_name && profile.agent_name.trim()) {
-        setAgentName(profile.agent_name.trim());
-      }
+      setAgentName(syncedAgentName);
+      setSelectedVoice(syncedAgentVoice);
 
-      if (profile.agent_voice && profile.agent_voice.trim()) {
-        setSelectedVoice(profile.agent_voice.trim());
+      if (linkCode) {
+        await saveAuthSession(
+          buildParentAuthSession({
+            parentId: elderUserId,
+            elderUserId,
+            parentName,
+            linkCode,
+            guardianPhone,
+            agentName: syncedAgentName,
+            agentVoice: syncedAgentVoice,
+          })
+        );
       }
     } catch (error) {
       console.log('에이전트 프로필 조회 오류:', error);
@@ -335,6 +280,10 @@ export default function HomeScreen() {
       setMedicationError(null);
       const items = await getMedications(elderUserId);
       setMedications(items);
+      await syncMedicationRemindersIfEnabled({
+        elderUserId,
+        medications: items,
+      });
     } catch (error) {
       console.log('복약 조회 오류:', error);
       setMedications([]);
@@ -389,11 +338,13 @@ export default function HomeScreen() {
         parentName,
         linkCode,
         guardianPhone,
+        agentName,
+        agentVoice: selectedVoice,
       })
     ).catch((error) => {
       console.log('부모님 홈 세션 동기화 오류:', error);
     });
-  }, [elderUserId, guardianPhone, linkCode, parentName]);
+  }, [agentName, elderUserId, guardianPhone, linkCode, parentName, selectedVoice]);
 
   useEffect(() => {
     void loadLetters(true);
@@ -404,12 +355,17 @@ export default function HomeScreen() {
     void loadAgentProfile();
 
     if (pollingRef.current) clearInterval(pollingRef.current);
+    if (medicationPollingRef.current) clearInterval(medicationPollingRef.current);
     if (locationRequestPollingRef.current) clearInterval(locationRequestPollingRef.current);
 
     if (elderUserId && linkCode) {
       pollingRef.current = setInterval(() => {
         void loadLetters(false);
       }, 10000);
+
+      medicationPollingRef.current = setInterval(() => {
+        void loadMedications();
+      }, 60000);
 
       locationRequestPollingRef.current = setInterval(() => {
         void syncRequestedLocation();
@@ -422,6 +378,11 @@ export default function HomeScreen() {
         pollingRef.current = null;
       }
 
+      if (medicationPollingRef.current) {
+        clearInterval(medicationPollingRef.current);
+        medicationPollingRef.current = null;
+      }
+
       if (locationRequestPollingRef.current) {
         clearInterval(locationRequestPollingRef.current);
         locationRequestPollingRef.current = null;
@@ -431,8 +392,6 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      wakeLockedRef.current = false;
-
       void loadLetters(false);
       void loadMedications();
       void loadSchedules();
@@ -440,22 +399,9 @@ export default function HomeScreen() {
       void syncRequestedLocation();
       void loadAgentProfile();
 
-      const timer = setTimeout(() => {
-        void startHomeWakeWord();
-      }, 500);
-
-      return () => {
-        clearTimeout(timer);
-        void stopHomeWakeWord();
-      };
-    }, [elderUserId, linkCode, agentName, selectedVoice, startHomeWakeWord, stopHomeWakeWord])
+      return undefined;
+    }, [elderUserId, linkCode, agentName, selectedVoice])
   );
-
-  useEffect(() => {
-    return () => {
-      void destroyWakeWord();
-    };
-  }, []);
 
   const firstSchedule = schedules[0];
   const firstMedication = medications[0];
@@ -534,9 +480,7 @@ export default function HomeScreen() {
 
           <Text style={styles.micGuide}>버튼을 눌러 말씀하세요</Text>
           <Text style={styles.wakeGuide}>
-            {isWakeListening
-              ? `${agentName}야!라고 부르면 대화할 수 있어요`
-              : '터치하면 바로 대화가 시작됩니다'}
+            {`${agentName}야!라고 부르거나 버튼을 눌러 대화할 수 있어요`}
           </Text>
         </View>
 

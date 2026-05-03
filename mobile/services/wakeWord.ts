@@ -1,16 +1,32 @@
 import Voice from '@react-native-voice/voice';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 let isWakeWordListening = false;
 let isDetected = false;
 let currentWakeName = '케어';
 let currentOnDetected: (() => void | Promise<void>) | null = null;
 let currentOnError: ((message: string) => void) | null = null;
+let restartTimer: ReturnType<typeof setTimeout> | null = null;
 
 type StartWakeWordListeningParams = {
   wakeName?: string;
   onDetected: () => void | Promise<void>;
   onError?: (message: string) => void;
 };
+
+type SpeechRecognitionEvent = {
+  value?: string[];
+};
+
+function clearRestartTimer() {
+  if (!restartTimer) {
+    return;
+  }
+
+  clearTimeout(restartTimer);
+  restartTimer = null;
+}
 
 function normalizeWakeText(value: string) {
   return value
@@ -37,6 +53,34 @@ function buildWakeCandidates(wakeName: string) {
   ];
 }
 
+function isIosSimulator() {
+  return Platform.OS === 'ios' && Constants.isDevice === false;
+}
+
+function serializeSpeechError(error: unknown) {
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function isFatalStartRecordingError(message: string) {
+  return (
+    message.includes('start_recording') ||
+    message.includes('IsFormatSampleRateAndChannelCountValid')
+  );
+}
+
+function scheduleRestart(delayMs: number) {
+  clearRestartTimer();
+
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    void restartListening();
+  }, delayMs);
+}
+
 async function restartListening() {
   if (!isWakeWordListening || isDetected) {
     return;
@@ -52,8 +96,14 @@ async function restartListening() {
     await Voice.start('ko-KR');
     console.log('[WakeWord] restart listening');
   } catch (error) {
+    const message = serializeSpeechError(error);
     console.log('[WakeWord] restart error:', error);
-    currentOnError?.(String(error));
+    currentOnError?.(message);
+
+    if (isFatalStartRecordingError(message)) {
+      isWakeWordListening = false;
+      clearRestartTimer();
+    }
   }
 }
 
@@ -95,10 +145,16 @@ export async function startWakeWordListening({
   onDetected,
   onError,
 }: StartWakeWordListeningParams) {
+  if (isIosSimulator()) {
+    onError?.('iOS 시뮬레이터에서는 웨이크워드 음성 인식이 비활성화됩니다. 실제 기기에서 테스트해 주세요.');
+    return;
+  }
+
   currentWakeName = wakeName || '케어';
   currentOnDetected = onDetected;
   currentOnError = onError ?? null;
   isDetected = false;
+  clearRestartTimer();
 
   if (isWakeWordListening) {
     console.log('[WakeWord] already listening');
@@ -111,11 +167,11 @@ export async function startWakeWordListening({
     console.log('[WakeWord] speech start');
   };
 
-  Voice.onSpeechPartialResults = (event) => {
+  Voice.onSpeechPartialResults = (event: SpeechRecognitionEvent) => {
     checkWakeWord(event.value);
   };
 
-  Voice.onSpeechResults = (event) => {
+  Voice.onSpeechResults = (event: SpeechRecognitionEvent) => {
     checkWakeWord(event.value);
   };
 
@@ -123,21 +179,24 @@ export async function startWakeWordListening({
     console.log('[WakeWord] speech end');
 
     if (!isDetected && isWakeWordListening) {
-      setTimeout(() => {
-        void restartListening();
-      }, 300);
+      scheduleRestart(300);
     }
   };
 
-  Voice.onSpeechError = (error) => {
-    const message = JSON.stringify(error);
+  Voice.onSpeechError = (error: unknown) => {
+    const message = serializeSpeechError(error);
     console.log('[WakeWord] speech error:', error);
     currentOnError?.(message);
 
+    if (isFatalStartRecordingError(message)) {
+      isWakeWordListening = false;
+      clearRestartTimer();
+      void Voice.cancel().catch(() => {});
+      return;
+    }
+
     if (!isDetected && isWakeWordListening) {
-      setTimeout(() => {
-        void restartListening();
-      }, 700);
+      scheduleRestart(700);
     }
   };
 
@@ -146,9 +205,11 @@ export async function startWakeWordListening({
     await Voice.start('ko-KR');
     console.log('[WakeWord] start:', currentWakeName);
   } catch (error) {
+    const message = serializeSpeechError(error);
     isWakeWordListening = false;
+    clearRestartTimer();
     console.log('[WakeWord] start error:', error);
-    currentOnError?.(String(error));
+    currentOnError?.(message);
   }
 }
 
@@ -160,6 +221,7 @@ export async function stopWakeWordListening() {
   } catch (error) {
     console.log('[WakeWord] stop error:', error);
   } finally {
+    clearRestartTimer();
     isWakeWordListening = false;
   }
 }
@@ -172,6 +234,7 @@ export async function destroyWakeWord() {
   } catch (error) {
     console.log('[WakeWord] destroy error:', error);
   } finally {
+    clearRestartTimer();
     isWakeWordListening = false;
     isDetected = false;
     currentOnDetected = null;

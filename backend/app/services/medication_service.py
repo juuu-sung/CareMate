@@ -17,6 +17,7 @@ def list_medication_items(db: Session, elder_user_id: str | None = None) -> list
         text(
             """
             SELECT
+                m.id::text AS id,
                 m.name,
                 TO_CHAR(m.scheduled_time, 'HH24:MI') AS scheduled_time,
                 CASE
@@ -33,6 +34,7 @@ def list_medication_items(db: Session, elder_user_id: str | None = None) -> list
                 FROM medication_logs AS ml
                 WHERE ml.senior_user_id = m.senior_user_id
                   AND ml.medication_name = m.name
+                  AND DATE(ml.recorded_at AT TIME ZONE 'Asia/Seoul') = DATE(NOW() AT TIME ZONE 'Asia/Seoul')
                 ORDER BY ml.recorded_at DESC
                 LIMIT 1
             ) AS latest_log ON TRUE
@@ -47,6 +49,7 @@ def list_medication_items(db: Session, elder_user_id: str | None = None) -> list
     if rows:
         return [
             MedicationItem(
+                id=row["id"],
                 name=row["name"],
                 time=row["scheduled_time"],
                 status=row["status"],
@@ -74,6 +77,7 @@ def list_medication_items(db: Session, elder_user_id: str | None = None) -> list
     if log_rows:
         return [
             MedicationItem(
+                id=None,
                 name=row["medication_name"],
                 time=row["time_scope"],
                 status=row["status"],
@@ -93,16 +97,57 @@ def record_medication_taken(
     slots: AgentSlots,
     elder_user_id: str | None = None,
 ) -> dict[str, str]:
+    return record_medication_status(
+        db,
+        elder_user_id=elder_user_id,
+        medication_name=slots.medication_name or "약",
+        time_scope=slots.time_scope or "지금",
+        status=slots.status or "taken",
+        source="agent",
+    )
+
+
+def record_medication_status(
+    db: Session,
+    *,
+    elder_user_id: str | None = None,
+    medication_id: str | None = None,
+    medication_name: str = "약",
+    time_scope: str | None = None,
+    status: str = "taken",
+    source: str = "mobile",
+) -> dict[str, str]:
     senior_id = elder_user_id or _get_primary_senior_id(db)
-    medication_name = slots.medication_name or "약"
-    time_scope = slots.time_scope or "지금"
-    status = slots.status or "taken"
+    resolved_name = medication_name or "약"
+    resolved_time_scope = time_scope or "지금"
+
+    if senior_id and medication_id:
+        medication_row = db.execute(
+            text(
+                """
+                SELECT name, TO_CHAR(scheduled_time, 'HH24:MI') AS scheduled_time
+                FROM medications
+                WHERE senior_user_id = :senior_user_id
+                  AND id::text = :medication_id
+                LIMIT 1
+                """
+            ),
+            {
+                "senior_user_id": senior_id,
+                "medication_id": medication_id,
+            },
+        ).mappings().first()
+
+        if medication_row:
+            resolved_name = medication_row["name"]
+            resolved_time_scope = time_scope or medication_row["scheduled_time"]
 
     if not senior_id:
         return {
-            "medication_name": medication_name,
-            "time_scope": time_scope,
+            "medication_name": resolved_name,
+            "time_scope": resolved_time_scope,
             "status": status,
+            "status_label": _format_status_label(status),
         }
 
     db.execute(
@@ -120,15 +165,16 @@ def record_medication_taken(
                 :medication_name,
                 :time_scope,
                 :status,
-                'agent'
+                :source
             )
             """
         ),
         {
             "senior_user_id": senior_id,
-            "medication_name": medication_name,
-            "time_scope": time_scope,
+            "medication_name": resolved_name,
+            "time_scope": resolved_time_scope,
             "status": status,
+            "source": source,
         },
     )
 
@@ -137,7 +183,7 @@ def record_medication_taken(
             db,
             elder_user_id=senior_id,
             alert_type="medication_missed",
-            message=f"{time_scope} {medication_name} 복약 누락이 기록되었어요.",
+            message=f"{resolved_time_scope} {resolved_name} 복약 누락이 기록되었어요.",
             severity="high",
             dedupe_minutes=180,
         )
@@ -150,9 +196,10 @@ def record_medication_taken(
     db.commit()
 
     return {
-        "medication_name": medication_name,
-        "time_scope": time_scope,
+        "medication_name": resolved_name,
+        "time_scope": resolved_time_scope,
         "status": status,
+        "status_label": _format_status_label(status),
     }
 
 

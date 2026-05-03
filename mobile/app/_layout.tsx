@@ -12,6 +12,7 @@ import {
   checkForNewGuardianLetter,
   primeGuardianLetterNotificationState,
 } from '../services/letterNotifications';
+import { addMedicationReminderResponseListener } from '../services/medicationReminders';
 
 import '../services/locationTask';
 
@@ -64,6 +65,34 @@ export default function RootLayout() {
   useEffect(() => {
     authSessionRef.current = authSession;
   }, [authSession]);
+
+  useEffect(() => {
+    const subscription = addMedicationReminderResponseListener((data) => {
+      const session = authSessionRef.current;
+
+      if (session?.role !== 'parent') {
+        return;
+      }
+
+      const elderUserId = data.elderUserId || session.elderUserId || session.parentId;
+
+      router.push({
+        pathname: '/elder-medication',
+        params: {
+          elderUserId,
+          elder_user_id: elderUserId,
+          parentName: session.parentName,
+          medicationId: data.medicationId,
+          medicationName: data.medicationName,
+          timeScope: data.timeScope,
+        },
+      });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
 
   const handlePendingSiriShortcut = useCallback(async () => {
     if (isHandlingShortcutRef.current) return;
@@ -159,11 +188,6 @@ export default function RootLayout() {
       wakeStarted: wakeStartedRef.current,
     });
 
-    /*
-      핵심:
-      /home이 아니면 여기서 destroyWakeWord를 호출하지 않는다.
-      그래야 "/" 또는 로그인 화면에서 destroy 로그가 반복되지 않는다.
-    */
     if (!shouldListen) {
       return () => {
         disposed = true;
@@ -178,11 +202,12 @@ export default function RootLayout() {
 
     wakeStartedRef.current = true;
 
-    console.log('[WakeWord] start on /home');
+    const wakeName = authSession.agentName?.trim() || '케어';
+
+    console.log('[WakeWord] start on /home', wakeName);
 
     void startWakeWordListening({
-      owner: 'elder-home',
-      wakeName: authSession?.agentName || '케어',
+      wakeName,
       onDetected: async () => {
         if (disposed) return;
         if (pathnameRef.current !== '/home') return;
@@ -193,9 +218,24 @@ export default function RootLayout() {
 
         await destroyWakeWord();
 
-        if (pathnameRef.current !== '/chat') {
-          router.push('/chat?input=voice&autostart=1&wakeup=1');
-        }
+        router.push({
+          pathname: '/chat',
+          params: {
+            input: 'voice',
+            autostart: '1',
+            wakeup: '1',
+            elderUserId: authSession.elderUserId || authSession.parentId,
+            elder_user_id: authSession.elderUserId || authSession.parentId,
+            parentName: authSession.parentName,
+            linkCode: authSession.linkCode,
+            link_code: authSession.linkCode,
+            selectedVoice: authSession.agentVoice,
+            agentVoice: authSession.agentVoice,
+            agent_voice: authSession.agentVoice,
+            agentName: wakeName,
+            agent_name: wakeName,
+          },
+        });
       },
       onError: (message) => {
         console.log('[WakeWord] error:', message);
@@ -204,13 +244,17 @@ export default function RootLayout() {
 
     return () => {
       disposed = true;
+      wakeStartedRef.current = false;
+      wakeNavigatingRef.current = false;
+      void destroyWakeWord();
     };
   }, [
     isSessionHydrated,
     appState,
     pathname,
     authSession?.role,
-    authSession?.agentName,
+    authSession?.role === 'parent' ? authSession.agentName : undefined,
+    authSession?.role === 'parent' ? authSession.agentVoice : undefined,
     router,
   ]);
 
