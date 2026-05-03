@@ -14,6 +14,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { getMedications, MedicationItem } from '@/services/medications';
+import { getElderProfileByUserId } from '@/services/elderProfile';
 
 const BLUE = '#4F7CFF';
 const BLUE_DARK = '#2F5FEA';
@@ -22,6 +23,7 @@ const BG = '#EEF4FF';
 const TEXT = '#16213E';
 
 type MedicationItemWithEasyName = MedicationItem & {
+  id?: string | number | null;
   easy_name?: string | null;
   simple_name?: string | null;
   display_name?: string | null;
@@ -51,6 +53,7 @@ function extractSection(summary: string, sectionTitle: string) {
   }
 
   const escapedTitle = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   const sectionMatch = text.match(
     new RegExp(`\\[${escapedTitle}\\]([\\s\\S]*?)(?=\\n\\s*\\[|$)`)
   );
@@ -185,15 +188,66 @@ function getOfficialMedicationName(
   return medication.name;
 }
 
+function extractMedicationNamesFromProfileText(value: string): string[] {
+  const text = String(value || '').trim();
+
+  if (!text) {
+    return [];
+  }
+
+  const medicationSection = extractSection(text, '복용 중인 약');
+  const sourceText = medicationSection || text;
+
+  return sourceText
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s*[-*•]\s*/, '')
+        .replace(/^\s*\d+[.)]\s*/, '')
+        .replace(/^\[복용 중인 약\]\s*/g, '')
+        .replace(/^복용 중인 약\s*[:：]?\s*/g, '')
+        .trim()
+    )
+    .filter((line) => {
+      if (!line) return false;
+      if (line.includes('확인 불가')) return false;
+      if (line.includes('복용 중인 약')) return false;
+      if (line.includes('쉬운 약 이름')) return false;
+      if (line.includes('복약 안내')) return false;
+      if (line.includes('언제 먹는지')) return false;
+      if (line.includes('하루에')) return false;
+      if (line.startsWith('[') && line.endsWith(']')) return false;
+      return true;
+    });
+}
+
+function buildMedicationItemsFromProfileText(value: string): MedicationItem[] {
+  const names = extractMedicationNamesFromProfileText(value);
+
+  return names.map((name, index) => {
+    return {
+      id: `profile-medication-${index}`,
+      name,
+      time: '복약 시간 확인 필요',
+      status: 'scheduled',
+      status_label: '먹을 시간',
+      last_recorded_at: null,
+      last_time_scope: null,
+    } as unknown as MedicationItem;
+  });
+}
+
 function formatMedicationRecord(medication: MedicationItem) {
   if (!medication.last_recorded_at) {
-    return medication.status_label;
+    return medication.status_label || '기록 없음';
   }
 
   const date = new Date(medication.last_recorded_at);
 
   if (Number.isNaN(date.getTime())) {
-    return `${medication.last_time_scope ?? medication.time} · ${medication.status_label}`;
+    return `${medication.last_time_scope ?? medication.time ?? ''} · ${
+      medication.status_label || '기록 없음'
+    }`;
   }
 
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -238,24 +292,29 @@ export default function ElderMedicationsScreen() {
 
   const elderUserId = String(
     params.elderUserId || params.elder_user_id || params.parentId || ''
-  );
-  const parentName = String(params.parentName || '어르신');
-  const medicationsText = String(params.medications || '');
+  ).trim();
 
+  const fallbackName = String(params.parentName || '어르신');
+
+  const [parentName] = React.useState(fallbackName);
+  const [profileMedicationsText, setProfileMedicationsText] = React.useState('');
   const [medicationItems, setMedicationItems] = React.useState<MedicationItem[]>([]);
   const [medicationError, setMedicationError] = React.useState<string | null>(null);
+  const [profileError, setProfileError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const easyNameMap = React.useMemo(() => {
-    return extractEasyMedicationMapFromSummary(medicationsText);
-  }, [medicationsText]);
+    return extractEasyMedicationMapFromSummary(profileMedicationsText);
+  }, [profileMedicationsText]);
 
   const loadMedicationData = React.useCallback(
     async (manualRefresh = false) => {
       if (!elderUserId) {
         setMedicationItems([]);
+        setProfileMedicationsText('');
         setMedicationError('사용자 정보를 찾을 수 없습니다.');
+        setProfileError(null);
         setIsLoading(false);
         setIsRefreshing(false);
         return;
@@ -268,13 +327,34 @@ export default function ElderMedicationsScreen() {
       }
 
       try {
-        const items = await getMedications(elderUserId);
-        setMedicationItems(items);
+        const [profile, items] = await Promise.all([
+          getElderProfileByUserId(elderUserId),
+          getMedications(elderUserId),
+        ]);
+
+        const profileMedicationText = profile?.medications ?? '';
+        const apiMedicationItems = Array.isArray(items) ? items : [];
+
+        const finalMedicationItems =
+          apiMedicationItems.length > 0
+            ? apiMedicationItems
+            : buildMedicationItemsFromProfileText(profileMedicationText);
+
+        setProfileMedicationsText(profileMedicationText);
+        setMedicationItems(finalMedicationItems);
         setMedicationError(null);
+        setProfileError(null);
+
+        console.log('elderUserId:', elderUserId);
+        console.log('profile.medications:', profileMedicationText);
+        console.log('medications api items:', apiMedicationItems);
+        console.log('final medication items:', finalMedicationItems);
       } catch (error) {
         console.log('노인 복약 조회 오류:', error);
+
         setMedicationItems([]);
         setMedicationError('복약 정보를 불러오지 못했습니다.');
+        setProfileError('어르신 기본 정보를 불러오지 못했습니다.');
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -363,7 +443,9 @@ export default function ElderMedicationsScreen() {
             <Text style={styles.heroTitle}>
               {medicationSummary.scheduled > 0
                 ? `${medicationSummary.scheduled}개 남았어요`
-                : '남은 약이 없어요'}
+                : medicationSummary.total > 0
+                  ? '확인할 약이 있어요'
+                  : '등록된 약이 없어요'}
             </Text>
             <Text style={styles.heroSubTitle}>
               {parentName} 님의 복약 정보를 확인해 주세요
@@ -375,6 +457,13 @@ export default function ElderMedicationsScreen() {
           <View style={styles.stateCard}>
             <ActivityIndicator size="large" color={BLUE} />
             <Text style={styles.stateText}>복약 정보를 불러오는 중입니다</Text>
+          </View>
+        ) : null}
+
+        {profileError ? (
+          <View style={styles.noticeCard}>
+            <Ionicons name="alert-circle-outline" size={28} color="#B91C1C" />
+            <Text style={styles.noticeText}>{profileError}</Text>
           </View>
         ) : null}
 
@@ -438,10 +527,11 @@ export default function ElderMedicationsScreen() {
             medicationItems.map((item, index) => {
               const statusInfo = getStatusInfo(item.status);
               const officialName = getOfficialMedicationName(item, easyNameMap);
+              const itemWithId = item as MedicationItemWithEasyName;
 
               return (
                 <View
-                  key={`${item.name}-${item.time}-${index}`}
+                  key={`${itemWithId.id ?? item.name}-${item.time}-${index}`}
                   style={[
                     styles.medicationRow,
                     index !== medicationItems.length - 1 && styles.withDivider,
