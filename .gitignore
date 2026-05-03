@@ -8,3 +8,18 @@ __pycache__/
 .env
 *.pyc
 
+# Backend uploaded files
+backend/uploads/
+
+# Mobile generated files
+mobile/ios/Pods/
+mobile/ios/Pods 2/
+mobile/android/app/src/debug/
+mobile/android/app/src/debugOptimized/
+mobile/android/gradle 2/
+mobile/android/app/src/main/AndroidManifest 2.xml
+mobile/ios/CareMate/Supporting/Expo 2.plist
+mobile/ios/CareMate/Images.xcassets/SplashScreenLegacy.imageset/
+
+# macOS duplicate files
+* 2.*
