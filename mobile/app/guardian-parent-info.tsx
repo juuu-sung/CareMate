@@ -344,6 +344,7 @@ export default function GuardianParentInfoScreen() {
   const pickImages = async (
     type: 'medication' | 'medicationBag' | 'disease' | 'allergy'
   ) => {
+    if (loading) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
@@ -382,6 +383,8 @@ export default function GuardianParentInfoScreen() {
     type: 'medication' | 'medicationBag' | 'disease' | 'allergy',
     index: number
   ) => {
+    if (loading) return;
+
     if (type === 'medication') {
       setMedicationImages((prev) => prev.filter((_, i) => i !== index));
     }
@@ -415,6 +418,8 @@ export default function GuardianParentInfoScreen() {
   };
 
   const handleComplete = async () => {
+    if (loading) return;
+
     if (!parentId) {
       Alert.alert('오류', '부모님 정보가 올바르게 전달되지 않았습니다.');
       return;
@@ -538,9 +543,10 @@ export default function GuardianParentInfoScreen() {
     return (
       <View style={styles.uploadSection}>
         <TouchableOpacity
-          style={styles.uploadButton}
+          style={[styles.uploadButton, loading && styles.disabledButton]}
           onPress={() => pickImages(type)}
           activeOpacity={0.85}
+          disabled={loading}
         >
           <Text style={styles.uploadPlus}>＋</Text>
           <View style={styles.uploadTextBox}>
@@ -561,8 +567,12 @@ export default function GuardianParentInfoScreen() {
                   <Image source={{ uri }} style={styles.previewImage} />
 
                   <TouchableOpacity
-                    style={styles.deleteImageButton}
+                    style={[
+                      styles.deleteImageButton,
+                      loading && styles.disabledButton,
+                    ]}
                     onPress={() => removeImage(type, index)}
+                    disabled={loading}
                   >
                     <Text style={styles.deleteImageText}>삭제</Text>
                   </TouchableOpacity>
@@ -769,6 +779,7 @@ export default function GuardianParentInfoScreen() {
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={!loading}
       >
         <Text style={styles.title}>부모님 정보 확인</Text>
         <Text style={styles.subtitle}>
@@ -812,6 +823,7 @@ export default function GuardianParentInfoScreen() {
           placeholder="예: 혈압약, 당뇨약"
           placeholderTextColor="#A0A0A0"
           multiline
+          editable={!loading}
         />
         <View style={styles.medicationDocumentGroup}>
           <ImageUploadSection
@@ -837,6 +849,7 @@ export default function GuardianParentInfoScreen() {
           placeholder="예: 고혈압, 당뇨"
           placeholderTextColor="#A0A0A0"
           multiline
+          editable={!loading}
         />
         <ImageUploadSection
           title="진단서"
@@ -853,6 +866,7 @@ export default function GuardianParentInfoScreen() {
           placeholder="예: 페니실린 알레르기, 낙상 주의"
           placeholderTextColor="#A0A0A0"
           multiline
+          editable={!loading}
         />
         <ImageUploadSection
           title="알레르기 문서"
@@ -868,6 +882,7 @@ export default function GuardianParentInfoScreen() {
           onChangeText={setHospital}
           placeholder="예: 진주서울내과"
           placeholderTextColor="#A0A0A0"
+          editable={!loading}
         />
 
         <Text style={styles.label}>비상 연락처</Text>
@@ -878,6 +893,7 @@ export default function GuardianParentInfoScreen() {
           placeholder="예: 055-123-4567"
           placeholderTextColor="#A0A0A0"
           keyboardType="phone-pad"
+          editable={!loading}
         />
 
         <Text style={styles.label}>추가 메모</Text>
@@ -888,25 +904,53 @@ export default function GuardianParentInfoScreen() {
           placeholder="예: 매일 아침 8시 복약, 저녁 산책 선호"
           placeholderTextColor="#A0A0A0"
           multiline
+          editable={!loading}
         />
 
         <TouchableOpacity
-          style={[styles.submitButton, loading && { opacity: 0.7 }]}
+          style={[styles.submitButton, loading && styles.submitButtonLoading]}
           onPress={handleComplete}
           activeOpacity={0.85}
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <View style={styles.submitLoadingRow}>
+              <ActivityIndicator color="#fff" />
+              <Text style={styles.submitLoadingText}>문서 요약 중...</Text>
+            </View>
           ) : (
             <Text style={styles.submitText}>정보 저장 후 케어 시작하기</Text>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backText}>이전으로</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          disabled={loading}
+        >
+          <Text style={[styles.backText, loading && styles.disabledText]}>
+            이전으로
+          </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {loading && (
+        <View style={styles.loadingOverlay} pointerEvents="auto">
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="#2563EB" />
+
+            <Text style={styles.loadingTitle}>문서 요약 중...</Text>
+
+            <Text style={styles.loadingSubtitle}>
+              처방전과 건강 문서를 분석하고 있습니다.
+            </Text>
+
+            <Text style={styles.loadingNotice}>
+              완료되면 자동으로 다음 화면으로 이동합니다.
+            </Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1271,6 +1315,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  submitButtonLoading: {
+    opacity: 0.9,
+  },
+  submitLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitLoadingText: {
+    marginLeft: 10,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+  },
   submitText: {
     color: '#fff',
     fontSize: 18,
@@ -1284,5 +1342,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.55,
+  },
+  disabledText: {
+    color: '#A1A1AA',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    zIndex: 999,
+    elevation: 999,
+  },
+  loadingBox: {
+    width: '100%',
+    maxWidth: 330,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 32,
+    paddingHorizontal: 22,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  loadingTitle: {
+    marginTop: 18,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  loadingSubtitle: {
+    marginTop: 8,
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#6B7280',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  loadingNotice: {
+    marginTop: 16,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#2563EB',
+    textAlign: 'center',
+    fontWeight: '700',
   },
 });

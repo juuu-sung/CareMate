@@ -30,6 +30,7 @@ import { getMedications, MedicationItem } from '@/services/medications';
 import { getSchedules, ScheduleItem } from '@/services/schedules';
 import { getAgentProfile } from '@/services/chat';
 import { syncMedicationRemindersIfEnabled } from '@/services/medicationReminders';
+import { getElderProfileByUserId } from '@/services/elderProfile';
 
 type LetterItem = {
   guardian_user_id: string;
@@ -49,13 +50,82 @@ const BLUE_DARK = '#2F5FEA';
 const BLUE_LIGHT = '#EEF3FF';
 const BG = '#EEF4FF';
 
+function extractSection(summary: string, sectionTitle: string) {
+  const text = String(summary || '').trim();
+
+  if (!text) {
+    return '';
+  }
+
+  const escapedTitle = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const sectionMatch = text.match(
+    new RegExp(`\\[${escapedTitle}\\]([\\s\\S]*?)(?=\\n\\s*\\[|$)`)
+  );
+
+  return sectionMatch?.[1] ?? '';
+}
+
+function extractMedicationNamesFromProfileText(value: string): string[] {
+  const text = String(value || '').trim();
+
+  if (!text) {
+    return [];
+  }
+
+  const medicationSection = extractSection(text, '복용 중인 약');
+  const sourceText = medicationSection || text;
+
+  return sourceText
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s*[-*•]\s*/, '')
+        .replace(/^\s*\d+[.)]\s*/, '')
+        .replace(/^\[복용 중인 약\]\s*/g, '')
+        .replace(/^복용 중인 약\s*[:：]?\s*/g, '')
+        .trim()
+    )
+    .filter((line) => {
+      if (!line) return false;
+      if (line.includes('확인 불가')) return false;
+      if (line.includes('복용 중인 약')) return false;
+      if (line.includes('쉬운 약 이름')) return false;
+      if (line.includes('복약 안내')) return false;
+      if (line.includes('언제 먹는지')) return false;
+      if (line.includes('하루에')) return false;
+      if (line.includes('한 번에')) return false;
+      if (line.includes('이미지에서')) return false;
+      if (line.includes('개인정보')) return false;
+      if (line.startsWith('[') && line.endsWith(']')) return false;
+      return true;
+    });
+}
+
+function buildFallbackMedicationItemsFromProfileText(value: string): MedicationItem[] {
+  const names = extractMedicationNamesFromProfileText(value);
+
+  return names.map((name, index) => {
+    return {
+      id: `profile-medication-${index}`,
+      name,
+      time: '복약 시간 확인 필요',
+      status: 'scheduled',
+      status_label: '먹을 시간',
+      last_recorded_at: null,
+      last_time_scope: null,
+    } as unknown as MedicationItem;
+  });
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
   const elderUserId = String(
     params.elderUserId || params.elder_user_id || params.parentId || ''
-  );
+  ).trim();
+
   const parentName = String(params.parentName || '');
   const linkCode = String(params.linkCode || params.link_code || params.code || '');
   const guardianPhone = String(
@@ -279,14 +349,33 @@ export default function HomeScreen() {
   };
 
   const loadMedications = async () => {
+    if (!elderUserId) {
+      setMedications([]);
+      setIsLoadingMedications(false);
+      return;
+    }
+
     try {
       setIsLoadingMedications(true);
       setMedicationError(null);
-      const items = await getMedications(elderUserId);
-      setMedications(items);
+
+      const [items, profile] = await Promise.all([
+        getMedications(elderUserId),
+        getElderProfileByUserId(elderUserId),
+      ]);
+
+      const apiMedicationItems = Array.isArray(items) ? items : [];
+      const profileMedicationText = profile?.medications ?? '';
+
+      const finalMedicationItems =
+        apiMedicationItems.length > 0
+          ? apiMedicationItems
+          : buildFallbackMedicationItemsFromProfileText(profileMedicationText);
+
+      setMedications(finalMedicationItems);
       await syncMedicationRemindersIfEnabled({
         elderUserId,
-        medications: items,
+        medications: finalMedicationItems,
       });
     } catch (error) {
       console.log('복약 조회 오류:', error);
@@ -298,9 +387,16 @@ export default function HomeScreen() {
   };
 
   const loadSchedules = async () => {
+    if (!elderUserId) {
+      setSchedules([]);
+      setIsLoadingSchedules(false);
+      return;
+    }
+
     try {
       setIsLoadingSchedules(true);
       setScheduleError(null);
+
       const items = await getSchedules(elderUserId);
       setSchedules(items);
     } catch (error) {
@@ -572,7 +668,6 @@ export default function HomeScreen() {
           <Ionicons name="chatbubble-outline" size={48} color="#FFFFFF" />
           <View style={styles.chatTextArea}>
             <Text style={styles.chatTitle}>대화기록 보기</Text>
-            
           </View>
         </TouchableOpacity>
 
@@ -857,6 +952,30 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     color: '#222B45',
+    textAlign: 'center',
+  },
+  medicationCountBox: {
+    flex: 1,
+    backgroundColor: BLUE_LIGHT,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 12,
+  },
+  medicationCountNumber: {
+    fontSize: 58,
+    lineHeight: 66,
+    fontWeight: '900',
+    color: BLUE_DARK,
+    letterSpacing: -1.2,
+  },
+  medicationCountLabel: {
+    marginTop: 6,
+    fontSize: 21,
+    lineHeight: 29,
+    fontWeight: '900',
+    color: '#1F3E8A',
     textAlign: 'center',
   },
   emptyCardText: {
