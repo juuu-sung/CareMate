@@ -21,22 +21,12 @@ import {
   buildChatTtsUrl,
   CHAT_TTS_VOICE_OPTIONS,
   TtsVoiceId,
+  updateAgentProfile,
 } from "@/services/chat";
-import { apiPatch } from "@/services/api";
-
-type AgentProfileResponse = {
-  elder_user_id: string;
-  agent_voice?: string | null;
-  agent_name?: string | null;
-};
-
-async function updateAgentProfile(payload: {
-  elder_user_id: string;
-  agent_voice?: string;
-  agent_name?: string;
-}): Promise<AgentProfileResponse> {
-  return apiPatch("/elder-profile/agent", payload);
-}
+import {
+  buildParentAuthSession,
+  saveAuthSession,
+} from "@/services/authSession";
 
 export default function ParentAgentVoiceSetupScreen() {
   const router = useRouter();
@@ -47,6 +37,10 @@ export default function ParentAgentVoiceSetupScreen() {
   );
   const parentName = String(params.parentName || "부모님");
   const linkCode = String(params.linkCode || params.link_code || "");
+  const guardianPhone = String(params.guardianPhone || params.guardian_phone || "");
+  const currentAgentName = String(params.agentName || params.agent_name || "케어");
+  const returnTo = String(params.returnTo || "");
+  const isEditMode = returnTo === "settings";
   const initialVoice = String(params.selectedVoice || "") as TtsVoiceId | "";
 
   const [selectedVoice, setSelectedVoice] = useState<TtsVoiceId | "">(
@@ -160,6 +154,22 @@ export default function ParentAgentVoiceSetupScreen() {
         agent_voice: selectedVoice,
       });
 
+      if (isEditMode) {
+        await saveAuthSession(
+          buildParentAuthSession({
+            parentId,
+            elderUserId: parentId,
+            parentName,
+            linkCode,
+            guardianPhone,
+            agentName: currentAgentName,
+            agentVoice: selectedVoice,
+          })
+        );
+        router.replace("/settings");
+        return;
+      }
+
       router.push({
         pathname: "/parent-agent-name-setup",
         params: {
@@ -167,6 +177,7 @@ export default function ParentAgentVoiceSetupScreen() {
           elderUserId: parentId,
           parentName,
           linkCode,
+          guardianPhone,
           selectedVoice,
         },
       });
@@ -231,11 +242,12 @@ export default function ParentAgentVoiceSetupScreen() {
           </View>
 
           <Text style={styles.title}>
-            마음에 드는{"\n"}목소리를 골라주세요
+            {isEditMode ? "에이전트 목소리 바꾸기" : "마음에 드는\n목소리를 골라주세요"}
           </Text>
           <Text style={styles.subtitle}>
-            각 목소리의 느낌을 듣고 편하게 선택하실 수 있어요{"\n"}
-            목소리가 바로 나오지 않는다면 조금만 기다려주세요
+            {isEditMode
+              ? `${currentAgentName || "에이전트"}의 새 목소리를 고를 수 있어요\n목소리가 바로 나오지 않는다면 조금만 기다려주세요`
+              : "각 목소리의 느낌을 듣고 편하게 선택하실 수 있어요\n목소리가 바로 나오지 않는다면 조금만 기다려주세요"}
           </Text>
         </View>
 
@@ -312,7 +324,9 @@ export default function ParentAgentVoiceSetupScreen() {
               <Text style={styles.nextButtonText}> 저장 중...</Text>
             </View>
           ) : (
-            <Text style={styles.nextButtonText}>다음으로</Text>
+            <Text style={styles.nextButtonText}>
+              {isEditMode ? "변경 저장하기" : "다음으로"}
+            </Text>
           )}
         </TouchableOpacity>
 

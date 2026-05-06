@@ -17,5 +17,14 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "node_modules_old",
+    "ios/Pods",
+    "ios/build",
+    "ios/Pods 2",
+    "ios/build 2",
+    "android/build"
   ]
 }

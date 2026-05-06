@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     TTS_RESPONSE_FORMAT: str = "mp3"
     TTS_INSTRUCTIONS: str | None = None
     AGENT_SESSION_TTL_MINUTES: int = 15
+    ALERT_SWEEP_TOKEN: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -148,6 +149,10 @@ class Settings(BaseSettings):
     @property
     def agent_session_ttl_minutes(self) -> int:
         return self.AGENT_SESSION_TTL_MINUTES
+
+    @property
+    def alert_sweep_token(self) -> str:
+        return self.ALERT_SWEEP_TOKEN or ""
 
 
 settings = Settings()

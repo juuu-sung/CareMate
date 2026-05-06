@@ -99,6 +99,9 @@ class GuardianDashboardResponse(BaseModel):
     latest_location_label: str
     latest_location_captured_at: str = ""
     open_alert_count: int
+    today_medication_total_count: int = 0
+    today_medication_taken_count: int = 0
+    today_medication_completion_rate: int = 0
     today_medication_pending_count: int
     overdue_medication_count: int
     severe_overdue_medication_count: int

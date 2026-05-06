@@ -20,6 +20,247 @@ import {
 } from '@/services/authSession';
 import { updateParentCareInfoWithImages } from '@/services/parents';
 
+type MealTiming = '식전' | '식간' | '식후';
+
+type MedicationScheduleDraft = {
+  id: string;
+  name: string;
+  easyName: string;
+  mealTiming: MealTiming;
+  timesPerDay: number;
+  daysSupply: number;
+};
+
+const MEAL_TIMING_OPTIONS: MealTiming[] = ['식전', '식간', '식후'];
+const EASY_MEDICATION_NAME_OPTIONS = [
+  '혈압약',
+  '당뇨약',
+  '비염약',
+  '감기약',
+  '코감기약',
+  '기침약',
+  '알레르기약',
+  '위장약',
+  '소화제',
+  '진통제',
+  '항생제',
+  '콜레스테롤약',
+  '심장약',
+  '수면약',
+  '변비약',
+  '기타약',
+];
+
+function createMedicationScheduleDraft(
+  patch: Partial<Omit<MedicationScheduleDraft, 'id'>> = {}
+): MedicationScheduleDraft {
+  return {
+    id: `med-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: '',
+    easyName: '',
+    mealTiming: '식후',
+    timesPerDay: 1,
+    daysSupply: 7,
+    ...patch,
+  };
+}
+
+function cleanMedicationName(value: string) {
+  return String(value || '')
+    .replace(/^\s*[-*.\d)]+/, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getMedicationSection(text: string, title: string) {
+  const match = String(text || '').match(
+    new RegExp(`\\[${title}\\]([\\s\\S]*?)(?=\\n\\s*\\[|$)`)
+  );
+  return match?.[1]?.trim() || '';
+}
+
+function parsePositiveNumber(value: string) {
+  const match = String(value || '').match(/\d+/);
+  if (!match) {
+    return undefined;
+  }
+
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseTimesPerDay(value: string) {
+  const match = String(value || '').match(/(?:1\s*일|하루)?\s*(\d+)\s*회/);
+  return match ? parsePositiveNumber(match[1]) : undefined;
+}
+
+function parseDaysSupply(value: string) {
+  const match = String(value || '').match(/(\d+)\s*일\s*분?/);
+  return match ? parsePositiveNumber(match[1]) : undefined;
+}
+
+function parseMealTiming(value: string): MealTiming | undefined {
+  return MEAL_TIMING_OPTIONS.find((option) => value.includes(option));
+}
+
+function parseMedicationDraftFromLine(line: string) {
+  const body = String(line || '').replace(/^\s*-\s*/, '').trim();
+  if (!body) {
+    return null;
+  }
+
+  if (body.includes('|')) {
+    const fields = body.split('|').reduce<Record<string, string>>((acc, part) => {
+      const [rawKey, ...rawValue] = part.split(':');
+      if (!rawKey || rawValue.length === 0) {
+        return acc;
+      }
+      acc[rawKey.trim()] = rawValue.join(':').trim();
+      return acc;
+    }, {});
+    const name = cleanMedicationName(fields['약 이름'] || fields['약이름'] || '');
+    if (!name) {
+      return null;
+    }
+
+    return createMedicationScheduleDraft({
+      name,
+      easyName: cleanMedicationName(
+        fields['쉬운 약 이름'] ||
+          fields['쉬운이름'] ||
+          fields['쉬운 이름'] ||
+          fields['분류'] ||
+          ''
+      ),
+      mealTiming: parseMealTiming(fields['복용 시점'] || '') || '식후',
+      timesPerDay:
+        parseTimesPerDay(
+          fields['1일 복용 횟수'] || fields['복용 횟수'] || fields['횟수'] || ''
+        ) ||
+        parsePositiveNumber(
+          fields['1일 복용 횟수'] || fields['복용 횟수'] || fields['횟수'] || ''
+        ) ||
+        1,
+      daysSupply:
+        parsePositiveNumber(fields['처방 일수'] || fields['일수'] || '') || 7,
+    });
+  }
+
+  const separatorIndex = Math.max(body.indexOf(':'), body.indexOf('：'));
+  const rawName = separatorIndex >= 0 ? body.slice(0, separatorIndex) : body;
+  const note = separatorIndex >= 0 ? body.slice(separatorIndex + 1) : '';
+  const name = cleanMedicationName(rawName);
+  if (!name) {
+    return null;
+  }
+
+  return createMedicationScheduleDraft({
+    name,
+    mealTiming: parseMealTiming(note) || '식후',
+    timesPerDay: parseTimesPerDay(note) || 1,
+    daysSupply: parseDaysSupply(note) || 7,
+  });
+}
+
+function parseMedicationDraftsFromSummary(value: string) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return [createMedicationScheduleDraft()];
+  }
+
+  const candidateSections = [
+    getMedicationSection(text, '복약 구조화'),
+    getMedicationSection(text, '복용 중인 약'),
+    getMedicationSection(text, '복약 안내'),
+  ].filter(Boolean);
+
+  const lines = candidateSections.length > 0
+    ? candidateSections.flatMap((section) => section.split(/\n+/))
+    : text.split(/[\n,;/]+/);
+
+  const easyNameMap = extractEasyMedicationMapFromSummary(text);
+  const drafts = lines
+    .map(parseMedicationDraftFromLine)
+    .map((entry) => {
+      if (!entry) {
+        return null;
+      }
+
+      return {
+        ...entry,
+        easyName: entry.easyName || findEasyMedicationName(entry.name, easyNameMap),
+      };
+    })
+    .filter((entry): entry is MedicationScheduleDraft => !!entry);
+  const seen = new Set<string>();
+  const deduped = drafts.filter((entry) => {
+    const key = entry.name.trim();
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  return deduped.length > 0 ? deduped : [createMedicationScheduleDraft()];
+}
+
+function extractEasyMedicationMapFromSummary(value: string) {
+  const section = getMedicationSection(value, '쉬운 약 이름');
+  const result: Record<string, string> = {};
+
+  section
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('-'))
+    .forEach((line) => {
+      const body = line.replace(/^\s*-\s*/, '').trim();
+      const separatorIndex = Math.max(body.indexOf(':'), body.indexOf('：'));
+      if (separatorIndex < 0) {
+        return;
+      }
+
+      const officialName = cleanMedicationName(body.slice(0, separatorIndex));
+      const easyName = cleanMedicationName(body.slice(separatorIndex + 1));
+
+      if (officialName && easyName && !easyName.includes('확인 불가')) {
+        result[officialName] = easyName;
+      }
+    });
+
+  return result;
+}
+
+function medicationNameKey(value: string) {
+  return String(value || '').replace(/\s+/g, '').toLowerCase();
+}
+
+function findEasyMedicationName(
+  medicationName: string,
+  easyNameMap: Record<string, string>
+) {
+  const targetKey = medicationNameKey(medicationName);
+  if (!targetKey) {
+    return '';
+  }
+
+  const matchedKey = Object.keys(easyNameMap).find((key) => {
+    const keyValue = medicationNameKey(key);
+    return keyValue === targetKey || keyValue.includes(targetKey) || targetKey.includes(keyValue);
+  });
+
+  return matchedKey ? easyNameMap[matchedKey] : '';
+}
+
+function medicationTextFromSummary(value: string) {
+  return parseMedicationDraftsFromSummary(value)
+    .map((entry) => entry.name.trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
 export default function GuardianParentInfoScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -29,22 +270,81 @@ export default function GuardianParentInfoScreen() {
   const parentAge = String(params.parentAge || '');
   const parentGender = String(params.parentGender || '');
   const linkCode = String(params.linkCode || '');
+  const guardianId = String(params.guardianId || params.guardian_id || '');
+  const initialMedications = String(params.medications || '');
 
-  const [medications, setMedications] = useState('');
-  const [diseases, setDiseases] = useState('');
-  const [allergies, setAllergies] = useState('');
-  const [hospital, setHospital] = useState('');
-  const [doctorContact, setDoctorContact] = useState('');
-  const [memo, setMemo] = useState('');
+  const [medications, setMedications] = useState(() =>
+    medicationTextFromSummary(initialMedications)
+  );
+  const [diseases, setDiseases] = useState(String(params.diseases || ''));
+  const [allergies, setAllergies] = useState(String(params.allergies || ''));
+  const [hospital, setHospital] = useState(String(params.hospital || ''));
+  const [doctorContact, setDoctorContact] = useState(
+    String(params.doctorContact || params.doctor_contact || '')
+  );
+  const [memo, setMemo] = useState(String(params.memo || ''));
   const [loading, setLoading] = useState(false);
 
   const [medicationImages, setMedicationImages] = useState<string[]>([]);
+  const [medicationBagImages, setMedicationBagImages] = useState<string[]>([]);
   const [diseaseImages, setDiseaseImages] = useState<string[]>([]);
   const [allergyImages, setAllergyImages] = useState<string[]>([]);
+  const [medicationEntries, setMedicationEntries] = useState<
+    MedicationScheduleDraft[]
+  >(() => parseMedicationDraftsFromSummary(initialMedications));
 
-  const pickImages = async (type: 'medication' | 'disease' | 'allergy') => {
+  const updateMedicationEntry = (
+    id: string,
+    patch: Partial<MedicationScheduleDraft>
+  ) => {
+    setMedicationEntries((prev) =>
+      prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry))
+    );
+  };
+
+  const adjustMedicationEntryNumber = (
+    id: string,
+    field: 'timesPerDay' | 'daysSupply',
+    delta: number
+  ) => {
+    setMedicationEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== id) {
+          return entry;
+        }
+
+        const min = 1;
+        const max = field === 'timesPerDay' ? 4 : 120;
+        const nextValue = Math.min(max, Math.max(min, entry[field] + delta));
+
+        return {
+          ...entry,
+          [field]: nextValue,
+        };
+      })
+    );
+  };
+
+  const addMedicationEntry = () => {
+    setMedicationEntries((prev) => [...prev, createMedicationScheduleDraft()]);
+  };
+
+  const removeMedicationEntry = (id: string) => {
+    setMedicationEntries((prev) => {
+      if (prev.length <= 1) {
+        return prev.map((entry) =>
+          entry.id === id ? { ...createMedicationScheduleDraft(), id } : entry
+        );
+      }
+
+      return prev.filter((entry) => entry.id !== id);
+    });
+  };
+
+  const pickImages = async (
+    type: 'medication' | 'medicationBag' | 'disease' | 'allergy'
+  ) => {
     if (loading) return;
-
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
@@ -66,6 +366,10 @@ export default function GuardianParentInfoScreen() {
       setMedicationImages((prev) => [...prev, ...selectedUris]);
     }
 
+    if (type === 'medicationBag') {
+      setMedicationBagImages((prev) => [...prev, ...selectedUris]);
+    }
+
     if (type === 'disease') {
       setDiseaseImages((prev) => [...prev, ...selectedUris]);
     }
@@ -76,13 +380,17 @@ export default function GuardianParentInfoScreen() {
   };
 
   const removeImage = (
-    type: 'medication' | 'disease' | 'allergy',
+    type: 'medication' | 'medicationBag' | 'disease' | 'allergy',
     index: number
   ) => {
     if (loading) return;
 
     if (type === 'medication') {
       setMedicationImages((prev) => prev.filter((_, i) => i !== index));
+    }
+
+    if (type === 'medicationBag') {
+      setMedicationBagImages((prev) => prev.filter((_, i) => i !== index));
     }
 
     if (type === 'disease') {
@@ -128,12 +436,33 @@ export default function GuardianParentInfoScreen() {
       formData.append('hospital', hospital.trim());
       formData.append('doctor_contact', doctorContact.trim());
       formData.append('memo', memo.trim());
+      formData.append(
+        'medication_entries_json',
+        JSON.stringify(
+          medicationEntries
+            .map((entry) => ({
+              name: entry.name.trim(),
+              easyName: entry.easyName.trim(),
+              mealTiming: entry.mealTiming,
+              timesPerDay: entry.timesPerDay,
+              daysSupply: entry.daysSupply,
+            }))
+            .filter((entry) => entry.name.length > 0)
+        )
+      );
 
       appendImagesToFormData(
         formData,
         'prescription_images',
         medicationImages,
         'prescription'
+      );
+
+      appendImagesToFormData(
+        formData,
+        'medication_bag_images',
+        medicationBagImages,
+        'medication_bag'
       );
 
       appendImagesToFormData(
@@ -155,6 +484,7 @@ export default function GuardianParentInfoScreen() {
       try {
         await saveAuthSession(
           buildGuardianAuthSession({
+            guardianId,
             parentId,
             parentName,
             parentAge,
@@ -175,6 +505,7 @@ export default function GuardianParentInfoScreen() {
       router.replace({
         pathname: '/guardian-home',
         params: {
+          guardianId,
           parentId,
           parentName,
           parentAge,
@@ -207,7 +538,7 @@ export default function GuardianParentInfoScreen() {
     title: string;
     buttonText: string;
     images: string[];
-    type: 'medication' | 'disease' | 'allergy';
+    type: 'medication' | 'medicationBag' | 'disease' | 'allergy';
   }) => {
     return (
       <View style={styles.uploadSection}>
@@ -250,6 +581,195 @@ export default function GuardianParentInfoScreen() {
             </ScrollView>
           </View>
         )}
+      </View>
+    );
+  };
+
+  const NumberDial = ({
+    label,
+    value,
+    suffix,
+    onDecrease,
+    onIncrease,
+  }: {
+    label: string;
+    value: number;
+    suffix: string;
+    onDecrease: () => void;
+    onIncrease: () => void;
+  }) => {
+    return (
+      <View style={styles.numberDial}>
+        <Text style={styles.numberDialLabel}>{label}</Text>
+        <View style={styles.numberDialControl}>
+          <TouchableOpacity
+            style={styles.numberDialButton}
+            onPress={onDecrease}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.numberDialButtonText}>-</Text>
+          </TouchableOpacity>
+          <Text style={styles.numberDialValue}>
+            {value}
+            {suffix}
+          </Text>
+          <TouchableOpacity
+            style={styles.numberDialButton}
+            onPress={onIncrease}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.numberDialButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const MedicationScheduleSection = () => {
+    return (
+      <View style={styles.medicationScheduleSection}>
+        <View style={styles.medicationScheduleHeader}>
+          <View style={styles.medicationScheduleTitleWrap}>
+            <Text style={styles.medicationScheduleTitle}>복약 정보 확인</Text>
+            <Text style={styles.medicationScheduleSubtitle}>
+              사진에서 읽히지 않는 횟수와 일수는 여기서 조정하세요.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.addMedicationButton}
+            onPress={addMedicationEntry}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.addMedicationButtonText}>약 추가</Text>
+          </TouchableOpacity>
+        </View>
+
+        {medicationEntries.map((entry, index) => (
+          <View key={entry.id} style={styles.medicationScheduleCard}>
+            <View style={styles.medicationEntryHeader}>
+              <Text style={styles.medicationEntryTitle}>약 {index + 1}</Text>
+              <TouchableOpacity
+                style={styles.removeMedicationButton}
+                onPress={() => removeMedicationEntry(entry.id)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.removeMedicationButtonText}>삭제</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.medicationNameInput}
+              value={entry.name}
+              onChangeText={(value) =>
+                updateMedicationEntry(entry.id, { name: value })
+              }
+              placeholder="약 이름"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <TextInput
+              style={styles.medicationEasyNameInput}
+              value={entry.easyName}
+              onChangeText={(value) =>
+                updateMedicationEntry(entry.id, { easyName: value })
+              }
+              placeholder="부모님 화면 이름 예: 혈압약"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.easyNameChipRow}
+            >
+              {EASY_MEDICATION_NAME_OPTIONS.map((option) => {
+                const selected = entry.easyName.trim() === option;
+
+                return (
+                  <TouchableOpacity
+                    key={`${entry.id}-${option}`}
+                    style={[
+                      styles.easyNameChip,
+                      selected && styles.easyNameChipSelected,
+                    ]}
+                    onPress={() =>
+                      updateMedicationEntry(entry.id, { easyName: option })
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.easyNameChipText,
+                        selected && styles.easyNameChipTextSelected,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.mealTimingRow}>
+              {MEAL_TIMING_OPTIONS.map((option) => {
+                const selected = entry.mealTiming === option;
+
+                return (
+                  <TouchableOpacity
+                    key={`${entry.id}-${option}`}
+                    style={[
+                      styles.mealTimingButton,
+                      selected && styles.mealTimingButtonSelected,
+                    ]}
+                    onPress={() =>
+                      updateMedicationEntry(entry.id, { mealTiming: option })
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.mealTimingButtonText,
+                        selected && styles.mealTimingButtonTextSelected,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.numberDialRow}>
+              <NumberDial
+                label="1일"
+                value={entry.timesPerDay}
+                suffix="회"
+                onDecrease={() =>
+                  adjustMedicationEntryNumber(entry.id, 'timesPerDay', -1)
+                }
+                onIncrease={() =>
+                  adjustMedicationEntryNumber(entry.id, 'timesPerDay', 1)
+                }
+              />
+              <NumberDial
+                label="처방"
+                value={entry.daysSupply}
+                suffix="일분"
+                onDecrease={() =>
+                  adjustMedicationEntryNumber(entry.id, 'daysSupply', -1)
+                }
+                onIncrease={() =>
+                  adjustMedicationEntryNumber(entry.id, 'daysSupply', 1)
+                }
+              />
+            </View>
+
+            <Text style={styles.medicationEntryPreview}>
+              {entry.mealTiming} / 1일 {entry.timesPerDay}회 / {entry.daysSupply}
+              일분
+            </Text>
+          </View>
+        ))}
       </View>
     );
   };
@@ -305,12 +825,21 @@ export default function GuardianParentInfoScreen() {
           multiline
           editable={!loading}
         />
-        <ImageUploadSection
-          title="처방전"
-          buttonText="처방전 사진 올리기"
-          images={medicationImages}
-          type="medication"
-        />
+        <View style={styles.medicationDocumentGroup}>
+          <ImageUploadSection
+            title="처방전"
+            buttonText="처방전 사진 올리기"
+            images={medicationImages}
+            type="medication"
+          />
+          <ImageUploadSection
+            title="약 봉투"
+            buttonText="약 봉투 사진 올리기"
+            images={medicationBagImages}
+            type="medicationBag"
+          />
+        </View>
+        <MedicationScheduleSection />
 
         <Text style={styles.label}>보유 질환</Text>
         <TextInput
@@ -513,6 +1042,10 @@ const styles = StyleSheet.create({
   uploadSection: {
     marginTop: 10,
   },
+  medicationDocumentGroup: {
+    marginTop: 2,
+    gap: 2,
+  },
   uploadButton: {
     minHeight: 76,
     borderRadius: 16,
@@ -581,6 +1114,197 @@ const styles = StyleSheet.create({
   deleteImageText: {
     color: '#DC2626',
     fontSize: 13,
+    fontWeight: '800',
+  },
+  medicationScheduleSection: {
+    marginTop: 14,
+  },
+  medicationScheduleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  medicationScheduleTitleWrap: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  medicationScheduleTitle: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '800',
+  },
+  medicationScheduleSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  addMedicationButton: {
+    borderRadius: 999,
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  addMedicationButtonText: {
+    fontSize: 13,
+    color: '#1D4ED8',
+    fontWeight: '800',
+  },
+  medicationScheduleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 14,
+    marginBottom: 10,
+  },
+  medicationEntryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  medicationEntryTitle: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '800',
+  },
+  removeMedicationButton: {
+    borderRadius: 999,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  removeMedicationButtonText: {
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: '800',
+  },
+  medicationNameInput: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '700',
+  },
+  medicationEasyNameInput: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: '#065F46',
+    fontWeight: '800',
+    marginTop: 10,
+  },
+  easyNameChipRow: {
+    gap: 8,
+    paddingTop: 10,
+    paddingRight: 8,
+  },
+  easyNameChip: {
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  easyNameChipSelected: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#22C55E',
+  },
+  easyNameChipText: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontWeight: '800',
+  },
+  easyNameChipTextSelected: {
+    color: '#166534',
+  },
+  mealTimingRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  mealTimingButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 999,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  mealTimingButtonSelected: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  mealTimingButtonText: {
+    fontSize: 14,
+    color: '#4B5563',
+    fontWeight: '800',
+  },
+  mealTimingButtonTextSelected: {
+    color: '#166534',
+  },
+  numberDialRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  numberDial: {
+    flex: 1,
+  },
+  numberDialLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  numberDialControl: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  numberDialButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  numberDialButtonText: {
+    fontSize: 18,
+    color: '#0369A1',
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  numberDialValue: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '900',
+  },
+  medicationEntryPreview: {
+    marginTop: 12,
+    fontSize: 13,
+    color: '#166534',
     fontWeight: '800',
   },
   submitButton: {

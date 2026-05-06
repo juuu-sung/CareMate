@@ -79,10 +79,120 @@ function formatRelativeTime(timestamp: string) {
   return `${target.getMonth() + 1}/${target.getDate()}`;
 }
 
+function getBracketSection(text: string, title: string) {
+  const match = String(text || '').match(
+    new RegExp(`\\[${title}\\]([\\s\\S]*?)(?=\\n\\s*\\[|$)`)
+  );
+  return match?.[1]?.trim() || '';
+}
+
+function cleanMedicationDisplayName(value: string) {
+  return String(value || '')
+    .replace(/^\s*[-*.\d)]+/, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isKnownMedicationValue(value: string) {
+  const raw = String(value || '').trim();
+  return !!raw && !raw.includes('확인 불가') && !raw.includes('확인 필요');
+}
+
+function formatStructuredMedicationLine(line: string) {
+  const body = String(line || '').replace(/^\s*-\s*/, '').trim();
+  if (!body) {
+    return '';
+  }
+
+  if (body.includes('|')) {
+    const fields = body.split('|').reduce<Record<string, string>>((acc, part) => {
+      const [rawKey, ...rawValue] = part.split(':');
+      if (!rawKey || rawValue.length === 0) {
+        return acc;
+      }
+      acc[rawKey.trim()] = rawValue.join(':').trim();
+      return acc;
+    }, {});
+    const name = cleanMedicationDisplayName(fields['약 이름'] || fields['약이름'] || '');
+    if (!name) {
+      return '';
+    }
+
+    const details = [
+      fields['복용 시점'],
+      fields['1일 복용 횟수'] || fields['복용 횟수'] || fields['횟수'],
+      fields['처방 일수'] || fields['일수'],
+      fields['1회 용량'] || fields['투약량'],
+    ].filter((item): item is string => isKnownMedicationValue(item || ''));
+
+    return details.length > 0 ? `${name}: ${details.join(' / ')}` : name;
+  }
+
+  const separatorIndex = Math.max(body.indexOf(':'), body.indexOf('：'));
+  if (separatorIndex >= 0) {
+    const name = cleanMedicationDisplayName(body.slice(0, separatorIndex));
+    const note = body.slice(separatorIndex + 1).trim();
+    if (!name) {
+      return '';
+    }
+    return isKnownMedicationValue(note) ? `${name}: ${note}` : name;
+  }
+
+  return cleanMedicationDisplayName(body);
+}
+
+function formatMedicationSummaryForDisplay(value: string) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '-';
+  }
+
+  const easyNameSection = getBracketSection(text, '쉬운 약 이름');
+  const easyNames = easyNameSection
+    ? easyNameSection
+        .split(/\n+/)
+        .map((line) => {
+          const body = String(line || '').replace(/^\s*-\s*/, '').trim();
+          const separatorIndex = Math.max(body.indexOf(':'), body.indexOf('：'));
+          const valueText =
+            separatorIndex >= 0 ? body.slice(separatorIndex + 1) : body;
+          return cleanMedicationDisplayName(valueText);
+        })
+        .filter(isKnownMedicationValue)
+    : [];
+
+  if (easyNames.length > 0) {
+    return Array.from(new Set(easyNames)).join('\n');
+  }
+
+  const medicationListSection = getBracketSection(text, '복용 중인 약');
+  const structuredSection = getBracketSection(text, '복약 구조화');
+  const guideSection = getBracketSection(text, '복약 안내');
+  const section = /[:：]/.test(medicationListSection)
+    ? medicationListSection
+    : structuredSection || medicationListSection || guideSection;
+  const lines = section ? section.split(/\n+/) : text.split(/[\n,;/]+/);
+  const seen = new Set<string>();
+  const formatted = lines
+    .map(formatStructuredMedicationLine)
+    .filter((line) => {
+      if (!line || seen.has(line)) {
+        return false;
+      }
+      seen.add(line);
+      return true;
+    });
+
+  return formatted.length > 0 ? formatted.join('\n') : text;
+}
+
 export default function GuardianHomeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
+  const guardianId = String(params.guardianId || params.guardian_id || '');
   const parentId = String(params.parentId || params.elderUserId || '');
   const parentName = String(params.parentName || '김영희');
   const parentAge = String(params.parentAge || '78');
@@ -95,6 +205,10 @@ export default function GuardianHomeScreen() {
   const doctorContact = String(params.doctorContact || '');
   const memo = String(params.memo || '');
   const allergies = String(params.allergies || '');
+  const medicationDisplayText = React.useMemo(
+    () => formatMedicationSummaryForDisplay(medications),
+    [medications]
+  );
 
   const [dashboard, setDashboard] = React.useState<GuardianDashboard | null>(null);
   const [alerts, setAlerts] = React.useState<GuardianAlertItem[]>([]);
@@ -110,6 +224,7 @@ export default function GuardianHomeScreen() {
 
     void saveAuthSession(
       buildGuardianAuthSession({
+        guardianId,
         parentId,
         parentName,
         parentAge,
@@ -129,6 +244,7 @@ export default function GuardianHomeScreen() {
     allergies,
     diseases,
     doctorContact,
+    guardianId,
     hospital,
     linkCode,
     medications,
@@ -162,8 +278,8 @@ export default function GuardianHomeScreen() {
       action: 'schedules',
     },
     {
-      label: '복약 남음',
-      value: dashboard ? `${dashboard.today_medication_pending_count}건` : '-',
+      label: '복약 완료율',
+      value: dashboard ? `${dashboard.today_medication_completion_rate ?? 0}%` : '-',
       iconType: 'MaterialCommunityIcons',
       iconName: 'heart-pulse',
       action: 'medication',
@@ -304,6 +420,18 @@ export default function GuardianHomeScreen() {
       },
     });
   }, [parentId, router]);
+
+  const openGuardianLocation = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-location',
+      params: {
+        parentId,
+        elderUserId: parentId,
+        parentName,
+        linkCode,
+      },
+    } as any);
+  }, [linkCode, parentId, parentName, router]);
 
   const openGuardianHealth = React.useCallback(() => {
     router.push({
@@ -573,7 +701,7 @@ export default function GuardianHomeScreen() {
           <ExpandableInfoRow
             icon={<MaterialCommunityIcons name="pill" size={16} color="#05B547" />}
             label="복용 중인 약"
-            value={medications || '-'}
+            value={medicationDisplayText}
           />
           <Divider />
 
@@ -991,7 +1119,7 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '700',
     lineHeight: 22,
-    textAlign: 'right',
+    textAlign: 'left',
   },
   divider: {
     height: 1,

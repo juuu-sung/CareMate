@@ -40,6 +40,7 @@ export default function GuardianLoginPage() {
       try {
         await saveAuthSession(
           buildGuardianAuthSession({
+            guardianId: result.guardian_id,
             parentId: result.parent_id,
             parentName: result.parent_name,
             parentAge: String(result.parent_age ?? ''),
@@ -60,6 +61,7 @@ export default function GuardianLoginPage() {
       router.replace({
         pathname: '/guardian-home',
         params: {
+          guardianId: result.guardian_id,
           parentId: result.parent_id,
           parentName: result.parent_name,
           parentAge: String(result.parent_age ?? ''),

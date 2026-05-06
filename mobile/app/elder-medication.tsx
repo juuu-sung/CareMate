@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,7 +14,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { getMedications, MedicationItem } from '@/services/medications';
+import {
+  getMedications,
+  MedicationItem,
+  MedicationStatus,
+  recordMedicationStatus,
+} from '@/services/medications';
+import {
+  getMedicationReminderStatus,
+  scheduleDailyMedicationReminders,
+  syncMedicationRemindersIfEnabled,
+} from '@/services/medicationReminders';
 import { getElderProfileByUserId } from '@/services/elderProfile';
 
 const BLUE = '#4F7CFF';
@@ -152,12 +163,6 @@ function getEasyMedicationName(
 ): string {
   const item = medication as MedicationItemWithEasyName;
 
-  const fromSummary = findEasyNameFromSummaryMap(item.name, easyNameMap);
-
-  if (fromSummary) {
-    return fromSummary;
-  }
-
   const easyName =
     item.easy_name ||
     item.easyName ||
@@ -172,20 +177,13 @@ function getEasyMedicationName(
     return easyName.trim();
   }
 
-  return item.name;
-}
+  const fromSummary = findEasyNameFromSummaryMap(item.name, easyNameMap);
 
-function getOfficialMedicationName(
-  medication: MedicationItem,
-  easyNameMap: Record<string, string>
-): string {
-  const easyName = getEasyMedicationName(medication, easyNameMap);
-
-  if (easyName === medication.name) {
-    return '';
+  if (fromSummary) {
+    return fromSummary;
   }
 
-  return medication.name;
+  return item.name;
 }
 
 function extractMedicationNamesFromProfileText(value: string): string[] {
@@ -216,6 +214,9 @@ function extractMedicationNamesFromProfileText(value: string): string[] {
       if (line.includes('복약 안내')) return false;
       if (line.includes('언제 먹는지')) return false;
       if (line.includes('하루에')) return false;
+      if (line.includes('한 번에')) return false;
+      if (line.includes('이미지에서')) return false;
+      if (line.includes('개인정보')) return false;
       if (line.startsWith('[') && line.endsWith(']')) return false;
       return true;
     });
@@ -236,29 +237,6 @@ function buildMedicationItemsFromProfileText(value: string): MedicationItem[] {
     } as unknown as MedicationItem;
   });
 }
-
-function formatMedicationRecord(medication: MedicationItem) {
-  if (!medication.last_recorded_at) {
-    return medication.status_label || '기록 없음';
-  }
-
-  const date = new Date(medication.last_recorded_at);
-
-  if (Number.isNaN(date.getTime())) {
-    return `${medication.last_time_scope ?? medication.time ?? ''} · ${
-      medication.status_label || '기록 없음'
-    }`;
-  }
-
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const timeScope = medication.last_time_scope ? `${medication.last_time_scope} · ` : '';
-
-  return `${timeScope}${month}.${day} ${hours}:${minutes}`;
-}
-
 function getStatusInfo(status: MedicationItem['status']) {
   if (status === 'taken') {
     return {
@@ -286,6 +264,170 @@ function getStatusInfo(status: MedicationItem['status']) {
   };
 }
 
+type MedicationDoseGroup = {
+  key: string;
+  time: string;
+  items: MedicationItem[];
+};
+
+function groupMedicationItemsByTime(items: MedicationItem[]): MedicationDoseGroup[] {
+  const groups = new Map<string, MedicationDoseGroup>();
+
+  items.forEach((item) => {
+    const time = item.time || '지금';
+    const group = groups.get(time);
+
+    if (group) {
+      group.items.push(item);
+      return;
+    }
+
+    groups.set(time, {
+      key: time,
+      time,
+      items: [item],
+    });
+  });
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      items: [...group.items].sort((left, right) =>
+        getEasyMedicationName(left, {}).localeCompare(getEasyMedicationName(right, {}))
+      ),
+    }))
+    .sort((left, right) => left.time.localeCompare(right.time));
+}
+
+function getDoseGroupLabel(timeValue: string) {
+  const hour = Number(String(timeValue).split(':')[0]);
+
+  if (!Number.isFinite(hour)) {
+    return '약';
+  }
+
+  if (hour < 11) {
+    return '아침 약';
+  }
+
+  if (hour < 15) {
+    return '점심 약';
+  }
+
+  if (hour < 21) {
+    return '저녁 약';
+  }
+
+  return '자기 전 약';
+}
+
+function uniqueMedicationDisplayNames(
+  items: MedicationItem[],
+  easyNameMap: Record<string, string>
+) {
+  const seen = new Set<string>();
+  const names: string[] = [];
+
+  items.forEach((item) => {
+    const name = getParentFacingMedicationName(item, easyNameMap);
+    const key = name.replace(/\s+/g, '').toLowerCase();
+
+    if (!key || seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    names.push(name);
+  });
+
+  return names;
+}
+
+function getParentFacingMedicationName(
+  medication: MedicationItem,
+  easyNameMap: Record<string, string>
+) {
+  const item = medication as MedicationItemWithEasyName;
+  const easyName =
+    item.easy_name ||
+    item.easyName ||
+    item.simple_name ||
+    item.simpleName ||
+    item.display_name ||
+    item.displayName ||
+    item.category_name ||
+    item.categoryName;
+
+  if (typeof easyName === 'string' && easyName.trim().length > 0) {
+    return easyName.trim();
+  }
+
+  const fromSummary = findEasyNameFromSummaryMap(item.name, easyNameMap);
+
+  if (fromSummary) {
+    return fromSummary;
+  }
+
+  return '이름 미정 약';
+}
+
+function formatDoseGroupNames(
+  group: MedicationDoseGroup,
+  easyNameMap: Record<string, string>
+) {
+  const names = uniqueMedicationDisplayNames(group.items, easyNameMap);
+
+  if (names.length === 0) {
+    return '등록된 약이 없습니다';
+  }
+
+  if (names.length <= 3) {
+    return names.join(', ');
+  }
+
+  return `${names.slice(0, 2).join(', ')} 외 ${names.length - 2}개`;
+}
+
+function formatDoseGroupTitle(
+  group: MedicationDoseGroup,
+  easyNameMap: Record<string, string>
+) {
+  const names = formatDoseGroupNames(group, easyNameMap);
+
+  if (names === '등록된 약이 없습니다') {
+    return getDoseGroupLabel(group.time);
+  }
+
+  return `${getDoseGroupLabel(group.time).replace(/\s*약$/, '')} ${names}`;
+}
+
+function getDoseGroupStatus(group: MedicationDoseGroup): MedicationItem['status'] {
+  if (group.items.some((item) => item.status === 'missed')) {
+    return 'missed';
+  }
+
+  if (group.items.length > 0 && group.items.every((item) => item.status === 'taken')) {
+    return 'taken';
+  }
+
+  return 'scheduled';
+}
+
+function formatDoseGroupRecord(group: MedicationDoseGroup) {
+  const status = getDoseGroupStatus(group);
+
+  if (status === 'taken') {
+    return '모두 복용 완료';
+  }
+
+  if (status === 'missed') {
+    const missedCount = group.items.filter((item) => item.status === 'missed').length;
+    return `${missedCount}개 못 먹음`;
+  }
+
+  return '복용 전';
+}
+
 export default function ElderMedicationsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -303,6 +445,14 @@ export default function ElderMedicationsScreen() {
   const [profileError, setProfileError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isSchedulingReminders, setIsSchedulingReminders] = React.useState(false);
+  const [savingRecordKey, setSavingRecordKey] = React.useState<string | null>(null);
+  const [reminderStatus, setReminderStatus] = React.useState<string | null>(null);
+
+  const refreshReminderStatus = React.useCallback(async () => {
+    const status = await getMedicationReminderStatus(elderUserId);
+    setReminderStatus(`${status.statusLabel} · ${status.detail}`);
+  }, [elderUserId]);
 
   const easyNameMap = React.useMemo(() => {
     return extractEasyMedicationMapFromSummary(profileMedicationsText);
@@ -344,11 +494,11 @@ export default function ElderMedicationsScreen() {
         setMedicationItems(finalMedicationItems);
         setMedicationError(null);
         setProfileError(null);
-
-        console.log('elderUserId:', elderUserId);
-        console.log('profile.medications:', profileMedicationText);
-        console.log('medications api items:', apiMedicationItems);
-        console.log('final medication items:', finalMedicationItems);
+        await syncMedicationRemindersIfEnabled({
+          elderUserId,
+          medications: finalMedicationItems,
+        });
+        await refreshReminderStatus();
       } catch (error) {
         console.log('노인 복약 조회 오류:', error);
 
@@ -360,7 +510,7 @@ export default function ElderMedicationsScreen() {
         setIsRefreshing(false);
       }
     },
-    [elderUserId]
+    [elderUserId, refreshReminderStatus]
   );
 
   useFocusEffect(
@@ -368,6 +518,97 @@ export default function ElderMedicationsScreen() {
       void loadMedicationData();
       return undefined;
     }, [loadMedicationData])
+  );
+
+  const enableMedicationReminders = React.useCallback(async () => {
+    if (!elderUserId) {
+      Alert.alert('알림 설정', '사용자 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    if (medicationItems.length === 0) {
+      Alert.alert('알림 설정', '등록된 약이 없어 알림을 설정할 수 없습니다.');
+      return;
+    }
+
+    try {
+      setIsSchedulingReminders(true);
+
+      const result = await scheduleDailyMedicationReminders({
+        elderUserId,
+        medications: medicationItems,
+      });
+
+      if (!result.granted) {
+        const message =
+          'isSimulator' in result && result.isSimulator
+            ? 'iOS 시뮬레이터에서는 실제 복약 알림을 검증할 수 없습니다.'
+            : '복약 알림을 받으려면 알림 권한을 허용해주세요.';
+
+        setReminderStatus(message);
+        Alert.alert('알림 설정 확인', message);
+        return;
+      }
+
+      const message =
+        result.scheduledCount > 0
+          ? `매일 복약 시간에 ${result.scheduledCount}개 알림을 드릴게요.`
+          : '알림을 설정할 수 있는 복약 시간이 없습니다.';
+
+      setReminderStatus(message);
+      await refreshReminderStatus();
+      Alert.alert('복약 알림', message);
+    } catch (error) {
+      console.log('복약 알림 설정 오류:', error);
+      setReminderStatus('복약 알림을 설정하지 못했습니다.');
+      Alert.alert('알림 설정 실패', '복약 알림을 설정하지 못했습니다.');
+    } finally {
+      setIsSchedulingReminders(false);
+    }
+  }, [elderUserId, medicationItems, refreshReminderStatus]);
+
+  const doseGroups = React.useMemo(() => {
+    return groupMedicationItemsByTime(medicationItems);
+  }, [medicationItems]);
+
+  const recordDoseGroup = React.useCallback(
+    async (group: MedicationDoseGroup, status: Exclude<MedicationStatus, 'scheduled'>) => {
+      if (!elderUserId) {
+        Alert.alert('복약 기록', '사용자 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      const recordKey = `${group.key}-${status}`;
+
+      try {
+        setSavingRecordKey(recordKey);
+
+        for (const medication of group.items) {
+          await recordMedicationStatus({
+            elder_user_id: elderUserId,
+            medication_id: medication.id,
+            medication_name: medication.name,
+            time_scope: medication.time,
+            status,
+          });
+        }
+
+        await loadMedicationData(true);
+
+        Alert.alert(
+          '복약 기록',
+          status === 'taken'
+            ? `${getDoseGroupLabel(group.time)}을 복용 완료로 기록했습니다.`
+            : `${getDoseGroupLabel(group.time)}을 못 먹음으로 기록했습니다.`
+        );
+      } catch (error) {
+        console.log('복약 기록 오류:', error);
+        Alert.alert('복약 기록 실패', '복약 상태를 기록하지 못했습니다.');
+      } finally {
+        setSavingRecordKey(null);
+      }
+    },
+    [elderUserId, loadMedicationData]
   );
 
   const medicationSummary = React.useMemo(() => {
@@ -389,12 +630,41 @@ export default function ElderMedicationsScreen() {
     );
   }, [medicationItems]);
 
-  const nextMedication = React.useMemo(() => {
-    return medicationItems.find((item) => item.status !== 'taken') || medicationItems[0];
-  }, [medicationItems]);
+  const medicationCompletionRate =
+    medicationSummary.total > 0
+      ? Math.round((medicationSummary.taken / medicationSummary.total) * 100)
+      : 0;
 
-  const nextOfficialName = nextMedication
-    ? getOfficialMedicationName(nextMedication, easyNameMap)
+  const doseGroupSummary = React.useMemo(() => {
+    return doseGroups.reduce(
+      (summary, group) => {
+        summary.total += 1;
+        const status = getDoseGroupStatus(group);
+
+        if (status === 'taken') {
+          summary.taken += 1;
+        } else if (status === 'missed') {
+          summary.missed += 1;
+        } else {
+          summary.scheduled += 1;
+        }
+
+        return summary;
+      },
+      { total: 0, taken: 0, scheduled: 0, missed: 0 }
+    );
+  }, [doseGroups]);
+
+  const missedDoseGroups = React.useMemo(() => {
+    return doseGroups.filter((group) => group.items.some((item) => item.status === 'missed'));
+  }, [doseGroups]);
+
+  const nextDoseGroup = React.useMemo(() => {
+    return doseGroups.find((group) => getDoseGroupStatus(group) !== 'taken') || doseGroups[0];
+  }, [doseGroups]);
+
+  const nextDoseGroupTitle = nextDoseGroup
+    ? formatDoseGroupTitle(nextDoseGroup, easyNameMap)
     : '';
 
   return (
@@ -441,10 +711,10 @@ export default function ElderMedicationsScreen() {
           <View style={styles.heroTextArea}>
             <Text style={styles.heroLabel}>오늘 드실 약</Text>
             <Text style={styles.heroTitle}>
-              {medicationSummary.scheduled > 0
-                ? `${medicationSummary.scheduled}개 남았어요`
-                : medicationSummary.total > 0
-                  ? '확인할 약이 있어요'
+              {doseGroupSummary.scheduled > 0
+                ? `${doseGroupSummary.scheduled}번 남았어요`
+                : doseGroupSummary.total > 0
+                  ? '오늘 약 확인 끝'
                   : '등록된 약이 없어요'}
             </Text>
             <Text style={styles.heroSubTitle}>
@@ -474,7 +744,37 @@ export default function ElderMedicationsScreen() {
           </View>
         ) : null}
 
-        {nextMedication ? (
+        <View style={styles.reminderCard}>
+          <View style={styles.reminderTextArea}>
+            <Text style={styles.reminderTitle}>복약 알림</Text>
+            <Text style={styles.reminderDescription}>
+              등록된 약 시간에 매일 알림을 보내드릴게요.
+            </Text>
+            {reminderStatus ? (
+              <Text style={styles.reminderStatus}>{reminderStatus}</Text>
+            ) : null}
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.reminderButton,
+              (isSchedulingReminders || medicationItems.length === 0) &&
+                styles.disabledActionButton,
+            ]}
+            onPress={() => void enableMedicationReminders()}
+            disabled={isSchedulingReminders || medicationItems.length === 0}
+            activeOpacity={0.88}
+          >
+            {isSchedulingReminders ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="alarm-outline" size={22} color="#FFFFFF" />
+            )}
+            <Text style={styles.reminderButtonText}>켜기</Text>
+          </TouchableOpacity>
+        </View>
+
+        {nextDoseGroup ? (
           <View style={styles.nextCard}>
             <View style={styles.nextHeader}>
               <Ionicons name="notifications-outline" size={34} color={BLUE_DARK} />
@@ -482,40 +782,74 @@ export default function ElderMedicationsScreen() {
             </View>
 
             <Text style={styles.nextMedicineName}>
-              {getEasyMedicationName(nextMedication, easyNameMap)}
+              {nextDoseGroupTitle}
             </Text>
 
-            {nextOfficialName ? (
-              <Text style={styles.nextOfficialName}>
-                원래 약 이름: {nextOfficialName}
-              </Text>
-            ) : null}
+            <Text style={styles.nextOfficialName}>
+              {nextDoseGroup.items.length}개 약을 함께 먹는 시간입니다.
+            </Text>
 
             <View style={styles.nextTimeBox}>
               <Text style={styles.nextTimeLabel}>복약 시간</Text>
-              <Text style={styles.nextTimeText}>{nextMedication.time}</Text>
+              <Text style={styles.nextTimeText}>{nextDoseGroup.time}</Text>
             </View>
 
             <Text style={styles.nextRecordText}>
-              최근 기록: {formatMedicationRecord(nextMedication)}
+              최근 기록: {formatDoseGroupRecord(nextDoseGroup)}
             </Text>
+
+            <View style={styles.nextActionRow}>
+              <TouchableOpacity
+                style={[styles.primaryActionButton, savingRecordKey !== null && styles.disabledActionButton]}
+                onPress={() => void recordDoseGroup(nextDoseGroup, 'taken')}
+                disabled={savingRecordKey !== null}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                <Text style={styles.primaryActionText}>모두 먹었어요</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.secondaryActionButton, savingRecordKey !== null && styles.disabledActionButton]}
+                onPress={() => void recordDoseGroup(nextDoseGroup, 'missed')}
+                disabled={savingRecordKey !== null}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="close-circle-outline" size={24} color={BLUE_DARK} />
+                <Text style={styles.secondaryActionText}>못 먹었어요</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : null}
 
         <Text style={styles.sectionTitle}>오늘 복약 요약</Text>
 
         <View style={styles.summaryRow}>
-          <SummaryCard label="전체" value={`${medicationSummary.total}개`} />
+          <SummaryCard label="완료율" value={`${medicationCompletionRate}%`} />
           <SummaryCard label="완료" value={`${medicationSummary.taken}개`} />
-          <SummaryCard label="남음" value={`${medicationSummary.scheduled}개`} />
+          <SummaryCard label="놓침" value={`${medicationSummary.missed}개`} />
         </View>
 
-        <Text style={styles.sectionTitle}>약 목록</Text>
+        {missedDoseGroups.length > 0 ? (
+          <View style={styles.missedCard}>
+            <View style={styles.missedHeader}>
+              <Ionicons name="alert-circle-outline" size={26} color="#B91C1C" />
+              <Text style={styles.missedTitle}>오늘 못 먹은 약</Text>
+            </View>
+            {missedDoseGroups.map((group, index) => (
+              <Text key={`${group.key}-${index}`} style={styles.missedText}>
+                {formatDoseGroupTitle(group, easyNameMap)} · {group.time}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        <Text style={styles.sectionTitle}>오늘 먹는 약</Text>
 
         <View style={styles.listCard}>
           {medicationError ? (
             <Text style={styles.emptyText}>{medicationError}</Text>
-          ) : medicationItems.length === 0 && !isLoading ? (
+          ) : doseGroups.length === 0 && !isLoading ? (
             <View style={styles.emptyBox}>
               <MaterialCommunityIcons name="pill-off" size={48} color="#8EA4E8" />
               <Text style={styles.emptyTitle}>등록된 약이 없습니다</Text>
@@ -524,17 +858,16 @@ export default function ElderMedicationsScreen() {
               </Text>
             </View>
           ) : (
-            medicationItems.map((item, index) => {
-              const statusInfo = getStatusInfo(item.status);
-              const officialName = getOfficialMedicationName(item, easyNameMap);
-              const itemWithId = item as MedicationItemWithEasyName;
+            doseGroups.map((group, index) => {
+              const statusInfo = getStatusInfo(getDoseGroupStatus(group));
+              const groupTitle = formatDoseGroupTitle(group, easyNameMap);
 
               return (
                 <View
-                  key={`${itemWithId.id ?? item.name}-${item.time}-${index}`}
+                  key={`${group.key}-${index}`}
                   style={[
                     styles.medicationRow,
-                    index !== medicationItems.length - 1 && styles.withDivider,
+                    index !== doseGroups.length - 1 && styles.withDivider,
                   ]}
                 >
                   <View style={styles.medicationIconBox}>
@@ -543,23 +876,47 @@ export default function ElderMedicationsScreen() {
 
                   <View style={styles.medicationContent}>
                     <Text style={styles.medicationName}>
-                      {getEasyMedicationName(item, easyNameMap)}
+                      {groupTitle}
                     </Text>
 
-                    {officialName ? (
-                      <Text style={styles.medicationOfficialName}>
-                        {officialName}
-                      </Text>
-                    ) : null}
+                    <Text style={styles.medicationOfficialName}>
+                      {group.items.length}개 약을 함께 먹는 시간입니다.
+                    </Text>
 
                     <View style={styles.timeRow}>
                       <Ionicons name="time-outline" size={22} color="#5B6F9F" />
-                      <Text style={styles.medicationTime}>{item.time}</Text>
+                      <Text style={styles.medicationTime}>{group.time}</Text>
                     </View>
 
                     <Text style={styles.medicationRecord}>
-                      최근 기록 {formatMedicationRecord(item)}
+                      최근 기록 {formatDoseGroupRecord(group)}
                     </Text>
+
+                    <View style={styles.rowActionGroup}>
+                      <TouchableOpacity
+                        style={[
+                          styles.rowTakenButton,
+                          savingRecordKey !== null && styles.disabledActionButton,
+                        ]}
+                        onPress={() => void recordDoseGroup(group, 'taken')}
+                        disabled={savingRecordKey !== null}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.rowTakenButtonText}>모두 먹음</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.rowMissedButton,
+                          savingRecordKey !== null && styles.disabledActionButton,
+                        ]}
+                        onPress={() => void recordDoseGroup(group, 'missed')}
+                        disabled={savingRecordKey !== null}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.rowMissedButtonText}>못 먹음</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   <View
@@ -748,6 +1105,58 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#B91C1C',
   },
+  reminderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 20,
+    marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  reminderTextArea: {
+    flex: 1,
+  },
+  reminderTitle: {
+    fontSize: 23,
+    fontWeight: '900',
+    color: TEXT,
+  },
+  reminderDescription: {
+    marginTop: 5,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  reminderStatus: {
+    marginTop: 7,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '800',
+    color: BLUE_DARK,
+  },
+  reminderButton: {
+    minWidth: 82,
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: BLUE_DARK,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 14,
+  },
+  reminderButtonText: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
   nextCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 28,
@@ -809,6 +1218,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748B',
   },
+  nextActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  primaryActionButton: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 20,
+    backgroundColor: BLUE_DARK,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  primaryActionText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  secondaryActionButton: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 20,
+    backgroundColor: BLUE_LIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryActionText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: BLUE_DARK,
+  },
+  disabledActionButton: {
+    opacity: 0.55,
+  },
   sectionTitle: {
     fontSize: 25,
     fontWeight: '900',
@@ -844,6 +1291,31 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '900',
     color: BLUE_DARK,
+  },
+  missedCard: {
+    backgroundColor: '#FFF1F2',
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  missedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  missedTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#B91C1C',
+  },
+  missedText: {
+    fontSize: 17,
+    lineHeight: 25,
+    fontWeight: '800',
+    color: '#7F1D1D',
   },
   listCard: {
     backgroundColor: '#FFFFFF',
@@ -905,6 +1377,35 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     fontWeight: '700',
     color: '#64748B',
+  },
+  rowActionGroup: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  rowTakenButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: BLUE_DARK,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  rowTakenButtonText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  rowMissedButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  rowMissedButtonText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: BLUE_DARK,
   },
   statusBadge: {
     minWidth: 88,

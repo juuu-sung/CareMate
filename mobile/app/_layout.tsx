@@ -6,14 +6,20 @@ import type { AuthSession } from '../services/authSession';
 import {
   getAuthSessionHomeRoute,
   loadAuthSession,
+  subscribeAuthSession,
 } from '../services/authSession';
 
 import {
   checkForNewGuardianLetter,
   primeGuardianLetterNotificationState,
 } from '../services/letterNotifications';
+import { addMedicationReminderResponseListener } from '../services/medicationReminders';
+import {
+  addCarePushResponseListener,
+  registerCurrentDeviceForPush,
+} from '../services/pushNotifications';
 
-import '../services/locationTask';
+import { syncRequestedElderLocation } from '../services/locationTask';
 
 import { consumePendingSiriShortcutAction } from '../services/siriShortcut';
 
@@ -34,6 +40,13 @@ const PUBLIC_ENTRY_PATHS = new Set([
   '/guardian-signup',
 ]);
 
+function isSameAuthSession(
+  currentSession: AuthSession | null,
+  nextSession: AuthSession | null
+) {
+  return JSON.stringify(currentSession) === JSON.stringify(nextSession);
+}
+
 export default function RootLayout() {
   const router = useRouter();
   const pathname = usePathname();
@@ -52,6 +65,7 @@ export default function RootLayout() {
 
   const wakeStartedRef = useRef(false);
   const wakeNavigatingRef = useRef(false);
+  const pushRegistrationKeyRef = useRef('');
 
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -64,6 +78,90 @@ export default function RootLayout() {
   useEffect(() => {
     authSessionRef.current = authSession;
   }, [authSession]);
+
+  const applyAuthSession = useCallback((nextSession: AuthSession | null) => {
+    authSessionRef.current = nextSession;
+    setAuthSession((currentSession) => {
+      if (isSameAuthSession(currentSession, nextSession)) {
+        return currentSession;
+      }
+
+      return nextSession;
+    });
+  }, []);
+
+  useEffect(() => {
+    const subscription = addMedicationReminderResponseListener((data) => {
+      const session = authSessionRef.current;
+
+      if (session?.role !== 'parent') {
+        return;
+      }
+
+      const elderUserId = data.elderUserId || session.elderUserId || session.parentId;
+
+      router.push({
+        pathname: '/elder-medication',
+        params: {
+          elderUserId,
+          elder_user_id: elderUserId,
+          parentName: session.parentName,
+          medicationId: data.medicationId,
+          medicationName: data.medicationName,
+          timeScope: data.timeScope,
+        },
+      });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
+
+  useEffect(() => {
+    const subscription = addCarePushResponseListener((data) => {
+      const session = authSessionRef.current;
+
+      if (!session) {
+        return;
+      }
+
+      if (session.role === 'guardian' && data.targetRole === 'guardian') {
+        router.push({
+          pathname: '/guardian-alerts',
+          params: {
+            parentId: session.parentId,
+            parentName: session.parentName,
+            linkCode: session.linkCode,
+          },
+        });
+        return;
+      }
+
+      if (session.role === 'parent' && data.targetRole === 'elder') {
+        if (data.alertType === 'location_request') {
+          void syncRequestedElderLocation({
+            elderUserId: session.elderUserId || session.parentId,
+            linkCode: session.linkCode,
+          });
+        }
+
+        router.push({
+          pathname: '/home',
+          params: {
+            parentId: session.parentId,
+            elderUserId: session.elderUserId || session.parentId,
+            parentName: session.parentName,
+            linkCode: session.linkCode,
+          },
+        });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
 
   const handlePendingSiriShortcut = useCallback(async () => {
     if (isHandlingShortcutRef.current) return;
@@ -107,15 +205,11 @@ export default function RootLayout() {
 
     const restoreSession = async () => {
       try {
-        console.log('SESSION RESTORE START');
-
         const storedSession = await loadAuthSession();
-
-        console.log('SESSION RESTORE RESULT', storedSession);
 
         if (cancelled) return;
 
-        setAuthSession(storedSession);
+        applyAuthSession(storedSession);
 
         if (storedSession && PUBLIC_ENTRY_PATHS.has(pathnameRef.current)) {
           router.replace(getAuthSessionHomeRoute(storedSession));
@@ -134,13 +228,44 @@ export default function RootLayout() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [applyAuthSession, router]);
+
+  useEffect(() => {
+    return subscribeAuthSession((nextSession) => {
+      applyAuthSession(nextSession);
+    });
+  }, [applyAuthSession]);
 
   useEffect(() => {
     if (appState === 'active') {
       void handlePendingSiriShortcut();
     }
   }, [appState, handlePendingSiriShortcut]);
+
+  useEffect(() => {
+    if (!isSessionHydrated || appState !== 'active' || !authSession) {
+      if (!authSession) {
+        pushRegistrationKeyRef.current = '';
+      }
+      return;
+    }
+
+    const registrationKey =
+      authSession.role === 'parent'
+        ? `parent:${authSession.parentId}:${authSession.linkCode}`
+        : `guardian:${authSession.guardianId}:${authSession.parentId}:${authSession.linkCode}`;
+
+    if (pushRegistrationKeyRef.current === registrationKey) {
+      return;
+    }
+
+    pushRegistrationKeyRef.current = registrationKey;
+
+    void registerCurrentDeviceForPush(authSession).catch((error) => {
+      pushRegistrationKeyRef.current = '';
+      console.log('[PushNotification] registration error:', error);
+    });
+  }, [appState, authSession, isSessionHydrated]);
 
   useEffect(() => {
     let disposed = false;
@@ -151,19 +276,6 @@ export default function RootLayout() {
       pathname === '/home' &&
       authSession?.role === 'parent';
 
-    console.log('WAKE EFFECT', {
-      appState,
-      pathname,
-      role: authSession?.role,
-      shouldListen,
-      wakeStarted: wakeStartedRef.current,
-    });
-
-    /*
-      핵심:
-      /home이 아니면 여기서 destroyWakeWord를 호출하지 않는다.
-      그래야 "/" 또는 로그인 화면에서 destroy 로그가 반복되지 않는다.
-    */
     if (!shouldListen) {
       return () => {
         disposed = true;
@@ -178,11 +290,10 @@ export default function RootLayout() {
 
     wakeStartedRef.current = true;
 
-    console.log('[WakeWord] start on /home');
+    const wakeName = authSession.agentName?.trim() || '케어';
 
     void startWakeWordListening({
-      owner: 'elder-home',
-      wakeName: authSession?.agentName || '케어',
+      wakeName,
       onDetected: async () => {
         if (disposed) return;
         if (pathnameRef.current !== '/home') return;
@@ -193,9 +304,24 @@ export default function RootLayout() {
 
         await destroyWakeWord();
 
-        if (pathnameRef.current !== '/chat') {
-          router.push('/chat?input=voice&autostart=1&wakeup=1');
-        }
+        router.push({
+          pathname: '/chat',
+          params: {
+            input: 'voice',
+            autostart: '1',
+            wakeup: '1',
+            elderUserId: authSession.elderUserId || authSession.parentId,
+            elder_user_id: authSession.elderUserId || authSession.parentId,
+            parentName: authSession.parentName,
+            linkCode: authSession.linkCode,
+            link_code: authSession.linkCode,
+            selectedVoice: authSession.agentVoice,
+            agentVoice: authSession.agentVoice,
+            agent_voice: authSession.agentVoice,
+            agentName: wakeName,
+            agent_name: wakeName,
+          },
+        });
       },
       onError: (message) => {
         console.log('[WakeWord] error:', message);
@@ -204,13 +330,17 @@ export default function RootLayout() {
 
     return () => {
       disposed = true;
+      wakeStartedRef.current = false;
+      wakeNavigatingRef.current = false;
+      void destroyWakeWord();
     };
   }, [
     isSessionHydrated,
     appState,
     pathname,
     authSession?.role,
-    authSession?.agentName,
+    authSession?.role === 'parent' ? authSession.agentName : undefined,
+    authSession?.role === 'parent' ? authSession.agentVoice : undefined,
     router,
   ]);
 

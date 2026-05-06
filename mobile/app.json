@@ -13,6 +13,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "./plugins/withCareSiriShortcuts",
         {
@@ -79,10 +80,35 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "package": "com.kimjaeho.caremate"
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ExpoWidgetsTarget",
+                  "bundleIdentifier": "com.kimjaeho.caremate.ExpoWidgetsTarget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.kimjaeho.caremate"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "6ad32f64-4124-4c71-b054-1dd1700edca0"
+      }
+    },
+    "owner": "juuu-sung"
   }
 }

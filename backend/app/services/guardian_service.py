@@ -251,7 +251,7 @@ def get_guardian_dashboard_snapshot(db: Session, elder_user_id: str):
                 FROM medication_logs AS ml
                 WHERE ml.senior_user_id = m.senior_user_id
                   AND ml.medication_name = m.name
-                  AND DATE(ml.recorded_at AT TIME ZONE 'Asia/Seoul') = CURRENT_DATE
+                  AND DATE(ml.recorded_at AT TIME ZONE 'Asia/Seoul') = DATE(NOW() AT TIME ZONE 'Asia/Seoul')
                 ORDER BY ml.recorded_at DESC
                 LIMIT 1
             ) AS latest_log ON TRUE
@@ -367,6 +367,9 @@ def get_guardian_dashboard_snapshot(db: Session, elder_user_id: str):
         "open_high_alert_count": int(alert_row["open_high_alert_count"] or 0),
         "open_medium_alert_count": int(alert_row["open_medium_alert_count"] or 0),
         "open_low_alert_count": int(alert_row["open_low_alert_count"] or 0),
+        "today_medication_total_count": medication_snapshot["today_medication_total_count"],
+        "today_medication_taken_count": medication_snapshot["today_medication_taken_count"],
+        "today_medication_completion_rate": medication_snapshot["today_medication_completion_rate"],
         "today_medication_pending_count": medication_snapshot["today_medication_pending_count"],
         "overdue_medication_count": medication_snapshot["overdue_medication_count"],
         "severe_overdue_medication_count": medication_snapshot["severe_overdue_medication_count"],
@@ -409,6 +412,11 @@ def _build_medication_monitoring_snapshot(rows) -> dict[str, int]:
             overdue_medication_count += 1
 
     return {
+        "today_medication_total_count": len(rows),
+        "today_medication_taken_count": max(0, len(rows) - today_pending_count),
+        "today_medication_completion_rate": int(
+            round(((len(rows) - today_pending_count) / len(rows)) * 100)
+        ) if rows else 0,
         "today_medication_pending_count": today_pending_count,
         "overdue_medication_count": overdue_medication_count,
         "severe_overdue_medication_count": severe_overdue_medication_count,
