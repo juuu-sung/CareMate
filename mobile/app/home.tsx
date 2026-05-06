@@ -40,6 +40,10 @@ type LetterItem = {
   sender_role: string;
 };
 
+function getMedicationDisplayName(medication: MedicationItem) {
+  return medication.easy_name?.trim() || '이름 미정 약';
+}
+
 const BLUE = '#4F7CFF';
 const BLUE_DARK = '#2F5FEA';
 const BLUE_LIGHT = '#EEF3FF';
@@ -541,7 +545,7 @@ export default function HomeScreen() {
                 <View style={styles.pillBox}>
                   <Text style={styles.pillTime}>{firstMedication.time}</Text>
                   <Text style={styles.pillText} numberOfLines={1}>
-                    {firstMedication.name}
+                    {getMedicationDisplayName(firstMedication)}
                   </Text>
                 </View>
 
@@ -549,7 +553,7 @@ export default function HomeScreen() {
                   <View style={styles.pillBox}>
                     <Text style={styles.pillTime}>{medications[1].time}</Text>
                     <Text style={styles.pillText} numberOfLines={1}>
-                      {medications[1].name}
+                      {getMedicationDisplayName(medications[1])}
                     </Text>
                   </View>
                 ) : null}

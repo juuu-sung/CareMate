@@ -15,6 +15,10 @@ type MedicationReminderState = {
   enabledElderUserIds: string[];
 };
 
+function getMedicationDisplayName(medication: MedicationItem) {
+  return medication.easy_name?.trim() || '약';
+}
+
 export type MedicationReminderStatus = {
   isDevice: boolean;
   enabled: boolean;
@@ -220,7 +224,7 @@ export async function scheduleDailyMedicationReminders({
     await Notifications.scheduleNotificationAsync({
       content: {
         title: '복약 시간입니다',
-        body: `${medication.name} 드실 시간이에요.`,
+        body: `${getMedicationDisplayName(medication)} 드실 시간이에요.`,
         sound: true,
         data: {
           kind: MEDICATION_REMINDER_KIND,

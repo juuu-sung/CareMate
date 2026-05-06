@@ -13,6 +13,7 @@ export type ParentAuthSession = {
 
 export type GuardianAuthSession = {
   role: 'guardian';
+  guardianId: string;
   parentId: string;
   parentName: string;
   parentAge: string;
@@ -31,6 +32,28 @@ export type AuthSession = ParentAuthSession | GuardianAuthSession;
 const SESSION_FILE_URI = FileSystem.documentDirectory
   ? `${FileSystem.documentDirectory}caremate-auth-session.json`
   : null;
+
+type AuthSessionListener = (session: AuthSession | null) => void;
+
+const authSessionListeners = new Set<AuthSessionListener>();
+
+function emitAuthSessionChange(session: AuthSession | null) {
+  authSessionListeners.forEach((listener) => {
+    try {
+      listener(session);
+    } catch (error) {
+      console.log('auth session listener error:', error);
+    }
+  });
+}
+
+export function subscribeAuthSession(listener: AuthSessionListener) {
+  authSessionListeners.add(listener);
+
+  return () => {
+    authSessionListeners.delete(listener);
+  };
+}
 
 function normalizeString(value: unknown) {
   return typeof value === 'string' ? value : '';
@@ -72,6 +95,8 @@ function parseAuthSession(value: unknown): AuthSession | null {
   }
 
   if (value.role === 'guardian') {
+    const guardianId =
+      normalizeString(value.guardianId) || normalizeString(value.guardian_id);
     const parentId = normalizeString(value.parentId);
     const parentName = normalizeString(value.parentName);
     const linkCode = normalizeString(value.linkCode);
@@ -82,6 +107,7 @@ function parseAuthSession(value: unknown): AuthSession | null {
 
     return {
       role: 'guardian',
+      guardianId,
       parentId,
       parentName,
       parentAge: normalizeString(value.parentAge),
@@ -121,6 +147,7 @@ export function buildParentAuthSession(input: {
 }
 
 export function buildGuardianAuthSession(input: {
+  guardianId?: string;
   parentId: string;
   parentName: string;
   parentAge?: string;
@@ -135,6 +162,7 @@ export function buildGuardianAuthSession(input: {
 }): GuardianAuthSession {
   return {
     role: 'guardian',
+    guardianId: input.guardianId || '',
     parentId: input.parentId,
     parentName: input.parentName,
     parentAge: input.parentAge || '',
@@ -188,6 +216,7 @@ export function getAuthSessionHomeRoute(session: AuthSession) {
 
 export async function saveAuthSession(session: AuthSession) {
   if (!SESSION_FILE_URI) {
+    emitAuthSessionChange(session);
     return;
   }
 
@@ -195,6 +224,7 @@ export async function saveAuthSession(session: AuthSession) {
     SESSION_FILE_URI,
     JSON.stringify(session)
   );
+  emitAuthSessionChange(session);
 }
 
 export async function loadAuthSession() {
@@ -218,14 +248,17 @@ export async function loadAuthSession() {
 
 export async function clearAuthSession() {
   if (!SESSION_FILE_URI) {
+    emitAuthSessionChange(null);
     return;
   }
 
   const fileInfo = await FileSystem.getInfoAsync(SESSION_FILE_URI);
 
   if (!fileInfo.exists) {
+    emitAuthSessionChange(null);
     return;
   }
 
   await FileSystem.deleteAsync(SESSION_FILE_URI);
+  emitAuthSessionChange(null);
 }

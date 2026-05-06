@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.services.push_notification_service import dispatch_alert_push
+
 
 def create_guardian_alert(
     db: Session,
@@ -64,6 +66,13 @@ def create_guardian_alert(
             "severity": severity,
             "message": message,
         },
+    )
+    dispatch_alert_push(
+        db,
+        elder_user_id=elder_user_id,
+        alert_type=alert_type,
+        message=message,
+        severity=severity,
     )
 
     return True

@@ -94,7 +94,6 @@ async function restartListening() {
 
   try {
     await Voice.start('ko-KR');
-    console.log('[WakeWord] restart listening');
   } catch (error) {
     const message = serializeSpeechError(error);
     console.log('[WakeWord] restart error:', error);
@@ -115,10 +114,6 @@ function checkWakeWord(values?: string[]) {
   const text = values?.join(' ') ?? '';
   const normalizedText = normalizeWakeText(text);
   const candidates = buildWakeCandidates(currentWakeName);
-
-  console.log('[WakeWord] raw:', text);
-  console.log('[WakeWord] normalized:', normalizedText);
-  console.log('[WakeWord] candidates:', candidates);
 
   const detected = candidates.some((candidate) =>
     normalizedText.includes(candidate)
@@ -157,15 +152,10 @@ export async function startWakeWordListening({
   clearRestartTimer();
 
   if (isWakeWordListening) {
-    console.log('[WakeWord] already listening');
     return;
   }
 
   Voice.removeAllListeners();
-
-  Voice.onSpeechStart = () => {
-    console.log('[WakeWord] speech start');
-  };
 
   Voice.onSpeechPartialResults = (event: SpeechRecognitionEvent) => {
     checkWakeWord(event.value);
@@ -176,8 +166,6 @@ export async function startWakeWordListening({
   };
 
   Voice.onSpeechEnd = () => {
-    console.log('[WakeWord] speech end');
-
     if (!isDetected && isWakeWordListening) {
       scheduleRestart(300);
     }

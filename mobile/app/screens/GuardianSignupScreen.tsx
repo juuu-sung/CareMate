@@ -39,7 +39,7 @@ export default function GuardianSignupScreen() {
 
       const parentInfo = await getParentByCode(normalizedCode);
 
-      await guardianSignup({
+      const signupResult = await guardianSignup({
         name: name.trim(),
         birth: birth.trim(),
         phone: phone.trim(),
@@ -54,6 +54,7 @@ export default function GuardianSignupScreen() {
           guardianBirth: birth.trim(),
           guardianPhone: phone.trim(),
           guardianRelation: relation,
+          guardianId: signupResult.guardian_id ?? '',
           linkCode: normalizedCode,
           parentId: parentInfo.parent_id,
           parentName: parentInfo.parent_name,

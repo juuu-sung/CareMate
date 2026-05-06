@@ -36,3 +36,10 @@ class AlertStatusUpdateRequest(BaseModel):
     type: str | None = None
     message: str | None = None
     created_at: str | None = None
+
+
+class AlertSweepResponse(BaseModel):
+    created_count: int
+    medication_missed: int
+    location_stale: int
+    check_in_missed: int

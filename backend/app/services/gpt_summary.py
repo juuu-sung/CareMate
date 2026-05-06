@@ -75,8 +75,13 @@ def normalize_document_type(document_type: str) -> str:
     mapping = {
         "prescription": "prescription",
         "prescription_images": "prescription",
+        "medication_bag": "prescription",
+        "medication_bag_images": "prescription",
         "처방전": "prescription",
         "약 처방전": "prescription",
+        "약봉투": "prescription",
+        "약 봉투": "prescription",
+        "조제약 봉투": "prescription",
         "복용약": "prescription",
         "복약": "prescription",
 
@@ -126,9 +131,9 @@ def build_medical_prompt(document_type: str) -> str:
     # =========================
     if normalized_type == "prescription":
         return common_rule + """
-문서 종류: 처방전
+문서 종류: 처방전 또는 약 봉투
 
-이 이미지는 처방전이다.
+이 이미지는 처방전 또는 약 봉투다.
 반드시 복용 중인 약 정보만 추출한다.
 
 중요 규칙:
@@ -155,6 +160,15 @@ def build_medical_prompt(document_type: str) -> str:
 
 9. 약의 용도를 알 수 없으면 "확인 불가"
 10. 공식 이름과 쉬운 이름 혼합 금지
+11. [복약 구조화]를 반드시 추가
+12. 사진에서 보이는 복용 시점, 1일 복용 횟수, 처방 일수, 복용 시간을 약별로 작성
+13. 보이지 않는 값은 "확인 불가"라고 작성
+14. 복용 시점은 식전, 식간, 식후, 확인 불가 중 하나만 사용
+15. 복용 시간이 명확하면 HH:MM 형식으로 작성하고, 여러 번이면 쉼표로 구분
+16. 약 봉투 표의 "투약량 / 횟수 / 일수"가 보이면 반드시 다음처럼 해석
+   - 투약량: 1회 용량
+   - 횟수: 1일 복용 횟수
+   - 일수: 처방 일수
 
 출력 형식:
 
@@ -173,6 +187,10 @@ def build_medical_prompt(document_type: str) -> str:
 - 한 번에 얼마나 먹는지:
 - 하루에 몇 번 먹는지:
 - 쉬운 안내 문장:
+
+[복약 구조화]
+- 약 이름: 약이름1 | 복용 시점: 식전/식간/식후/확인 불가 | 1일 복용 횟수: 1회 | 처방 일수: 7일 | 복용 시간: 08:00 또는 08:00, 13:00, 19:00 | 1회 용량: 확인 불가
+- 약 이름: 약이름2 | 복용 시점: 확인 불가 | 1일 복용 횟수: 확인 불가 | 처방 일수: 확인 불가 | 복용 시간: 확인 불가 | 1회 용량: 확인 불가
 
 [확인 불가한 내용]
 - 이미지에서 흐리거나 확인하기 어려운 내용:
