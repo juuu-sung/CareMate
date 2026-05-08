@@ -8,39 +8,39 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		1F4D361407904012AEF80D9F /* CareQuickStartWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3527FE02F26F4AB6A98EC3CB /* CareQuickStartWidget.swift */; };
-		3A01AE5AB4380FAE85E29F58 /* libPods-CareMate.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 514D5E30B470D0F9FC27042F /* libPods-CareMate.a */; };
+		26DBD4C9FD1E3EF49E904339 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9618440144554C508DD20388 /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		43DF0662C5F981DCB0E9612D /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06BA52AF1B20071F1602C08E /* ExpoModulesProvider.swift */; };
-		45D9DF598EE3259F0618D6D9 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1932ADA1D74FB2F3813BF7F9 /* ExpoModulesProvider.swift */; };
-		5AFF1749342963DBAD9DCEA1 /* libPods-ExpoWidgetsTarget.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5CB435312688CD2264CFB4FA /* libPods-ExpoWidgetsTarget.a */; };
-		836F2A75458D4CBBA9DD5730 /* index.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8B4A0F4792464992AED011 /* index.swift */; };
-		8B211A12F94A451F9584E198 /* CareShortcutModule.m in Sources */ = {isa = PBXBuildFile; fileRef = A3C6ABF56CDC40A99730209A /* CareShortcutModule.m */; };
-		B3E8F55EDE6B4A658CC3BB78 /* CareAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5930749ADE1E47C3AB713E58 /* CareAppIntents.swift */; };
+		4A59D172C3CFB9AC16CFB5CF /* libPods-CareMate.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4955840750518CA9F1617BFB /* libPods-CareMate.a */; };
+		555BFE14FAF5443FA2B48133 /* CareQuickStartWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF3EE9C21EF84540BA0275FE /* CareQuickStartWidget.swift */; };
+		6A055473A53540DEB304DAFC /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B1B50ACC23DC49759EAD1EE1 /* ExpoWidgetsTarget.appex */; };
+		6A93B0AF0C797F9696567C30 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F89D062E755D3908730869F6 /* ExpoModulesProvider.swift */; };
+		74C9A235DFD74D47A15ECAA2 /* CareShortcutModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 67F57FD768174015A8CD90B9 /* CareShortcutModule.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		C42C99CB18AFC257E079920A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AC0CC950953866BFAD4A04C8 /* PrivacyInfo.xcprivacy */; };
-		CE2AF36E6FD44B9E8DE234BC /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F64E8B98ADD547A1BB31CB5E /* ExpoWidgetsTarget.appex */; };
+		C8C91CB136015A509B0B290E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B1A0A453BF25E7B01DB043A6 /* PrivacyInfo.xcprivacy */; };
+		D680F5F59DB843FAB68AC5F0 /* CareAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AAFEF21AF2D4E5DB3B7FC23 /* CareAppIntents.swift */; };
+		D8970EEF309A468C822441D0 /* index.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6693B2C0E403454BAA43B02C /* index.swift */; };
+		DDE8558FBB390AE26105377F /* libPods-ExpoWidgetsTarget.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A627EB800817A50E4352A916 /* libPods-ExpoWidgetsTarget.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		EBFA2A4016344C988B0931E9 /* PBXContainerItemProxy */ = {
+		D8D62A5DA9DC4B2A8BC17B75 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = B1D4DF78F88E468988E26F92;
+			remoteGlobalIDString = 717D2C18024842E192120AFB;
 			remoteInfo = ExpoWidgetsTarget;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		BF57D56950AF4FEE835B1DCD /* Embed Foundation Extensions */ = {
+		75DF5CDDE7FF41C19BCA0020 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				CE2AF36E6FD44B9E8DE234BC /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */,
+				6A055473A53540DEB304DAFC /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -48,31 +48,31 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		06BA52AF1B20071F1602C08E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-ExpoWidgetsTarget/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		04FF1E78CE154625A9314A7E /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = ExpoWidgetsTarget/Info.plist; sourceTree = "<group>"; };
+		067CD6587985451E81960FF7 /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* CareMate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CareMate.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CareMate/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CareMate/Info.plist; sourceTree = "<group>"; };
-		1932ADA1D74FB2F3813BF7F9 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-CareMate/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		3527FE02F26F4AB6A98EC3CB /* CareQuickStartWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CareQuickStartWidget.swift; path = CareQuickStartWidget.swift; sourceTree = "<group>"; };
-		3A3624755B1C46B6A0D89199 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
-		514D5E30B470D0F9FC27042F /* libPods-CareMate.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CareMate.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		5930749ADE1E47C3AB713E58 /* CareAppIntents.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CareAppIntents.swift; path = CareMate/CareAppIntents.swift; sourceTree = "<group>"; };
-		5CB435312688CD2264CFB4FA /* libPods-ExpoWidgetsTarget.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-ExpoWidgetsTarget.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		9AE18ED7674547E5AB8EF5D7 /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
-		9D8475054DB46E8FB7FE9AA8 /* Pods-ExpoWidgetsTarget.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.release.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.release.xcconfig"; sourceTree = "<group>"; };
-		A3C6ABF56CDC40A99730209A /* CareShortcutModule.m */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.objc; name = CareShortcutModule.m; path = CareMate/CareShortcutModule.m; sourceTree = "<group>"; };
+		4955840750518CA9F1617BFB /* libPods-CareMate.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CareMate.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F25CDECB119DADFC3089F19 /* Pods-CareMate.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CareMate.release.xcconfig"; path = "Target Support Files/Pods-CareMate/Pods-CareMate.release.xcconfig"; sourceTree = "<group>"; };
+		6693B2C0E403454BAA43B02C /* index.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = index.swift; path = ExpoWidgetsTarget/index.swift; sourceTree = "<group>"; };
+		67F57FD768174015A8CD90B9 /* CareShortcutModule.m */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.objc; name = CareShortcutModule.m; path = CareMate/CareShortcutModule.m; sourceTree = "<group>"; };
+		6AAFEF21AF2D4E5DB3B7FC23 /* CareAppIntents.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CareAppIntents.swift; path = CareMate/CareAppIntents.swift; sourceTree = "<group>"; };
+		6FC5FBA4FC4F4615BF784C1C /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
+		7F86E53326EC8C6FB0DF2AC3 /* Pods-ExpoWidgetsTarget.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.debug.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.debug.xcconfig"; sourceTree = "<group>"; };
+		9618440144554C508DD20388 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-CareMate/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		A627EB800817A50E4352A916 /* libPods-ExpoWidgetsTarget.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-ExpoWidgetsTarget.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = CareMate/SplashScreen.storyboard; sourceTree = "<group>"; };
-		AC0CC950953866BFAD4A04C8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = CareMate/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		B33AB4DFDD064A5FBDCD0F10 /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
+		B1A0A453BF25E7B01DB043A6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = CareMate/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B1B50ACC23DC49759EAD1EE1 /* ExpoWidgetsTarget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = ExpoWidgetsTarget.appex; path = ExpoWidgetsTarget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C02345DD301E68354DCEDF25 /* Pods-ExpoWidgetsTarget.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.debug.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.debug.xcconfig"; sourceTree = "<group>"; };
-		CC8B4A0F4792464992AED011 /* index.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = index.swift; path = index.swift; sourceTree = "<group>"; };
-		D1C159DC42540CE3BE3CE331 /* Pods-CareMate.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CareMate.debug.xcconfig"; path = "Target Support Files/Pods-CareMate/Pods-CareMate.debug.xcconfig"; sourceTree = "<group>"; };
-		DAA09DD5F0895EA89CC5D8FC /* Pods-CareMate.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CareMate.release.xcconfig"; path = "Target Support Files/Pods-CareMate/Pods-CareMate.release.xcconfig"; sourceTree = "<group>"; };
+		DF3EE9C21EF84540BA0275FE /* CareQuickStartWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CareQuickStartWidget.swift; path = ExpoWidgetsTarget/CareQuickStartWidget.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = CareMate/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* CareMate-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "CareMate-Bridging-Header.h"; path = "CareMate/CareMate-Bridging-Header.h"; sourceTree = "<group>"; };
-		F64E8B98ADD547A1BB31CB5E /* ExpoWidgetsTarget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = ExpoWidgetsTarget.appex; path = ExpoWidgetsTarget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F178E3D83F512DE429872E44 /* Pods-ExpoWidgetsTarget.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.release.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.release.xcconfig"; sourceTree = "<group>"; };
+		F89D062E755D3908730869F6 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-ExpoWidgetsTarget/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		FC7965BF0FD9DE17BB0BA848 /* Pods-CareMate.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CareMate.debug.xcconfig"; path = "Target Support Files/Pods-CareMate/Pods-CareMate.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,30 +80,21 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3A01AE5AB4380FAE85E29F58 /* libPods-CareMate.a in Frameworks */,
+				4A59D172C3CFB9AC16CFB5CF /* libPods-CareMate.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9A3F28925CE84F67B8E908BD /* Frameworks */ = {
+		887271D0C7CC4AB693AF73C1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5AFF1749342963DBAD9DCEA1 /* libPods-ExpoWidgetsTarget.a in Frameworks */,
+				DDE8558FBB390AE26105377F /* libPods-ExpoWidgetsTarget.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		04B194FB8076FB17EFBA8A7E /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				DACA85226995C37D63DBC88F /* CareMate */,
-				39B3C8B68D2D0FE2F70BFCDC /* ExpoWidgetsTarget */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* CareMate */ = {
 			isa = PBXGroup;
 			children = (
@@ -113,9 +104,9 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				A3C6ABF56CDC40A99730209A /* CareShortcutModule.m */,
-				5930749ADE1E47C3AB713E58 /* CareAppIntents.swift */,
-				AC0CC950953866BFAD4A04C8 /* PrivacyInfo.xcprivacy */,
+				67F57FD768174015A8CD90B9 /* CareShortcutModule.m */,
+				6AAFEF21AF2D4E5DB3B7FC23 /* CareAppIntents.swift */,
+				B1A0A453BF25E7B01DB043A6 /* PrivacyInfo.xcprivacy */,
 			);
 			name = CareMate;
 			sourceTree = "<group>";
@@ -124,43 +115,19 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				514D5E30B470D0F9FC27042F /* libPods-CareMate.a */,
-				5CB435312688CD2264CFB4FA /* libPods-ExpoWidgetsTarget.a */,
+				4955840750518CA9F1617BFB /* libPods-CareMate.a */,
+				A627EB800817A50E4352A916 /* libPods-ExpoWidgetsTarget.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		39B3C8B68D2D0FE2F70BFCDC /* ExpoWidgetsTarget */ = {
+		6BDE8255BE8CCB1479EE88E1 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				06BA52AF1B20071F1602C08E /* ExpoModulesProvider.swift */,
+				E7A6E56AE47A3412E53ACBA9 /* CareMate */,
+				FC8A647DDA53C664F352412D /* ExpoWidgetsTarget */,
 			);
-			name = ExpoWidgetsTarget;
-			sourceTree = "<group>";
-		};
-		55E95BD60BC9454D7045704F /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				D1C159DC42540CE3BE3CE331 /* Pods-CareMate.debug.xcconfig */,
-				DAA09DD5F0895EA89CC5D8FC /* Pods-CareMate.release.xcconfig */,
-				C02345DD301E68354DCEDF25 /* Pods-ExpoWidgetsTarget.debug.xcconfig */,
-				9D8475054DB46E8FB7FE9AA8 /* Pods-ExpoWidgetsTarget.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
-		63544A7CF516483B9E37C49B /* ExpoWidgetsTarget */ = {
-			isa = PBXGroup;
-			children = (
-				9AE18ED7674547E5AB8EF5D7 /* ExpoWidgetsTarget.entitlements */,
-				3A3624755B1C46B6A0D89199 /* Info.plist */,
-				CC8B4A0F4792464992AED011 /* index.swift */,
-				3527FE02F26F4AB6A98EC3CB /* CareQuickStartWidget.swift */,
-				B33AB4DFDD064A5FBDCD0F10 /* ExpoWidgetsTarget.entitlements */,
-			);
-			name = ExpoWidgetsTarget;
-			path = ExpoWidgetsTarget;
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -177,9 +144,9 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				63544A7CF516483B9E37C49B /* ExpoWidgetsTarget */,
-				55E95BD60BC9454D7045704F /* Pods */,
-				04B194FB8076FB17EFBA8A7E /* ExpoModulesProviders */,
+				E4ECEEA33AA04042BDE57FDE /* ExpoWidgetsTarget */,
+				995EFD40F569E67E36270DF5 /* Pods */,
+				6BDE8255BE8CCB1479EE88E1 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -190,9 +157,21 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* CareMate.app */,
-				F64E8B98ADD547A1BB31CB5E /* ExpoWidgetsTarget.appex */,
+				B1B50ACC23DC49759EAD1EE1 /* ExpoWidgetsTarget.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		995EFD40F569E67E36270DF5 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				FC7965BF0FD9DE17BB0BA848 /* Pods-CareMate.debug.xcconfig */,
+				5F25CDECB119DADFC3089F19 /* Pods-CareMate.release.xcconfig */,
+				7F86E53326EC8C6FB0DF2AC3 /* Pods-ExpoWidgetsTarget.debug.xcconfig */,
+				F178E3D83F512DE429872E44 /* Pods-ExpoWidgetsTarget.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -204,12 +183,33 @@
 			path = CareMate/Supporting;
 			sourceTree = "<group>";
 		};
-		DACA85226995C37D63DBC88F /* CareMate */ = {
+		E4ECEEA33AA04042BDE57FDE /* ExpoWidgetsTarget */ = {
 			isa = PBXGroup;
 			children = (
-				1932ADA1D74FB2F3813BF7F9 /* ExpoModulesProvider.swift */,
+				067CD6587985451E81960FF7 /* ExpoWidgetsTarget.entitlements */,
+				04FF1E78CE154625A9314A7E /* Info.plist */,
+				6693B2C0E403454BAA43B02C /* index.swift */,
+				DF3EE9C21EF84540BA0275FE /* CareQuickStartWidget.swift */,
+				6FC5FBA4FC4F4615BF784C1C /* ExpoWidgetsTarget.entitlements */,
+			);
+			name = ExpoWidgetsTarget;
+			path = ExpoWidgetsTarget;
+			sourceTree = "<group>";
+		};
+		E7A6E56AE47A3412E53ACBA9 /* CareMate */ = {
+			isa = PBXGroup;
+			children = (
+				9618440144554C508DD20388 /* ExpoModulesProvider.swift */,
 			);
 			name = CareMate;
+			sourceTree = "<group>";
+		};
+		FC8A647DDA53C664F352412D /* ExpoWidgetsTarget */ = {
+			isa = PBXGroup;
+			children = (
+				F89D062E755D3908730869F6 /* ExpoModulesProvider.swift */,
+			);
+			name = ExpoWidgetsTarget;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -220,35 +220,35 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "CareMate" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				EEAAA9CC5DE0FE227B42FA5B /* [Expo] Configure project */,
+				FC565065C1B5DCC6F364C357 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				8F7D8E86BF08458D9ED1557E /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
-				BF57D56950AF4FEE835B1DCD /* Embed Foundation Extensions */,
-				82D4B82FA0E4DAC519C93613 /* [CP] Embed Pods Frameworks */,
+				9BFEA994AE624351915165E1 /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
+				75DF5CDDE7FF41C19BCA0020 /* Embed Foundation Extensions */,
+				325E1B4B3655462D63E8C1B0 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				7092E5C967AD4AAB8368A618 /* PBXTargetDependency */,
+				3DFEB6BFE33D4B558F9E41C4 /* PBXTargetDependency */,
 			);
 			name = CareMate;
 			productName = CareMate;
 			productReference = 13B07F961A680F5B00A75B9A /* CareMate.app */;
 			productType = "com.apple.product-type.application";
 		};
-		B1D4DF78F88E468988E26F92 /* ExpoWidgetsTarget */ = {
+		717D2C18024842E192120AFB /* ExpoWidgetsTarget */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B009ABF7F70343EDB2DEF4EA /* Build configuration list for PBXNativeTarget "ExpoWidgetsTarget" */;
+			buildConfigurationList = CD2BCA866A104AE88E3BF7CE /* Build configuration list for PBXNativeTarget "ExpoWidgetsTarget" */;
 			buildPhases = (
-				194F3F9B34C5F765B223E6B0 /* [CP] Check Pods Manifest.lock */,
-				DE522002A84DBF4EFEE44C74 /* [Expo] Configure project */,
-				50DD4767F4944BB19EC45D45 /* Sources */,
-				9A3F28925CE84F67B8E908BD /* Frameworks */,
-				E0CDEC99DBF4D0EE3E201A5B /* [CP] Copy Pods Resources */,
+				FAFCA0F91DBDD8E7DF0A65B5 /* [CP] Check Pods Manifest.lock */,
+				1946F3C01A2B3D961F6DE64F /* [Expo] Configure project */,
+				6145A0E925C140BF8F38FB0C /* Sources */,
+				887271D0C7CC4AB693AF73C1 /* Frameworks */,
+				7FB4D0132CB2B95F40634E29 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -256,7 +256,7 @@
 			);
 			name = ExpoWidgetsTarget;
 			productName = ExpoWidgetsTarget;
-			productReference = F64E8B98ADD547A1BB31CB5E /* ExpoWidgetsTarget.appex */;
+			productReference = B1B50ACC23DC49759EAD1EE1 /* ExpoWidgetsTarget.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -270,7 +270,7 @@
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
 					};
-					B1D4DF78F88E468988E26F92 = {
+					717D2C18024842E192120AFB = {
 						LastSwiftMigration = 1250;
 					};
 				};
@@ -289,7 +289,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* CareMate */,
-				B1D4DF78F88E468988E26F92 /* ExpoWidgetsTarget */,
+				717D2C18024842E192120AFB /* ExpoWidgetsTarget */,
 			);
 		};
 /* End PBXProject section */
@@ -302,7 +302,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				C42C99CB18AFC257E079920A /* PrivacyInfo.xcprivacy in Resources */,
+				C8C91CB136015A509B0B290E /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -348,105 +348,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		194F3F9B34C5F765B223E6B0 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-ExpoWidgetsTarget-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-resources.sh",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoNotifications/ExpoNotifications_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/SDWebImage/SDWebImage.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/boost/boost_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-launcher/EXDevLauncher.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-menu/EXDevMenu.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/glog/glog_privacy.bundle",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoApplication_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/SDWebImage.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/boost_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXDevLauncher.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXDevMenu.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/glog_privacy.bundle",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-resources.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		82D4B82FA0E4DAC519C93613 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-frameworks.sh",
-				"${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/ios/hermesvm.framework",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		8F7D8E86BF08458D9ED1557E /* [Expo Dev Launcher] Strip Local Network Keys for Release */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "[Expo Dev Launcher] Strip Local Network Keys for Release";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Strip dev-launcher-specific local network permission keys from non-Debug builds\n# This only removes _expo._tcp Bonjour services and the dev-launcher usage description.\n# Other Bonjour services and custom descriptions are preserved for production use.\n\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  if [ -f \"$PLIST_PATH\" ]; then\n    # Check if NSBonjourServices exists\n    if /usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" >/dev/null 2>&1; then\n      # Get the count of services\n      COUNT=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n\n      # Remove _expo._tcp\n      for ((i=COUNT-1; i>=0; i--)); do\n        SERVICE=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n        if echo \"$SERVICE\" | grep -q \"_expo._tcp\"; then\n          /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || true\n        fi\n      done\n\n      # If the array is now empty, remove it entirely\n      REMAINING=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n      if [ \"$REMAINING\" -eq \"0\" ]; then\n        /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null || true\n      fi\n    fi\n\n    # Only delete the description if it matches the dev-launcher default text\n    DESC=$(/usr/libexec/PlistBuddy -c \"Print :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n    if echo \"$DESC\" | grep -q \"Expo Dev Launcher\"; then\n      /usr/libexec/PlistBuddy -c \"Delete :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || true\n    fi\n  fi\nfi\n";
-		};
-		DE522002A84DBF4EFEE44C74 /* [Expo] Configure project */ = {
+		1946F3C01A2B3D961F6DE64F /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -470,7 +372,29 @@
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-ExpoWidgetsTarget/expo-configure-project.sh\"\n";
 		};
-		E0CDEC99DBF4D0EE3E201A5B /* [CP] Copy Pods Resources */ = {
+		325E1B4B3655462D63E8C1B0 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		7FB4D0132CB2B95F40634E29 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -478,27 +402,95 @@
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/boost/boost_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/glog/glog_privacy.bundle",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/boost_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/glog_privacy.bundle",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		EEAAA9CC5DE0FE227B42FA5B /* [Expo] Configure project */ = {
+		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-resources.sh",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoNotifications/ExpoNotifications_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/SDWebImage/SDWebImage.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-launcher/EXDevLauncher.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-menu/EXDevMenu.bundle",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoApplication_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/SDWebImage.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXDevLauncher.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXDevMenu.bundle",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CareMate/Pods-CareMate-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		9BFEA994AE624351915165E1 /* [Expo Dev Launcher] Strip Local Network Keys for Release */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[Expo Dev Launcher] Strip Local Network Keys for Release";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Strip dev-launcher-specific local network permission keys from non-Debug builds\n# This only removes _expo._tcp Bonjour services and the dev-launcher usage description.\n# Other Bonjour services and custom descriptions are preserved for production use.\n\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  if [ -f \"$PLIST_PATH\" ]; then\n    # Check if NSBonjourServices exists\n    if /usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" >/dev/null 2>&1; then\n      # Get the count of services\n      COUNT=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n\n      # Remove _expo._tcp\n      for ((i=COUNT-1; i>=0; i--)); do\n        SERVICE=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n        if echo \"$SERVICE\" | grep -q \"_expo._tcp\"; then\n          /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || true\n        fi\n      done\n\n      # If the array is now empty, remove it entirely\n      REMAINING=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n      if [ \"$REMAINING\" -eq \"0\" ]; then\n        /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null || true\n      fi\n    fi\n\n    # Only delete the description if it matches the dev-launcher default text\n    DESC=$(/usr/libexec/PlistBuddy -c \"Print :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n    if echo \"$DESC\" | grep -q \"Expo Dev Launcher\"; then\n      /usr/libexec/PlistBuddy -c \"Delete :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || true\n    fi\n  fi\nfi\n";
+		};
+		FAFCA0F91DBDD8E7DF0A65B5 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-ExpoWidgetsTarget-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		FC565065C1B5DCC6F364C357 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -530,58 +522,36 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				8B211A12F94A451F9584E198 /* CareShortcutModule.m in Sources */,
-				B3E8F55EDE6B4A658CC3BB78 /* CareAppIntents.swift in Sources */,
-				45D9DF598EE3259F0618D6D9 /* ExpoModulesProvider.swift in Sources */,
+				74C9A235DFD74D47A15ECAA2 /* CareShortcutModule.m in Sources */,
+				D680F5F59DB843FAB68AC5F0 /* CareAppIntents.swift in Sources */,
+				26DBD4C9FD1E3EF49E904339 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		50DD4767F4944BB19EC45D45 /* Sources */ = {
+		6145A0E925C140BF8F38FB0C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				836F2A75458D4CBBA9DD5730 /* index.swift in Sources */,
-				1F4D361407904012AEF80D9F /* CareQuickStartWidget.swift in Sources */,
-				43DF0662C5F981DCB0E9612D /* ExpoModulesProvider.swift in Sources */,
+				D8970EEF309A468C822441D0 /* index.swift in Sources */,
+				555BFE14FAF5443FA2B48133 /* CareQuickStartWidget.swift in Sources */,
+				6A93B0AF0C797F9696567C30 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		7092E5C967AD4AAB8368A618 /* PBXTargetDependency */ = {
+		3DFEB6BFE33D4B558F9E41C4 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = B1D4DF78F88E468988E26F92 /* ExpoWidgetsTarget */;
-			targetProxy = EBFA2A4016344C988B0931E9 /* PBXContainerItemProxy */;
+			target = 717D2C18024842E192120AFB /* ExpoWidgetsTarget */;
+			targetProxy = D8D62A5DA9DC4B2A8BC17B75 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		0E8C4D3A841747DC95DD6C10 /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 9D8475054DB46E8FB7FE9AA8 /* Pods-ExpoWidgetsTarget.release.xcconfig */;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
-				MARKETING_VERSION = 0.1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.kimjaeho.caremate.ExpoWidgetsTarget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = D1C159DC42540CE3BE3CE331 /* Pods-CareMate.debug.xcconfig */;
+			baseConfigurationReference = FC7965BF0FD9DE17BB0BA848 /* Pods-CareMate.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -617,7 +587,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = DAA09DD5F0895EA89CC5D8FC /* Pods-CareMate.release.xcconfig */;
+			baseConfigurationReference = 5F25CDECB119DADFC3089F19 /* Pods-CareMate.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -645,9 +615,31 @@
 			};
 			name = Release;
 		};
-		2C7ADE03F71B4E0893DDC90B /* Debug */ = {
+		1A4966FF081E4FCE95391FC5 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = C02345DD301E68354DCEDF25 /* Pods-ExpoWidgetsTarget.debug.xcconfig */;
+			baseConfigurationReference = F178E3D83F512DE429872E44 /* Pods-ExpoWidgetsTarget.release.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				MARKETING_VERSION = 0.1.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.kimjaeho.caremate.ExpoWidgetsTarget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		4D92FBA4E61C42F494DBE811 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7F86E53326EC8C6FB0DF2AC3 /* Pods-ExpoWidgetsTarget.debug.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
@@ -810,11 +802,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B009ABF7F70343EDB2DEF4EA /* Build configuration list for PBXNativeTarget "ExpoWidgetsTarget" */ = {
+		CD2BCA866A104AE88E3BF7CE /* Build configuration list for PBXNativeTarget "ExpoWidgetsTarget" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2C7ADE03F71B4E0893DDC90B /* Debug */,
-				0E8C4D3A841747DC95DD6C10 /* Release */,
+				4D92FBA4E61C42F494DBE811 /* Debug */,
+				1A4966FF081E4FCE95391FC5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
