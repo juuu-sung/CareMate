@@ -37,8 +37,8 @@ import {
 } from '@/services/chat';
 import { loadAuthSession } from '@/services/authSession';
 import { getCoordinatesForTextTurn, getCoordinatesForVoiceTurn } from '@/services/locationService';
-import { getCurrentMode } from '@/services/modes';
-import { CareMode } from '@/types/care';
+import { getCurrentMode, updateCurrentMode } from '@/services/modes';
+import { CareMode, GuardianOptions } from '@/types/care';
 
 type ChatBubble = {
   id: string;
@@ -50,10 +50,45 @@ type ChatBubble = {
   sources?: ChatSourceItem[];
 };
 
-type VoiceUiState = 'idle' | 'listening' | 'processing' | 'needs_clarification' | 'awaiting_confirmation' | 'completed';
+type VoiceUiState =
+  | 'idle'
+  | 'listening'
+  | 'processing'
+  | 'needs_clarification'
+  | 'awaiting_confirmation'
+  | 'completed';
+
+const DEFAULT_MODE_OPTIONS: GuardianOptions = {
+  checkInIntervalMinutes: 60,
+  alertRepeatCount: 3,
+  alwaysOnLocationEnabled: false,
+};
+
+const CARE_MODE_OPTIONS: Array<{
+  mode: CareMode;
+  title: string;
+  description: string;
+}> = [
+  {
+    mode: 'basic',
+    title: '기본',
+    description: '일반 대화',
+  },
+  {
+    mode: 'cognitive_support',
+    title: '인지',
+    description: '짧고 쉽게',
+  },
+  {
+    mode: 'health_support',
+    title: '건강',
+    description: '복약·건강',
+  },
+];
 
 export default function ChatPage() {
   const router = useRouter();
+
   const params = useLocalSearchParams<{
     input?: string;
     autostart?: string;
@@ -68,45 +103,61 @@ export default function ChatPage() {
     requesterRole?: string;
     requester_role?: string;
   }>();
+
   const isVoiceMode = params.input === 'voice';
   const selectedVoice = String(params.selectedVoice || '') as TtsVoiceId | '';
   const agentName = String(params.agentName || '');
+
   const initialRequesterRole: ChatRequesterRole =
     String(params.requesterRole || params.requester_role || '') === 'guardian'
       ? 'guardian'
       : 'parent';
+
   const initialSubjectName = String(params.parentName || '부모님');
   const initialLinkCode = String(params.linkCode || params.link_code || '');
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
+
   const player = useAudioPlayer(null, { downloadFirst: true });
   const playerStatus = useAudioPlayerStatus(player);
+
   const hasAttemptedAutoRecordingRef = useRef(false);
   const pendingTtsRequestRef = useRef<{ messageId: string; text: string } | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   const [mode, setMode] = useState<CareMode>('basic');
+  const [modeOptions, setModeOptions] = useState<GuardianOptions>(DEFAULT_MODE_OPTIONS);
+
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
   const [checkingPlaceKey, setCheckingPlaceKey] = useState<string | null>(null);
   const [ttsMessageId, setTtsMessageId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+
   const [isLoadingMode, setIsLoadingMode] = useState(true);
+  const [isChangingMode, setIsChangingMode] = useState(false);
   const [isLoadingElderUserId, setIsLoadingElderUserId] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
   const [hasRecordingPermission, setHasRecordingPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [voiceUiState, setVoiceUiState] = useState<VoiceUiState>('idle');
   const [showQuickConfirmation, setShowQuickConfirmation] = useState(false);
+
   const [selectedHistoryDay, setSelectedHistoryDay] = useState<string>('all');
   const [selectedCalendarMonth, setSelectedCalendarMonth] = useState(() => startOfMonth(new Date()));
+
   const [requesterRole, setRequesterRole] = useState<ChatRequesterRole>(initialRequesterRole);
   const [subjectName, setSubjectName] = useState(initialSubjectName);
   const [linkCode, setLinkCode] = useState(initialLinkCode);
+
   const [elderUserId, setElderUserId] = useState(
     String(params.elderUserId || params.elder_user_id || params.parentId || '')
   );
+
   const [messages, setMessages] = useState<ChatBubble[]>(() =>
     isVoiceMode
       ? [
@@ -124,28 +175,44 @@ export default function ChatPage() {
         ]
       : []
   );
+
   const isGuardianRequester = requesterRole === 'guardian';
+
+  const scrollToBottom = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
+
+  const handleScrollContentSizeChange = useCallback(() => {
+    scrollToBottom(true);
+  }, [scrollToBottom]);
 
   useEffect(() => {
     const paramElderUserId = String(
       params.elderUserId || params.elder_user_id || params.parentId || ''
     );
+
     const paramRequesterRole: ChatRequesterRole =
       String(params.requesterRole || params.requester_role || '') === 'guardian'
         ? 'guardian'
         : 'parent';
+
     const paramSubjectName = String(params.parentName || '');
     const paramLinkCode = String(params.linkCode || params.link_code || '');
 
     if (paramElderUserId) {
       setElderUserId(paramElderUserId);
       setRequesterRole(paramRequesterRole);
+
       if (paramSubjectName) {
         setSubjectName(paramSubjectName);
       }
+
       if (paramLinkCode) {
         setLinkCode(paramLinkCode);
       }
+
       setIsLoadingElderUserId(false);
       return;
     }
@@ -202,15 +269,20 @@ export default function ChatPage() {
     const loadMode = async () => {
       try {
         const currentMode = await getCurrentMode();
+
         if (!mounted) {
           return;
         }
+
         setMode(currentMode.mode);
+        setModeOptions(currentMode.options);
       } catch {
         if (!mounted) {
           return;
         }
+
         setMode('basic');
+        setModeOptions(DEFAULT_MODE_OPTIONS);
       } finally {
         if (mounted) {
           setIsLoadingMode(false);
@@ -230,6 +302,7 @@ export default function ChatPage() {
       try {
         player.pause();
       } catch {}
+
       void setAudioModeAsync({ allowsRecording: false });
     };
   }, [player]);
@@ -254,6 +327,7 @@ export default function ChatPage() {
     }
 
     pendingTtsRequestRef.current = null;
+
     void setIsAudioActiveAsync(true)
       .then(() => {
         player.seekTo(0).catch(() => {});
@@ -261,7 +335,11 @@ export default function ChatPage() {
       })
       .catch((playbackError) => {
         setTtsMessageId(null);
-        setError(playbackError instanceof Error ? playbackError.message : '음성 재생 중 오류가 발생했습니다.');
+        setError(
+          playbackError instanceof Error
+            ? playbackError.message
+            : '음성 재생 중 오류가 발생했습니다.'
+        );
       });
   }, [player, playerStatus.isLoaded, playerStatus.playing, ttsMessageId]);
 
@@ -269,6 +347,7 @@ export default function ChatPage() {
     if (!isVoiceMode || params.autostart !== '1') {
       return;
     }
+
     if (
       isLoadingMode ||
       isLoadingElderUserId ||
@@ -277,6 +356,7 @@ export default function ChatPage() {
     ) {
       return;
     }
+
     if (hasAttemptedAutoRecordingRef.current) {
       return;
     }
@@ -310,7 +390,9 @@ export default function ChatPage() {
     try {
       setIsLoadingHistory(true);
       setError(null);
+
       const response = await getChatHistory(50, elderUserId, requesterRole);
+
       const historyMessages: ChatBubble[] = response.items.map((item, index) => ({
         id: `history-${item.created_at}-${index}`,
         role: item.role,
@@ -318,9 +400,14 @@ export default function ChatPage() {
         meta: `${formatHistoryTimestamp(item.created_at)} · ${formatModeLabel(item.mode)}`,
         createdAt: item.created_at,
       }));
+
       setMessages(historyMessages);
     } catch (historyError) {
-      setError(historyError instanceof Error ? historyError.message : '대화 기록을 불러오지 못했습니다.');
+      setError(
+        historyError instanceof Error
+          ? historyError.message
+          : '대화 기록을 불러오지 못했습니다.'
+      );
     } finally {
       setIsLoadingHistory(false);
     }
@@ -333,12 +420,54 @@ export default function ChatPage() {
     }, [loadHistory])
   );
 
+  const handleSelectMode = async (nextMode: CareMode) => {
+    if (mode === nextMode || isLoadingMode || isChangingMode) {
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsChangingMode(true);
+
+      const updatedMode = await updateCurrentMode({
+        mode: nextMode,
+        options: modeOptions,
+      });
+
+      setMode(updatedMode.mode);
+      setModeOptions(updatedMode.options);
+
+      const modeChangeMessage: ChatBubble = {
+        id: `mode-change-${Date.now()}`,
+        role: 'system',
+        text: `${formatModeLabel(updatedMode.mode)}로 바뀌었어요.`,
+        meta: '모드 변경',
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, modeChangeMessage]);
+
+      if (isVoiceMode) {
+        await playTtsForMessage(modeChangeMessage.id, modeChangeMessage.text, updatedMode.mode);
+      }
+    } catch (modeError) {
+      setError(
+        modeError instanceof Error
+          ? modeError.message
+          : '모드를 변경하지 못했습니다.'
+      );
+    } finally {
+      setIsChangingMode(false);
+    }
+  };
+
   const handleSend = async () => {
     const trimmedDraft = draft.trim();
 
     if (!trimmedDraft || isSending) {
       return;
     }
+
     await submitTextTurn(trimmedDraft);
     setDraft('');
   };
@@ -364,11 +493,17 @@ export default function ChatPage() {
         allowsRecording: true,
         playsInSilentMode: true,
       });
+
       await recorder.prepareToRecordAsync();
       recorder.record();
+
       setVoiceUiState('listening');
     } catch (recordingError) {
-      setError(recordingError instanceof Error ? recordingError.message : '녹음을 시작하지 못했습니다.');
+      setError(
+        recordingError instanceof Error
+          ? recordingError.message
+          : '녹음을 시작하지 못했습니다.'
+      );
       setVoiceUiState('idle');
     }
   };
@@ -389,6 +524,7 @@ export default function ChatPage() {
       }
 
       await recorder.stop();
+
       await setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
@@ -405,6 +541,7 @@ export default function ChatPage() {
       }
 
       const voiceCoordinates = await getCoordinatesForVoiceTurn();
+
       const response = await sendChatSpeech({
         fileUri,
         fileName: `caremate-recording-${Date.now()}.m4a`,
@@ -442,10 +579,15 @@ export default function ChatPage() {
       };
 
       setMessages((prev) => [...prev, transcriptBubble, assistantBubble]);
+
       applyVoiceResponseState(response);
       await playTtsForMessage(assistantBubble.id, assistantBubble.text);
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : '음성 업로드 중 오류가 발생했습니다.');
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : '음성 업로드 중 오류가 발생했습니다.'
+      );
       setVoiceUiState('idle');
     } finally {
       setIsUploadingVoice(false);
@@ -481,6 +623,7 @@ export default function ChatPage() {
       }
 
       const coordinates = await getCoordinatesForTextTurn(trimmedText);
+
       const response = await sendChatMessage({
         text: trimmedText,
         mode,
@@ -511,11 +654,15 @@ export default function ChatPage() {
 
       if (isVoiceMode) {
         applyVoiceResponseState(response);
+        await playTtsForMessage(assistantMessage.id, assistantMessage.text);
       }
-
-      await playTtsForMessage(assistantMessage.id, assistantMessage.text);
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : '대화 요청 중 오류가 발생했습니다.');
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : '대화 요청 중 오류가 발생했습니다.'
+      );
+
       if (isVoiceMode) {
         setVoiceUiState('idle');
       }
@@ -555,7 +702,7 @@ export default function ChatPage() {
     setShowQuickConfirmation(false);
   };
 
-  const playTtsForMessage = async (messageId: string, text: string) => {
+  const playTtsForMessage = async (messageId: string, text: string, ttsMode: CareMode = mode) => {
     const trimmedText = text.trim();
 
     if (!trimmedText) {
@@ -567,6 +714,7 @@ export default function ChatPage() {
 
     try {
       player.pause();
+
       await setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
@@ -574,20 +722,32 @@ export default function ChatPage() {
         shouldPlayInBackground: false,
         shouldRouteThroughEarpiece: false,
       });
+
       await setIsAudioActiveAsync(true);
-      pendingTtsRequestRef.current = { messageId, text: trimmedText };
-      player.replace(buildChatTtsUrl(trimmedText, mode, selectedVoice || undefined));
+
+      pendingTtsRequestRef.current = {
+        messageId,
+        text: trimmedText,
+      };
+
+      player.replace(buildChatTtsUrl(trimmedText, ttsMode, selectedVoice || undefined));
       player.play();
     } catch (ttsError) {
       pendingTtsRequestRef.current = null;
       setTtsMessageId(null);
-      setError(ttsError instanceof Error ? ttsError.message : '음성 재생 중 오류가 발생했습니다.');
+
+      setError(
+        ttsError instanceof Error
+          ? ttsError.message
+          : '음성 재생 중 오류가 발생했습니다.'
+      );
     }
   };
 
   const handleOpenDirections = async (place: ChatPlaceItem) => {
     const encodedName = encodeURIComponent(place.name);
     const destination = `${place.latitude},${place.longitude}`;
+
     const url =
       Platform.OS === 'ios'
         ? `http://maps.apple.com/?daddr=${destination}&dirflg=d&q=${encodedName}`
@@ -651,7 +811,11 @@ export default function ChatPage() {
 
       setMessages((prev) => [...prev, statusMessage]);
     } catch (statusError) {
-      setError(statusError instanceof Error ? statusError.message : '영업중 확인 중 오류가 발생했습니다.');
+      setError(
+        statusError instanceof Error
+          ? statusError.message
+          : '영업중 확인 중 오류가 발생했습니다.'
+      );
     } finally {
       setCheckingPlaceKey(null);
     }
@@ -668,14 +832,27 @@ export default function ChatPage() {
   const historyDayOptions = isVoiceMode ? [] : buildHistoryDayOptions(messages);
   const calendarMonths = isVoiceMode ? [] : buildHistoryMonthOptions(messages);
   const selectedCalendarMonthKey = formatMonthKey(selectedCalendarMonth);
-  const activeMonthIndex = calendarMonths.findIndex((monthKey) => monthKey === selectedCalendarMonthKey);
+  const activeMonthIndex = calendarMonths.findIndex(
+    (monthKey) => monthKey === selectedCalendarMonthKey
+  );
+
   const visibleCalendarMonth =
-    activeMonthIndex >= 0 ? selectedCalendarMonth : calendarMonths[0] ? parseMonthKey(calendarMonths[0]) : selectedCalendarMonth;
+    activeMonthIndex >= 0
+      ? selectedCalendarMonth
+      : calendarMonths[0]
+        ? parseMonthKey(calendarMonths[0])
+        : selectedCalendarMonth;
+
   const calendarDays = isVoiceMode ? [] : buildCalendarDays(visibleCalendarMonth, messages);
+
   const visibleMessages =
     isVoiceMode || selectedHistoryDay === 'all'
       ? messages
       : messages.filter((message) => getHistoryDayKey(message.createdAt) === selectedHistoryDay);
+
+  useEffect(() => {
+    scrollToBottom(true);
+  }, [visibleMessages.length, scrollToBottom]);
 
   useEffect(() => {
     if (isVoiceMode) {
@@ -684,9 +861,11 @@ export default function ChatPage() {
 
     if (calendarMonths.length === 0) {
       const currentMonth = startOfMonth(new Date());
+
       if (formatMonthKey(currentMonth) !== selectedCalendarMonthKey) {
         setSelectedCalendarMonth(currentMonth);
       }
+
       return;
     }
 
@@ -697,14 +876,20 @@ export default function ChatPage() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={handleScrollContentSizeChange}
+      >
         <Text style={styles.title}>
           {isGuardianRequester
             ? `${subjectName} 님 상태 질문하기`
             : agentName
-              ? `대화하기 `
+              ? '대화하기'
               : '대화하기'}
         </Text>
+
         <Text style={styles.description}>
           {isGuardianRequester
             ? isVoiceMode
@@ -716,20 +901,67 @@ export default function ChatPage() {
         </Text>
 
         <View style={styles.modeCard}>
-          <Text style={styles.modeLabel}>현재 돌봄 모드</Text>
-          {isLoadingMode ? (
-            <ActivityIndicator size="small" color="#3B82F6" />
-          ) : (
-            <Text style={styles.modeValue}>{formatModeLabel(mode)}</Text>
-          )}
+          <View style={styles.modeHeaderRow}>
+            <View style={styles.modeHeaderTextWrap}>
+              <Text style={styles.modeLabel}>대화 모드 선택</Text>
+              <Text style={styles.modeHint}>원하는 모드를 누르면 바로 바뀝니다.</Text>
+            </View>
+
+            {isLoadingMode || isChangingMode ? (
+              <ActivityIndicator size="small" color="#3B82F6" />
+            ) : (
+              <Text style={styles.modeValue}>{formatModeLabel(mode)}</Text>
+            )}
+          </View>
+
+          <View style={styles.modeButtonRow}>
+            {CARE_MODE_OPTIONS.map((option) => {
+              const isActive = mode === option.mode;
+
+              return (
+                <TouchableOpacity
+                  key={option.mode}
+                  style={[
+                    styles.modeSelectButton,
+                    isActive && styles.modeSelectButtonActive,
+                  ]}
+                  onPress={() => void handleSelectMode(option.mode)}
+                  disabled={isLoadingMode || isChangingMode}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[
+                      styles.modeSelectTitle,
+                      isActive && styles.modeSelectTitleActive,
+                    ]}
+                  >
+                    {option.title}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.modeSelectDescription,
+                      isActive && styles.modeSelectDescriptionActive,
+                    ]}
+                  >
+                    {option.description}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {!isVoiceMode && historyDayOptions.length > 0 ? (
           <View style={styles.filterCard}>
             <View style={styles.filterHeaderRow}>
               <Text style={styles.filterTitle}>날짜 선택</Text>
+
               <TouchableOpacity
-                style={[styles.allHistoryButton, selectedHistoryDay === 'all' && styles.allHistoryButtonActive]}
+                style={[
+                  styles.allHistoryButton,
+                  selectedHistoryDay === 'all' && styles.allHistoryButtonActive,
+                ]}
                 onPress={() => setSelectedHistoryDay('all')}
               >
                 <Text
@@ -742,9 +974,13 @@ export default function ChatPage() {
                 </Text>
               </TouchableOpacity>
             </View>
+
             <View style={styles.calendarHeaderRow}>
               <TouchableOpacity
-                style={[styles.calendarNavButton, activeMonthIndex <= 0 && styles.calendarNavButtonDisabled]}
+                style={[
+                  styles.calendarNavButton,
+                  activeMonthIndex <= 0 && styles.calendarNavButtonDisabled,
+                ]}
                 onPress={() => {
                   if (activeMonthIndex > 0) {
                     setSelectedCalendarMonth(parseMonthKey(calendarMonths[activeMonthIndex - 1]));
@@ -754,11 +990,16 @@ export default function ChatPage() {
               >
                 <Text style={styles.calendarNavText}>이전</Text>
               </TouchableOpacity>
-              <Text style={styles.calendarMonthLabel}>{formatCalendarMonthLabel(visibleCalendarMonth)}</Text>
+
+              <Text style={styles.calendarMonthLabel}>
+                {formatCalendarMonthLabel(visibleCalendarMonth)}
+              </Text>
+
               <TouchableOpacity
                 style={[
                   styles.calendarNavButton,
-                  (activeMonthIndex < 0 || activeMonthIndex >= calendarMonths.length - 1) && styles.calendarNavButtonDisabled,
+                  (activeMonthIndex < 0 || activeMonthIndex >= calendarMonths.length - 1) &&
+                    styles.calendarNavButtonDisabled,
                 ]}
                 onPress={() => {
                   if (activeMonthIndex >= 0 && activeMonthIndex < calendarMonths.length - 1) {
@@ -770,6 +1011,7 @@ export default function ChatPage() {
                 <Text style={styles.calendarNavText}>다음</Text>
               </TouchableOpacity>
             </View>
+
             <View style={styles.weekdayRow}>
               {['일', '월', '화', '수', '목', '금', '토'].map((day) => (
                 <Text key={day} style={styles.weekdayLabel}>
@@ -777,6 +1019,7 @@ export default function ChatPage() {
                 </Text>
               ))}
             </View>
+
             <View style={styles.calendarGrid}>
               {calendarDays.map((day, calendarIndex) =>
                 day ? (
@@ -803,6 +1046,7 @@ export default function ChatPage() {
                     >
                       {day.dayNumber}
                     </Text>
+
                     {day.hasMessages ? <View style={styles.calendarDayDot} /> : null}
                   </TouchableOpacity>
                 ) : (
@@ -815,10 +1059,12 @@ export default function ChatPage() {
 
         {visibleMessages.map((message, index) => {
           const previousMessage = visibleMessages[index - 1];
+
           const shouldShowDayDivider =
             !isVoiceMode &&
             !!message.createdAt &&
             getHistoryDayKey(previousMessage?.createdAt) !== getHistoryDayKey(message.createdAt);
+
           const isUserMessage = message.role === 'user';
           const isSystemMessage = message.role === 'system';
 
@@ -826,14 +1072,34 @@ export default function ChatPage() {
             <View key={message.id}>
               {shouldShowDayDivider ? (
                 <View style={styles.dayDivider}>
-                  <Text style={styles.dayDividerText}>{formatHistoryDayLabel(message.createdAt!)}</Text>
+                  <Text style={styles.dayDividerText}>
+                    {formatHistoryDayLabel(message.createdAt!)}
+                  </Text>
                 </View>
               ) : null}
-              <View style={[styles.messageRow, isUserMessage ? styles.userMessageRow : styles.assistantMessageRow]}>
-                <View style={[styles.messageBubbleWrap, isUserMessage ? styles.userBubbleWrap : styles.assistantBubbleWrap]}>
-                  <Text style={[styles.messageLabel, isUserMessage && styles.userMessageLabel, isSystemMessage && styles.systemMessageLabel]}>
+
+              <View
+                style={[
+                  styles.messageRow,
+                  isUserMessage ? styles.userMessageRow : styles.assistantMessageRow,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.messageBubbleWrap,
+                    isUserMessage ? styles.userBubbleWrap : styles.assistantBubbleWrap,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.messageLabel,
+                      isUserMessage && styles.userMessageLabel,
+                      isSystemMessage && styles.systemMessageLabel,
+                    ]}
+                  >
                     {getRoleLabel(message.role, requesterRole)}
                   </Text>
+
                   <View
                     style={[
                       styles.messageCard,
@@ -841,10 +1107,16 @@ export default function ChatPage() {
                       isSystemMessage && styles.systemMessageCard,
                     ]}
                   >
-                    <Text style={[styles.messageText, isUserMessage && styles.userMessageText]}>{message.text}</Text>
+                    <Text style={[styles.messageText, isUserMessage && styles.userMessageText]}>
+                      {message.text}
+                    </Text>
+
                     {message.meta ? (
-                      <Text style={[styles.messageMeta, isUserMessage && styles.userMessageMeta]}>{message.meta}</Text>
+                      <Text style={[styles.messageMeta, isUserMessage && styles.userMessageMeta]}>
+                        {message.meta}
+                      </Text>
                     ) : null}
+
                     {message.places && message.places.length > 0 ? (
                       <View style={styles.placeButtonGroup}>
                         {message.places.map((place, placeIndex) => (
@@ -852,6 +1124,7 @@ export default function ChatPage() {
                             <Text style={styles.placeButtonTitle}>
                               {placeIndex + 1}. {place.name}
                             </Text>
+
                             <Text style={styles.placeButtonSubtitle}>
                               {place.distance_meters}m
                               {place.available_beds !== undefined && place.available_beds !== null
@@ -859,30 +1132,49 @@ export default function ChatPage() {
                                 : ''}
                               {place.phone ? ` · ${place.phone}` : ''}
                             </Text>
+
                             <View style={styles.placeActionRow}>
                               <TouchableOpacity
                                 style={[styles.placeButton, styles.placeStatusButton]}
                                 onPress={() => void handleCheckPlaceStatus(place)}
-                                disabled={checkingPlaceKey === `${place.name}-${place.latitude}-${place.longitude}`}
+                                disabled={
+                                  checkingPlaceKey ===
+                                  `${place.name}-${place.latitude}-${place.longitude}`
+                                }
                               >
-                                <Text style={[styles.placeButtonActionText, styles.placeStatusButtonText]}>
-                                  {checkingPlaceKey === `${place.name}-${place.latitude}-${place.longitude}`
+                                <Text
+                                  style={[
+                                    styles.placeButtonActionText,
+                                    styles.placeStatusButtonText,
+                                  ]}
+                                >
+                                  {checkingPlaceKey ===
+                                  `${place.name}-${place.latitude}-${place.longitude}`
                                     ? '확인 중...'
                                     : '영업중 확인'}
                                 </Text>
                               </TouchableOpacity>
+
                               <TouchableOpacity
                                 style={styles.placeButton}
                                 onPress={() => void handleOpenDirections(place)}
                               >
                                 <Text style={styles.placeButtonActionText}>길안내</Text>
                               </TouchableOpacity>
+
                               {place.phone ? (
                                 <TouchableOpacity
                                   style={[styles.placeButton, styles.placeCallButton]}
                                   onPress={() => void handleCallPlace(place)}
                                 >
-                                  <Text style={[styles.placeButtonActionText, styles.placeCallButtonText]}>전화하기</Text>
+                                  <Text
+                                    style={[
+                                      styles.placeButtonActionText,
+                                      styles.placeCallButtonText,
+                                    ]}
+                                  >
+                                    전화하기
+                                  </Text>
                                 </TouchableOpacity>
                               ) : null}
                             </View>
@@ -890,6 +1182,7 @@ export default function ChatPage() {
                         ))}
                       </View>
                     ) : null}
+
                     {message.sources && message.sources.length > 0 ? (
                       <View style={styles.sourceButtonGroup}>
                         {message.sources.map((source, sourceIndex) => (
@@ -898,18 +1191,26 @@ export default function ChatPage() {
                             style={styles.sourceButton}
                             onPress={() => void handleOpenSource(source)}
                           >
-                            <Text style={styles.sourceButtonText}>{formatSourceLabel(source, sourceIndex)}</Text>
+                            <Text style={styles.sourceButtonText}>
+                              {formatSourceLabel(source, sourceIndex)}
+                            </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
                     ) : null}
+
                     {message.role !== 'user' && message.text.trim() ? (
                       <TouchableOpacity
-                        style={[styles.ttsButton, ttsMessageId === message.id && styles.ttsButtonActive]}
+                        style={[
+                          styles.ttsButton,
+                          ttsMessageId === message.id && styles.ttsButtonActive,
+                        ]}
                         onPress={() => void playTtsForMessage(message.id, message.text)}
                       >
                         <Text style={styles.ttsButtonText}>
-                          {ttsMessageId === message.id && playerStatus.playing ? '읽는 중...' : '음성으로 듣기'}
+                          {ttsMessageId === message.id && playerStatus.playing
+                            ? '읽는 중...'
+                            : '음성으로 듣기'}
                         </Text>
                       </TouchableOpacity>
                     ) : null}
@@ -947,7 +1248,13 @@ export default function ChatPage() {
               <Text style={[styles.voiceStatusTitle, getVoiceStatusTone(voiceUiState).titleStyle]}>
                 {getVoiceStatusTitle(voiceUiState)}
               </Text>
-              <Text style={[styles.voiceStatusDescription, getVoiceStatusTone(voiceUiState).descriptionStyle]}>
+
+              <Text
+                style={[
+                  styles.voiceStatusDescription,
+                  getVoiceStatusTone(voiceUiState).descriptionStyle,
+                ]}
+              >
                 {getVoiceStatusDescription({
                   voiceUiState,
                   durationMillis: recorderState.durationMillis,
@@ -974,7 +1281,9 @@ export default function ChatPage() {
                 onPress={() => void handleStopAndUploadRecording()}
                 disabled={isUploadingVoice}
               >
-                <Text style={styles.voiceButtonText}>{isUploadingVoice ? '확인 중...' : '말씀 완료 후 전송'}</Text>
+                <Text style={styles.voiceButtonText}>
+                  {isUploadingVoice ? '확인 중...' : '말씀 완료 후 전송'}
+                </Text>
               </TouchableOpacity>
             )}
 
@@ -1012,6 +1321,7 @@ export default function ChatPage() {
         {isVoiceMode ? null : (
           <View style={styles.inputCard}>
             <Text style={styles.inputLabel}>질문 입력</Text>
+
             <TextInput
               style={styles.input}
               value={draft}
@@ -1030,7 +1340,9 @@ export default function ChatPage() {
               onPress={() => void handleSend()}
               disabled={!draft.trim() || isSending}
             >
-              <Text style={styles.sendButtonText}>{isSending ? '보내는 중...' : '질문 보내기'}</Text>
+              <Text style={styles.sendButtonText}>
+                {isSending ? '보내는 중...' : '질문 보내기'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1067,20 +1379,78 @@ const styles = StyleSheet.create({
   },
   modeCard: {
     backgroundColor: '#DBEAFE',
-    borderRadius: 18,
+    borderRadius: 22,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: 18,
     marginBottom: 16,
   },
+  modeHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 14,
+  },
+  modeHeaderTextWrap: {
+    flex: 1,
+  },
   modeLabel: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  modeHint: {
+    fontSize: 13,
+    lineHeight: 20,
     color: '#475569',
-    marginBottom: 6,
   },
   modeValue: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
     color: '#1D4ED8',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  modeButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modeSelectButton: {
+    flex: 1,
+    minHeight: 74,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  modeSelectButtonActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#1E40AF',
+  },
+  modeSelectTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    marginBottom: 5,
+  },
+  modeSelectTitleActive: {
+    color: '#FFFFFF',
+  },
+  modeSelectDescription: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  modeSelectDescriptionActive: {
+    color: '#DBEAFE',
   },
   filterCard: {
     backgroundColor: '#FFFFFF',
@@ -1557,22 +1927,23 @@ function formatModeLabel(mode: CareMode) {
   if (mode === 'cognitive_support') {
     return '인지 지원 모드';
   }
+
   if (mode === 'health_support') {
     return '건강 관리 모드';
   }
+
   return '기본 모드';
 }
 
-function getRoleLabel(
-  role: ChatBubble['role'],
-  requesterRole: ChatRequesterRole
-) {
+function getRoleLabel(role: ChatBubble['role'], requesterRole: ChatRequesterRole) {
   if (role === 'user') {
     return requesterRole === 'guardian' ? '보호자' : '나';
   }
+
   if (role === 'system') {
     return '재확인';
   }
+
   return 'CareMate';
 }
 
@@ -1580,6 +1951,7 @@ function formatDuration(durationMillis: number) {
   const totalSeconds = Math.max(0, Math.floor(durationMillis / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
+
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
@@ -1600,18 +1972,23 @@ function formatIntentLabel(intent: string, mode: CareMode) {
   if (intent === 'medication_lookup' || intent === 'mark_medication_taken') {
     return '복용 안내';
   }
+
   if (intent === 'schedule_lookup') {
     return '일정 안내';
   }
+
   if (intent === 'web_search_support') {
     return '웹 검색';
   }
+
   if (mode === 'health_support') {
     return '건강지원';
   }
+
   if (mode === 'cognitive_support') {
     return '인지지원';
   }
+
   return '일반 안내';
 }
 
@@ -1627,18 +2004,22 @@ function formatSourceLabel(source: ChatSourceItem, index: number) {
 
 function formatHistoryTimestamp(value: string) {
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) {
     return value;
   }
+
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
+
   return `${month}.${day} ${hours}:${minutes}`;
 }
 
 function formatHistoryDayLabel(value: string) {
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) {
     return value;
   }
@@ -1651,6 +2032,7 @@ function formatHistoryDayLabel(value: string) {
   if (diffDays === 0) {
     return '오늘';
   }
+
   if (diffDays === 1) {
     return '어제';
   }
@@ -1658,6 +2040,7 @@ function formatHistoryDayLabel(value: string) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
+
   return `${year}.${month}.${day}`;
 }
 
@@ -1665,10 +2048,13 @@ function getHistoryDayKey(value?: string) {
   if (!value) {
     return null;
   }
+
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) {
     return value;
   }
+
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
@@ -1684,6 +2070,7 @@ function buildHistoryDayOptions(messages: ChatBubble[]) {
     }
 
     keys.add(dayKey);
+
     options.push({
       key: dayKey,
       label: formatHistoryDayLabel(message.createdAt!),
@@ -1716,11 +2103,13 @@ function buildHistoryMonthOptions(messages: ChatBubble[]) {
     }
 
     const date = new Date(message.createdAt);
+
     if (Number.isNaN(date.getTime())) {
       continue;
     }
 
     const monthKey = formatMonthKey(date);
+
     if (keys.has(monthKey)) {
       continue;
     }
@@ -1730,6 +2119,7 @@ function buildHistoryMonthOptions(messages: ChatBubble[]) {
   }
 
   monthKeys.sort((left, right) => (left < right ? 1 : -1));
+
   return monthKeys;
 }
 
@@ -1740,7 +2130,9 @@ function formatCalendarMonthLabel(date: Date) {
 function buildCalendarDays(monthDate: Date, messages: ChatBubble[]) {
   const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
   const lastDay = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+
   const days: Array<{ key: string; dayNumber: number; hasMessages: boolean } | null> = [];
+
   const availableDayKeys = new Set(
     messages
       .map((message) => getHistoryDayKey(message.createdAt) ?? '')
@@ -1754,6 +2146,7 @@ function buildCalendarDays(monthDate: Date, messages: ChatBubble[]) {
   for (let day = 1; day <= lastDay.getDate(); day += 1) {
     const currentDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
     const key = getHistoryDayKey(currentDate.toISOString()) ?? '';
+
     days.push({
       key,
       dayNumber: day,
@@ -1771,10 +2164,12 @@ function buildCalendarDays(monthDate: Date, messages: ChatBubble[]) {
 function getLatestAssistantPrompt(messages: ChatBubble[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
+
     if (message.role === 'assistant' || message.role === 'system') {
       return message.text;
     }
   }
+
   return null;
 }
 
@@ -1782,15 +2177,19 @@ function getVoiceStatusTitle(state: VoiceUiState) {
   if (state === 'listening') {
     return '듣는 중';
   }
+
   if (state === 'processing' || state === 'awaiting_confirmation') {
     return '확인 중';
   }
+
   if (state === 'needs_clarification') {
     return '다시 말씀해 주세요';
   }
+
   if (state === 'completed') {
     return '처리했어요';
   }
+
   return '눌러서 말씀해 주세요';
 }
 
@@ -1806,18 +2205,23 @@ function getVoiceStatusDescription({
   if (voiceUiState === 'listening') {
     return `${formatDuration(durationMillis)} 동안 듣고 있어요. 말씀을 마치면 아래 버튼으로 전송해 주세요.`;
   }
+
   if (voiceUiState === 'processing') {
     return '전사와 답변을 확인하고 있어요.';
   }
+
   if (voiceUiState === 'awaiting_confirmation') {
     return latestPrompt ?? '내용이 맞으면 네, 아니면 아니오를 눌러 주세요.';
   }
+
   if (voiceUiState === 'needs_clarification') {
     return latestPrompt ?? '천천히 다시 말씀해 주시면 정확히 확인해드릴게요.';
   }
+
   if (voiceUiState === 'completed') {
     return latestPrompt ?? '필요하시면 다시 말씀하시면 됩니다.';
   }
+
   return '버튼을 누르고 말씀하시면 일정, 복약, 보호자 메시지를 바로 처리할 수 있어요.';
 }
 
@@ -1829,6 +2233,7 @@ function getVoiceStatusTone(state: VoiceUiState) {
       descriptionStyle: styles.voiceStatusDescriptionBlue,
     };
   }
+
   if (state === 'processing' || state === 'awaiting_confirmation') {
     return {
       containerStyle: styles.voiceStatusProcessing,
@@ -1836,6 +2241,7 @@ function getVoiceStatusTone(state: VoiceUiState) {
       descriptionStyle: styles.voiceStatusDescriptionAmber,
     };
   }
+
   if (state === 'needs_clarification') {
     return {
       containerStyle: styles.voiceStatusClarification,
@@ -1843,6 +2249,7 @@ function getVoiceStatusTone(state: VoiceUiState) {
       descriptionStyle: styles.voiceStatusDescriptionRed,
     };
   }
+
   return {
     containerStyle: styles.voiceStatusCompleted,
     titleStyle: styles.voiceStatusTitleGreen,
