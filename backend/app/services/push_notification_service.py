@@ -185,6 +185,48 @@ def dispatch_alert_push(
     )
 
 
+def dispatch_elder_schedule_sync_push(
+    db: Session,
+    *,
+    elder_user_id: str,
+    action: str,
+    schedule_id: str = "",
+    schedule_title: str = "",
+) -> int:
+    tokens = _list_enabled_tokens(db, elder_user_id=elder_user_id, user_role="elder")
+
+    if not tokens:
+        return 0
+
+    action_labels = {
+        "created": "새 일정이 등록됐어요.",
+        "updated": "일정이 변경됐어요.",
+        "deleted": "일정이 삭제됐어요.",
+    }
+    body = action_labels.get(action, "일정이 변경됐어요.")
+    if schedule_title:
+        body = f"{schedule_title} {body}"
+
+    return send_expo_push_notifications(
+        {
+            "to": token,
+            "title": "CareMate 일정 동기화",
+            "body": body,
+            "sound": "default",
+            "data": {
+                "kind": "caremate-alert",
+                "targetRole": "elder",
+                "elderUserId": elder_user_id,
+                "alertType": "schedule_sync",
+                "severity": "low",
+                "scheduleAction": action,
+                "scheduleId": schedule_id,
+            },
+        }
+        for token in tokens
+    )
+
+
 def send_expo_push_notifications(messages: Iterable[dict[str, Any]]) -> int:
     payload = list(messages)
     if not payload:
@@ -242,6 +284,8 @@ def _build_alert_title(*, alert_type: str, target_role: str) -> str:
         return "복약 확인 필요"
     if alert_type == "location_stale":
         return "위치 확인 필요"
+    if alert_type == "safety_zone_exit":
+        return "안전구역 이탈"
     if alert_type in {"check_in_pending", "check_in_missed"}:
         return "안부 확인 필요"
     if alert_type == "schedule_created":

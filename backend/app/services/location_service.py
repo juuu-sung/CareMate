@@ -10,6 +10,7 @@ from app.services.guardian_alert_service import (
     get_open_guardian_alert,
     resolve_guardian_alerts,
 )
+from app.services.safety_zone_service import evaluate_safety_zones_for_location
 
 
 def record_location(db: Session, payload: LocationSyncRequest) -> dict:
@@ -56,6 +57,13 @@ def record_location(db: Session, payload: LocationSyncRequest) -> dict:
         },
     ).mappings().one()
 
+    evaluate_safety_zones_for_location(
+        db,
+        elder_user_id=payload.elder_user_id,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        captured_at=captured_at,
+    )
     resolve_guardian_alerts(
         db,
         elder_user_id=payload.elder_user_id,

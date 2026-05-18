@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import MapView, { Circle, Marker } from 'react-native-maps';
 import {
   Ionicons,
   MaterialCommunityIcons,
@@ -24,12 +25,19 @@ import {
 import {
   getGuardianAlerts,
   getGuardianDashboard,
+  getGuardianSafetyZones,
   GuardianAlertItem,
+  GuardianSafetyZoneItem,
 } from '@/services/guardian';
 import { GuardianDashboard } from '@/types/guardian';
 import {
   getGuardianCareStatus,
 } from '@/utils/guardianCare';
+import {
+  GuardianLatestLocationResponse,
+  getGuardianLatestLocation,
+} from '@/services/guardianLocation';
+import { requestGuardianLocationRefresh } from '@/services/locations';
 
 type StatItem = {
   label: string;
@@ -214,8 +222,32 @@ export default function GuardianHomeScreen() {
   const [alerts, setAlerts] = React.useState<GuardianAlertItem[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = React.useState(true);
   const [dashboardError, setDashboardError] = React.useState<string | null>(null);
+  const [latestLocation, setLatestLocation] =
+    React.useState<GuardianLatestLocationResponse | null>(null);
+  const [safetyZones, setSafetyZones] = React.useState<GuardianSafetyZoneItem[]>([]);
+  const [isRequestingLocation, setIsRequestingLocation] = React.useState(false);
 
   const careStatus = getGuardianCareStatus(dashboard, !!dashboardError);
+  const latestLocationRegion = React.useMemo(() => {
+    if (
+      latestLocation?.status !== 'available' ||
+      latestLocation.latitude == null ||
+      latestLocation.longitude == null
+    ) {
+      return null;
+    }
+
+    return {
+      latitude: latestLocation.latitude,
+      longitude: latestLocation.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+  }, [latestLocation]);
+  const safetyZoneSummary = React.useMemo(
+    () => summarizeSafetyZones(safetyZones),
+    [safetyZones]
+  );
 
   React.useEffect(() => {
     if (!parentId || !linkCode) {
@@ -342,13 +374,27 @@ export default function GuardianHomeScreen() {
         getGuardianDashboard(parentId, linkCode),
         getGuardianAlerts(parentId, linkCode),
       ]);
+      const [latestLocationResponse, safetyZoneResponse] = await Promise.all([
+        getGuardianLatestLocation(parentId, linkCode).catch((locationError) => {
+          console.log('보호자 홈 위치 조회 오류:', locationError);
+          return null;
+        }),
+        getGuardianSafetyZones(parentId, linkCode).catch((zoneError) => {
+          console.log('보호자 홈 안전구역 조회 오류:', zoneError);
+          return null;
+        }),
+      ]);
 
       setDashboard(dashboardResponse);
       setAlerts(alertsResponse.items);
+      setLatestLocation(latestLocationResponse);
+      setSafetyZones(safetyZoneResponse?.items ?? []);
     } catch (error) {
       console.log('보호자 홈 조회 오류:', error);
       setDashboard(null);
       setAlerts([]);
+      setLatestLocation(null);
+      setSafetyZones([]);
       setDashboardError('보호자 홈 정보를 불러오지 못했어요.');
     } finally {
       setIsLoadingDashboard(false);
@@ -521,6 +567,32 @@ export default function GuardianHomeScreen() {
     [openGuardianHealth, openGuardianLocation, openGuardianMedications, openParentCalendar]
   );
 
+  const handleRequestLocationRefresh = React.useCallback(async () => {
+    if (!parentId || !linkCode) {
+      Alert.alert('위치 요청 실패', '연동 정보가 없어 위치를 요청할 수 없어요.');
+      return;
+    }
+
+    try {
+      setIsRequestingLocation(true);
+      await requestGuardianLocationRefresh(parentId, linkCode);
+      Alert.alert(
+        '위치 요청 전달됨',
+        '부모님 앱이 반응하면 잠시 후 지도에 최신 위치가 반영됩니다.'
+      );
+      setTimeout(() => {
+        void loadGuardianData();
+      }, 12000);
+    } catch (error) {
+      Alert.alert(
+        '위치 요청 실패',
+        error instanceof Error ? error.message : '현재 위치 요청에 실패했습니다.'
+      );
+    } finally {
+      setIsRequestingLocation(false);
+    }
+  }, [linkCode, loadGuardianData, parentId]);
+
   const handleMenuPress = (title: string) => {
     if (title === '대화 요약') {
       openGuardianConversations();
@@ -687,6 +759,105 @@ export default function GuardianHomeScreen() {
               <Text style={styles.statValue}>{item.value}</Text>
             </TouchableOpacity>
           ))}
+        </View>
+
+        <Text style={styles.sectionTitle}>실시간 위치</Text>
+        <View style={styles.locationCard}>
+          <View style={styles.locationHeader}>
+            <View style={styles.locationTitleRow}>
+              <View style={styles.locationIconWrap}>
+                <Feather name="map-pin" size={18} color="#05B547" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.locationTitle}>{parentName} 님 위치</Text>
+                <Text style={styles.locationMeta}>
+                  {dashboard?.latest_location_captured_at
+                    ? `최근 업데이트 ${formatRelativeTime(dashboard.latest_location_captured_at)}`
+                    : latestLocation?.label || '위치 기록을 확인하고 있습니다'}
+                </Text>
+                <Text
+                  style={[
+                    styles.locationZoneStatus,
+                    { color: safetyZoneSummary.color },
+                  ]}
+                >
+                  {safetyZoneSummary.label}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {latestLocationRegion ? (
+            <TouchableOpacity
+              style={styles.locationMapWrap}
+              activeOpacity={0.9}
+              onPress={openGuardianLocation}
+            >
+              <MapView
+                style={styles.locationMap}
+                region={latestLocationRegion}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                pitchEnabled={false}
+                rotateEnabled={false}
+                pointerEvents="none"
+              >
+                {safetyZones.map((zone) => (
+                  <Circle
+                    key={zone.id}
+                    center={{
+                      latitude: zone.center_latitude,
+                      longitude: zone.center_longitude,
+                    }}
+                    radius={zone.radius_meters}
+                    strokeWidth={2}
+                    strokeColor={getSafetyZoneMapColor(zone)}
+                    fillColor={`${getSafetyZoneMapColor(zone)}22`}
+                  />
+                ))}
+                <Marker
+                  coordinate={{
+                    latitude: latestLocationRegion.latitude,
+                    longitude: latestLocationRegion.longitude,
+                  }}
+                  title={`${parentName} 최근 위치`}
+                />
+              </MapView>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.locationEmptyBox}>
+              <Ionicons name="location-outline" size={28} color="#64748B" />
+              <Text style={styles.locationEmptyTitle}>
+                {latestLocation?.label || '아직 표시할 위치가 없습니다'}
+              </Text>
+              <Text style={styles.locationEmptyText}>
+                부모님 기기에서 위치 권한을 허용하면 지도에 표시됩니다.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.locationActionRow}>
+            <TouchableOpacity
+              style={styles.locationSecondaryButton}
+              activeOpacity={0.85}
+              onPress={openGuardianLocation}
+            >
+              <Text style={styles.locationSecondaryButtonText}>크게 보기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.locationPrimaryButton,
+                isRequestingLocation && styles.locationButtonDisabled,
+              ]}
+              activeOpacity={0.85}
+              onPress={() => void handleRequestLocationRefresh()}
+              disabled={isRequestingLocation}
+            >
+              <Text style={styles.locationPrimaryButtonText}>
+                {isRequestingLocation ? '요청 중' : '현재 위치 요청'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={styles.sectionTitle}>부모님 기본 정보</Text>
@@ -925,6 +1096,56 @@ function Divider() {
   return <View style={styles.divider} />;
 }
 
+function summarizeSafetyZones(zones: GuardianSafetyZoneItem[]) {
+  const enabledZones = zones.filter((zone) => zone.enabled);
+
+  if (zones.length === 0) {
+    return {
+      label: '안전구역 미설정',
+      color: '#64748B',
+    };
+  }
+
+  if (enabledZones.length === 0) {
+    return {
+      label: '안전구역 꺼짐',
+      color: '#64748B',
+    };
+  }
+
+  if (enabledZones.some((zone) => zone.last_status === 'outside')) {
+    return {
+      label: '안전구역 벗어남',
+      color: '#DC2626',
+    };
+  }
+
+  if (enabledZones.every((zone) => zone.last_status === 'inside')) {
+    return {
+      label: '안전구역 안',
+      color: '#15803D',
+    };
+  }
+
+  return {
+    label: '안전구역 확인 전',
+    color: '#2563EB',
+  };
+}
+
+function getSafetyZoneMapColor(zone: GuardianSafetyZoneItem) {
+  if (!zone.enabled) {
+    return '#94A3B8';
+  }
+  if (zone.last_status === 'outside') {
+    return '#EF4444';
+  }
+  if (zone.last_status === 'inside') {
+    return '#05B547';
+  }
+  return '#2563EB';
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -1051,6 +1272,114 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#111827',
     fontWeight: '800',
+  },
+  locationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 20,
+  },
+  locationHeader: {
+    marginBottom: 12,
+  },
+  locationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  locationIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#EEFDF3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  locationMeta: {
+    marginTop: 3,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  locationZoneStatus: {
+    marginTop: 3,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  locationMapWrap: {
+    height: 210,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
+  },
+  locationMap: {
+    flex: 1,
+  },
+  locationEmptyBox: {
+    minHeight: 150,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  locationEmptyTitle: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#334155',
+    textAlign: 'center',
+  },
+  locationEmptyText: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  locationActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  locationPrimaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: '#05B547',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationSecondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: '#EEFDF3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationPrimaryButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  locationSecondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#047B35',
+  },
+  locationButtonDisabled: {
+    opacity: 0.55,
   },
   sectionTitle: {
     fontSize: 20,

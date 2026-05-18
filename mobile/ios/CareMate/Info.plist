@@ -72,14 +72,20 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your camera</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>CareMate가 병원 일정과 보호자 등록 일정을 휴대폰 캘린더에 추가하려면 캘린더 접근이 필요합니다.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>CareMate가 병원 일정과 보호자 등록 일정을 휴대폰 캘린더에 추가하려면 캘린더 접근이 필요합니다.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>CareMate가 병원 일정과 보호자 등록 일정을 휴대폰 캘린더에 추가하려면 캘린더 접근이 필요합니다.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Expo Dev Launcher uses the local network to discover and connect to development servers running on your computer.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your location</string>
+	<string>CareMate가 앱이 꺼져 있을 때도 보호자에게 안전 확인용 위치를 공유하려면 항상 위치 접근이 필요합니다.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your location</string>
+	<string>CareMate가 앱이 꺼져 있을 때도 보호자에게 안전 확인용 위치를 공유하려면 항상 위치 접근이 필요합니다.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>CareMate가 가까운 병원을 찾기 위해 현재 위치 접근이 필요합니다.</string>
+	<string>CareMate가 가까운 병원을 찾고 보호자에게 현재 위치를 공유하려면 위치 접근이 필요합니다.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>CareMate가 음성 대화와 웨이크워드를 위해 마이크 접근이 필요합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -99,6 +105,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>location</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>

@@ -20,6 +20,7 @@ from app.services.openai_service import (
     OpenAIServiceError,
     summarize_guardian_conversation_days,
 )
+from app.services.push_notification_service import dispatch_elder_schedule_sync_push
 
 SEOUL_TZ = ZoneInfo("Asia/Seoul")
 VALID_SCHEDULE_STATUSES = {"scheduled", "completed", "cancelled"}
@@ -868,6 +869,13 @@ def create_guardian_schedule(
         },
     ).mappings().one()
 
+    dispatch_elder_schedule_sync_push(
+        db,
+        elder_user_id=elder_user_id,
+        action="created",
+        schedule_id=created_row["id"],
+        schedule_title=created_row["title"],
+    )
     db.commit()
 
     return _format_guardian_schedule_item(created_row)
@@ -944,6 +952,13 @@ def update_guardian_schedule(
     if not updated_row:
         raise ValueError("일정을 찾을 수 없습니다.")
 
+    dispatch_elder_schedule_sync_push(
+        db,
+        elder_user_id=elder_user_id,
+        action="updated",
+        schedule_id=updated_row["id"],
+        schedule_title=updated_row["title"],
+    )
     db.commit()
 
     return _format_guardian_schedule_item(updated_row)
@@ -975,6 +990,12 @@ def delete_guardian_schedule(
     if not deleted_row:
         raise ValueError("일정을 찾을 수 없습니다.")
 
+    dispatch_elder_schedule_sync_push(
+        db,
+        elder_user_id=elder_user_id,
+        action="deleted",
+        schedule_id=deleted_row["id"],
+    )
     db.commit()
     return {"success": True}
 

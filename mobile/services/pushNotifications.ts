@@ -20,6 +20,8 @@ export type CarePushNotificationData = {
   elderUserId: string;
   alertType: string;
   severity: string;
+  scheduleAction?: string;
+  scheduleId?: string;
 };
 
 function allowsNotifications(
@@ -152,6 +154,8 @@ export function addCarePushResponseListener(
       elderUserId: String(rawData.elderUserId || ''),
       alertType: String(rawData.alertType || ''),
       severity: String(rawData.severity || ''),
+      scheduleAction: rawData.scheduleAction ? String(rawData.scheduleAction) : undefined,
+      scheduleId: rawData.scheduleId ? String(rawData.scheduleId) : undefined,
     });
   });
 }
