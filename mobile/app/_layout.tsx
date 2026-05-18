@@ -18,8 +18,16 @@ import {
   addCarePushResponseListener,
   registerCurrentDeviceForPush,
 } from '../services/pushNotifications';
+import {
+  addScheduleReminderResponseListener,
+  syncSchedulesToDevice,
+} from '../services/scheduleDeviceSync';
 
-import { syncRequestedElderLocation } from '../services/locationTask';
+import {
+  ensureBackgroundLocationSync,
+  stopBackgroundLocationSync,
+  syncRequestedElderLocation,
+} from '../services/locationTask';
 
 import { consumePendingSiriShortcutAction } from '../services/siriShortcut';
 
@@ -66,6 +74,8 @@ export default function RootLayout() {
   const wakeStartedRef = useRef(false);
   const wakeNavigatingRef = useRef(false);
   const pushRegistrationKeyRef = useRef('');
+  const scheduleSyncKeyRef = useRef('');
+  const scheduleSyncAtRef = useRef(0);
 
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -119,6 +129,29 @@ export default function RootLayout() {
   }, [router]);
 
   useEffect(() => {
+    const subscription = addScheduleReminderResponseListener(() => {
+      const session = authSessionRef.current;
+
+      if (session?.role !== 'parent') {
+        return;
+      }
+
+      router.push({
+        pathname: '/calendar',
+        params: {
+          viewerRole: 'parent',
+          elderUserId: session.elderUserId || session.parentId,
+          parentId: session.parentId,
+        },
+      });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
+
+  useEffect(() => {
     const subscription = addCarePushResponseListener((data) => {
       const session = authSessionRef.current;
 
@@ -139,22 +172,41 @@ export default function RootLayout() {
       }
 
       if (session.role === 'parent' && data.targetRole === 'elder') {
+        const elderUserId = session.elderUserId || session.parentId;
+
         if (data.alertType === 'location_request') {
           void syncRequestedElderLocation({
-            elderUserId: session.elderUserId || session.parentId,
+            elderUserId,
             linkCode: session.linkCode,
           });
         }
 
-        router.push({
-          pathname: '/home',
-          params: {
-            parentId: session.parentId,
-            elderUserId: session.elderUserId || session.parentId,
-            parentName: session.parentName,
-            linkCode: session.linkCode,
-          },
-        });
+        if (data.alertType === 'schedule_sync') {
+          void syncSchedulesToDevice({ elderUserId }).catch((error) => {
+            console.log('[ScheduleSync] push sync error:', error);
+          });
+        }
+
+        if (data.alertType === 'schedule_sync') {
+          router.push({
+            pathname: '/calendar',
+            params: {
+              viewerRole: 'parent',
+              elderUserId,
+              parentId: session.parentId,
+            },
+          });
+        } else {
+          router.push({
+            pathname: '/home',
+            params: {
+              parentId: session.parentId,
+              elderUserId,
+              parentName: session.parentName,
+              linkCode: session.linkCode,
+            },
+          });
+        }
       }
     });
 
@@ -264,6 +316,61 @@ export default function RootLayout() {
     void registerCurrentDeviceForPush(authSession).catch((error) => {
       pushRegistrationKeyRef.current = '';
       console.log('[PushNotification] registration error:', error);
+    });
+  }, [appState, authSession, isSessionHydrated]);
+
+  useEffect(() => {
+    if (!isSessionHydrated || appState !== 'active') {
+      return;
+    }
+
+    if (authSession?.role !== 'parent') {
+      void stopBackgroundLocationSync().catch((error) => {
+        console.log('[LocationTask] stop background sync error:', error);
+      });
+      return;
+    }
+
+    const elderUserId = authSession.elderUserId || authSession.parentId;
+
+    void ensureBackgroundLocationSync({
+      elderUserId,
+      linkCode: authSession.linkCode,
+    }).then((status) => {
+      if (!status.started) {
+        console.log('[LocationTask] background sync not started:', status.message);
+      }
+    }).catch((error) => {
+      console.log('[LocationTask] background sync setup error:', error);
+    });
+  }, [appState, authSession, isSessionHydrated]);
+
+  useEffect(() => {
+    if (
+      !isSessionHydrated ||
+      appState !== 'active' ||
+      authSession?.role !== 'parent'
+    ) {
+      return;
+    }
+
+    const elderUserId = authSession.elderUserId || authSession.parentId;
+    const syncKey = `schedule:${elderUserId}:${authSession.linkCode}`;
+    const now = Date.now();
+
+    if (
+      scheduleSyncKeyRef.current === syncKey &&
+      now - scheduleSyncAtRef.current < 60 * 1000
+    ) {
+      return;
+    }
+
+    scheduleSyncKeyRef.current = syncKey;
+    scheduleSyncAtRef.current = now;
+
+    void syncSchedulesToDevice({ elderUserId }).catch((error) => {
+      scheduleSyncKeyRef.current = '';
+      console.log('[ScheduleSync] active sync error:', error);
     });
   }, [appState, authSession, isSessionHydrated]);
 

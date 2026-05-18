@@ -24,9 +24,17 @@ import {
   getMedicationReminderStatus,
   MedicationReminderStatus,
 } from '@/services/medicationReminders';
+import {
+  ensureBackgroundLocationSync,
+  stopBackgroundLocationSync,
+} from '@/services/locationTask';
 import { CHAT_TTS_VOICE_OPTIONS } from '@/services/chat';
 
-type PermissionStatusLabel = '허용됨' | '한 번만 허용됨' | '허용 안 됨' | '확인 필요';
+type PermissionStatusLabel =
+  | '백그라운드 허용됨'
+  | '앱 사용 중 허용됨'
+  | '허용 안 됨'
+  | '확인 필요';
 
 const siriSteps = [
   '1. 앱을 한 번 실행한 뒤 Siri를 켜주세요.',
@@ -72,8 +80,11 @@ export default function SettingsPage() {
     try {
       setIsLoadingPermission(true);
       setError(null);
-      const permission = await Location.getForegroundPermissionsAsync();
-      applyPermissionState(permission);
+      const [foregroundPermission, backgroundPermission] = await Promise.all([
+        Location.getForegroundPermissionsAsync(),
+        Location.getBackgroundPermissionsAsync(),
+      ]);
+      applyPermissionState(foregroundPermission, backgroundPermission);
     } catch (permissionError) {
       setError(permissionError instanceof Error ? permissionError.message : '위치 권한 상태를 불러오지 못했습니다.');
     } finally {
@@ -113,8 +124,23 @@ export default function SettingsPage() {
     try {
       setIsRequestingPermission(true);
       setError(null);
-      const permission = await Location.requestForegroundPermissionsAsync();
-      applyPermissionState(permission);
+
+      if (parentSession) {
+        const status = await ensureBackgroundLocationSync({
+          elderUserId: parentSession.elderUserId || parentSession.parentId,
+          linkCode: parentSession.linkCode,
+        });
+        await loadPermission();
+        setPermissionDescription(status.message);
+        return;
+      }
+
+      const foregroundPermission = await Location.requestForegroundPermissionsAsync();
+      const backgroundPermission = foregroundPermission.granted
+        ? await Location.requestBackgroundPermissionsAsync()
+        : await Location.getBackgroundPermissionsAsync();
+
+      applyPermissionState(foregroundPermission, backgroundPermission);
     } catch (permissionError) {
       setError(permissionError instanceof Error ? permissionError.message : '위치 권한 요청 중 오류가 발생했습니다.');
     } finally {
@@ -200,6 +226,7 @@ export default function SettingsPage() {
         onPress: () => {
           void (async () => {
             try {
+              await stopBackgroundLocationSync();
               await clearAuthSession();
               router.replace('/');
             } catch (logoutError) {
@@ -436,19 +463,34 @@ export default function SettingsPage() {
     </SafeAreaView>
   );
 
-  function applyPermissionState(permission: Location.PermissionResponse) {
-    setCanAskAgain(permission.canAskAgain);
+  function applyPermissionState(
+    foregroundPermission: Location.PermissionResponse,
+    backgroundPermission?: Location.PermissionResponse
+  ) {
+    setCanAskAgain(
+      foregroundPermission.canAskAgain || backgroundPermission?.canAskAgain || false
+    );
 
-    if (permission.granted) {
-      setPermissionLabel('허용됨');
-      setPermissionDescription('현재 위치를 사용할 수 있습니다. 주변 병원 검색에 바로 반영됩니다.');
+    if (foregroundPermission.granted && backgroundPermission?.granted) {
+      setPermissionLabel('백그라운드 허용됨');
+      setPermissionDescription(
+        '앱을 닫아도 보호자에게 최신 위치를 공유할 수 있습니다.'
+      );
       return;
     }
 
-    if (permission.status === Location.PermissionStatus.DENIED) {
+    if (foregroundPermission.granted) {
+      setPermissionLabel('앱 사용 중 허용됨');
+      setPermissionDescription(
+        '주변 병원 검색은 가능하지만, 앱을 닫으면 위치 공유가 제한됩니다.'
+      );
+      return;
+    }
+
+    if (foregroundPermission.status === Location.PermissionStatus.DENIED) {
       setPermissionLabel('허용 안 됨');
       setPermissionDescription(
-        permission.canAskAgain
+        foregroundPermission.canAskAgain
           ? '앱에서 다시 권한을 요청할 수 있습니다.'
           : '기기 설정에서 직접 위치 권한을 켜야 합니다.'
       );

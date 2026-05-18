@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "name": "CareMate Design System v1",
+    "target": "elderly mobile app and caregiver dashboard",
+    "figmaFile": "https://www.figma.com/design/PimxwSSAN8rg864YvaWTke",
+    "mode": "Default High Contrast"
+  },
+  "color": {
+    "bg": {
+      "senior": "#EEF4FF",
+      "seniorWarm": "#F4EFE6",
+      "guardian": "#F8FAFC"
+    },
+    "surface": {
+      "default": "#FFFFFF",
+      "warm": "#FFFDF8",
+      "subtle": "#F1F5F9"
+    },
+    "text": {
+      "primary": "#111827",
+      "senior": "#16213E",
+      "secondary": "#475569",
+      "muted": "#64748B",
+      "onAction": "#FFFFFF"
+    },
+    "border": {
+      "default": "#E5E7EB",
+      "warm": "#DDD3C4",
+      "focus": "#2563EB"
+    },
+    "action": {
+      "primary": "#4F7CFF",
+      "primaryPressed": "#2F5FEA",
+      "guardian": "#05B547",
+      "guardianPressed": "#047857"
+    },
+    "state": {
+      "successBg": "#ECFDF3",
+      "successText": "#047857",
+      "warningBg": "#FFF7ED",
+      "warningText": "#F97316",
+      "dangerBg": "#FEE2E2",
+      "dangerText": "#B91C1C",
+      "dangerAction": "#DC2626"
+    }
+  },
+  "space": {
+    "screen": 20,
+    "card": 20,
+    "stackSm": 8,
+    "stackMd": 12,
+    "stackLg": 16,
+    "stackXl": 24
+  },
+  "radius": {
+    "control": 16,
+    "card": 20,
+    "hero": 26,
+    "pill": 999
+  },
+  "size": {
+    "touchMin": 48,
+    "touchComfy": 56,
+    "touchLarge": 64,
+    "voice": 210
+  },
+  "type": {
+    "fontFamily": "Noto Sans KR",
+    "seniorDisplay": { "size": 34, "lineHeight": 42, "weight": "Bold" },
+    "seniorTitle": { "size": 32, "lineHeight": 40, "weight": "Bold" },
+    "seniorHeading": { "size": 24, "lineHeight": 32, "weight": "Bold" },
+    "seniorBodyLarge": { "size": 21, "lineHeight": 30, "weight": "Medium" },
+    "seniorBody": { "size": 18, "lineHeight": 28, "weight": "Regular" },
+    "seniorButton": { "size": 22, "lineHeight": 30, "weight": "Bold" },
+    "guardianTitle": { "size": 24, "lineHeight": 32, "weight": "Bold" },
+    "guardianSection": { "size": 20, "lineHeight": 28, "weight": "Bold" },
+    "guardianMetric": { "size": 24, "lineHeight": 32, "weight": "Bold" },
+    "guardianBody": { "size": 15, "lineHeight": 22, "weight": "Regular" },
+    "commonLabel": { "size": 14, "lineHeight": 20, "weight": "Medium" },
+    "commonCaption": { "size": 13, "lineHeight": 18, "weight": "Regular" }
+  },
+  "elevation": {
+    "seniorCard": {
+      "color": "rgba(30, 58, 138, 0.14)",
+      "x": 0,
+      "y": 10,
+      "blur": 24,
+      "spread": 0
+    },
+    "guardianCard": {
+      "color": "rgba(17, 24, 39, 0.08)",
+      "x": 0,
+      "y": 4,
+      "blur": 12,
+      "spread": 0
+    },
+    "floatingAction": {
+      "color": "rgba(79, 124, 255, 0.22)",
+      "x": 0,
+      "y": 12,
+      "blur": 24,
+      "spread": 0
+    }
+  }
+}

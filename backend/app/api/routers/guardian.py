@@ -18,6 +18,13 @@ from app.schemas.guardian import (
     ParentInfoByCodeResponse,
 )
 from app.schemas.alerts import AlertItem, AlertStatusUpdateRequest
+from app.schemas.safety_zone import (
+    SafetyZoneCreateRequest,
+    SafetyZoneDeleteResponse,
+    SafetyZoneItem,
+    SafetyZoneListResponse,
+    SafetyZoneUpdateRequest,
+)
 from app.services.guardian_service import (
     create_guardian_and_link,
     create_guardian_schedule,
@@ -31,6 +38,12 @@ from app.services.guardian_service import (
     login_guardian,
     update_guardian_alert_for_guardian,
     update_guardian_schedule,
+)
+from app.services.safety_zone_service import (
+    create_safety_zone,
+    delete_safety_zone,
+    list_safety_zones,
+    update_safety_zone,
 )
 
 router = APIRouter(prefix="/guardians", tags=["guardians"])
@@ -110,6 +123,80 @@ def read_guardian_alert_history(
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/safety-zones", response_model=SafetyZoneListResponse)
+def read_safety_zones(
+    elder_user_id: str = Query(...),
+    link_code: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        return {
+            "items": list_safety_zones(
+                db,
+                elder_user_id=elder_user_id,
+                link_code=link_code,
+            )
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/safety-zones", response_model=SafetyZoneItem)
+def create_safety_zone_for_guardian(
+    payload: SafetyZoneCreateRequest,
+    elder_user_id: str = Query(...),
+    link_code: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        return create_safety_zone(
+            db,
+            elder_user_id=elder_user_id,
+            link_code=link_code,
+            payload=payload,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/safety-zones/{zone_id}", response_model=SafetyZoneItem)
+def update_safety_zone_for_guardian(
+    zone_id: str,
+    payload: SafetyZoneUpdateRequest,
+    elder_user_id: str = Query(...),
+    link_code: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        return update_safety_zone(
+            db,
+            elder_user_id=elder_user_id,
+            link_code=link_code,
+            zone_id=zone_id,
+            payload=payload,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/safety-zones/{zone_id}", response_model=SafetyZoneDeleteResponse)
+def delete_safety_zone_for_guardian(
+    zone_id: str,
+    elder_user_id: str = Query(...),
+    link_code: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        return delete_safety_zone(
+            db,
+            elder_user_id=elder_user_id,
+            link_code=link_code,
+            zone_id=zone_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.patch("/alerts/{alert_id}", response_model=AlertItem)

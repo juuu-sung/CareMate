@@ -60,6 +60,48 @@ type GuardianScheduleDeleteResponse = {
   success: boolean;
 };
 
+export type GuardianSafetyZoneStatus = "unknown" | "inside" | "outside";
+
+export type GuardianSafetyZoneItem = {
+  id: string;
+  senior_user_id: string;
+  label: string;
+  address: string;
+  center_latitude: number;
+  center_longitude: number;
+  radius_meters: number;
+  enabled: boolean;
+  last_status: GuardianSafetyZoneStatus;
+  last_checked_at: string | null;
+  last_exit_alert_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GuardianSafetyZonePayload = {
+  label: string;
+  address?: string;
+  center_latitude: number;
+  center_longitude: number;
+  radius_meters: number;
+  enabled?: boolean;
+};
+
+type GuardianSafetyZonesResponse = {
+  items: GuardianSafetyZoneItem[];
+};
+
+type GuardianSafetyZoneDeleteResponse = {
+  success: boolean;
+};
+
+function buildGuardianQuery(elderUserId: string, linkCode: string) {
+  return new URLSearchParams({
+    elder_user_id: elderUserId,
+    link_code: linkCode,
+  });
+}
+
 export function getGuardianDashboard(elderUserId: string, linkCode: string) {
   const searchParams = new URLSearchParams({
     elder_user_id: elderUserId,
@@ -184,6 +226,53 @@ export function deleteGuardianSchedule(
 
   return apiDelete<GuardianScheduleDeleteResponse>(
     `/guardians/schedules/${scheduleId}?${searchParams.toString()}`
+  );
+}
+
+export function getGuardianSafetyZones(elderUserId: string, linkCode: string) {
+  const searchParams = buildGuardianQuery(elderUserId, linkCode);
+
+  return apiGet<GuardianSafetyZonesResponse>(
+    `/guardians/safety-zones?${searchParams.toString()}`
+  );
+}
+
+export function createGuardianSafetyZone(
+  elderUserId: string,
+  linkCode: string,
+  payload: GuardianSafetyZonePayload
+) {
+  const searchParams = buildGuardianQuery(elderUserId, linkCode);
+
+  return apiPost<GuardianSafetyZoneItem>(
+    `/guardians/safety-zones?${searchParams.toString()}`,
+    payload
+  );
+}
+
+export function updateGuardianSafetyZone(
+  elderUserId: string,
+  linkCode: string,
+  zoneId: string,
+  payload: Partial<GuardianSafetyZonePayload>
+) {
+  const searchParams = buildGuardianQuery(elderUserId, linkCode);
+
+  return apiPatch<GuardianSafetyZoneItem>(
+    `/guardians/safety-zones/${zoneId}?${searchParams.toString()}`,
+    payload
+  );
+}
+
+export function deleteGuardianSafetyZone(
+  elderUserId: string,
+  linkCode: string,
+  zoneId: string
+) {
+  const searchParams = buildGuardianQuery(elderUserId, linkCode);
+
+  return apiDelete<GuardianSafetyZoneDeleteResponse>(
+    `/guardians/safety-zones/${zoneId}?${searchParams.toString()}`
   );
 }
 
