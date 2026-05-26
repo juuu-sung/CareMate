@@ -24,6 +24,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 
+import { SeniorBottomNav } from '@/components/common/SeniorBottomNav';
 import {
   buildChatTtsUrl,
   ChatPlaceItem,
@@ -908,7 +909,7 @@ export default function ChatPage() {
             </View>
 
             {isLoadingMode || isChangingMode ? (
-              <ActivityIndicator size="small" color="#3B82F6" />
+              <ActivityIndicator size="small" color="#F97316" />
             ) : (
               <Text style={styles.modeValue}>{formatModeLabel(mode)}</Text>
             )}
@@ -1223,7 +1224,7 @@ export default function ChatPage() {
 
         {!isVoiceMode && isLoadingHistory ? (
           <View style={styles.historyStateCard}>
-            <ActivityIndicator size="small" color="#3B82F6" />
+            <ActivityIndicator size="small" color="#F97316" />
             <Text style={styles.historyStateText}>대화 기록을 불러오는 중입니다.</Text>
           </View>
         ) : null}
@@ -1353,6 +1354,21 @@ export default function ChatPage() {
           <Text style={styles.backButtonText}>이전으로</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {!isGuardianRequester ? (
+        <SeniorBottomNav
+          active="chat"
+          params={{
+            parentId: elderUserId,
+            elderUserId,
+            parentName: subjectName,
+            linkCode,
+            agentName,
+            agentVoice: selectedVoice,
+            selectedVoice,
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -1360,25 +1376,27 @@ export default function ChatPage() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#EEF4FF',
+    backgroundColor: '#FFFFFF',
   },
   container: {
     padding: 24,
+    paddingBottom: 132,
   },
   title: {
-    fontSize: 30,
+    fontSize: 32,
+    lineHeight: 42,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 10,
   },
   description: {
-    fontSize: 16,
-    lineHeight: 25,
+    fontSize: 18,
+    lineHeight: 27,
     color: '#475569',
     marginBottom: 20,
   },
   modeCard: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#FFEDD5',
     borderRadius: 22,
     paddingHorizontal: 18,
     paddingVertical: 18,
@@ -1408,7 +1426,7 @@ const styles = StyleSheet.create({
   modeValue: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#1D4ED8',
+    color: '#EA580C',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -1432,13 +1450,13 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   modeSelectButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#1E40AF',
+    backgroundColor: '#EA580C',
+    borderColor: '#C2410C',
   },
   modeSelectTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#1E3A8A',
+    color: '#9A3412',
     marginBottom: 5,
   },
   modeSelectTitleActive: {
@@ -1450,7 +1468,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   modeSelectDescriptionActive: {
-    color: '#DBEAFE',
+    color: '#FFEDD5',
   },
   filterCard: {
     backgroundColor: '#FFFFFF',
@@ -1478,7 +1496,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2E8F0',
   },
   allHistoryButtonActive: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#FFEDD5',
   },
   allHistoryButtonText: {
     fontSize: 13,
@@ -1486,7 +1504,7 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   allHistoryButtonTextActive: {
-    color: '#1D4ED8',
+    color: '#EA580C',
   },
   calendarHeaderRow: {
     flexDirection: 'row',
@@ -1498,7 +1516,7 @@ const styles = StyleSheet.create({
     minWidth: 52,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#FFF7ED',
     alignItems: 'center',
   },
   calendarNavButtonDisabled: {
@@ -1507,7 +1525,7 @@ const styles = StyleSheet.create({
   calendarNavText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#2563EB',
+    color: '#EA580C',
   },
   calendarMonthLabel: {
     fontSize: 17,
@@ -1536,18 +1554,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     borderRadius: 14,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#FFF7ED',
   },
   calendarDayCellDisabled: {
     backgroundColor: 'transparent',
   },
   calendarDayCellActive: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#EA580C',
   },
   calendarDayText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#9A3412',
   },
   calendarDayTextDisabled: {
     color: '#CBD5E1',
@@ -1561,7 +1579,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 999,
     marginTop: 4,
-    backgroundColor: '#60A5FA',
+    backgroundColor: '#FDBA74',
   },
   calendarDaySpacer: {
     width: '14.28%',
@@ -1598,7 +1616,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   userMessageCard: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#EA580C',
     borderBottomRightRadius: 8,
   },
   systemMessageCard: {
@@ -1613,7 +1631,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   userMessageLabel: {
-    color: '#2563EB',
+    color: '#EA580C',
   },
   systemMessageLabel: {
     color: '#B45309',
@@ -1639,7 +1657,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   placeCard: {
-    backgroundColor: '#EEF4FF',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -1648,14 +1666,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     borderRadius: 14,
-    backgroundColor: '#DCEBFF',
+    backgroundColor: '#FFEDD5',
     alignItems: 'center',
     justifyContent: 'center',
   },
   placeButtonTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1D4ED8',
+    color: '#EA580C',
   },
   placeButtonSubtitle: {
     marginTop: 4,
@@ -1670,7 +1688,7 @@ const styles = StyleSheet.create({
   placeButtonActionText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1D4ED8',
+    color: '#EA580C',
   },
   placeCallButton: {
     backgroundColor: '#DCFCE7',
@@ -1707,15 +1725,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#FFEDD5',
   },
   ttsButtonActive: {
-    backgroundColor: '#BAE6FD',
+    backgroundColor: '#FED7AA',
   },
   ttsButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0C4A6E',
+    color: '#9A3412',
   },
   inputCard: {
     backgroundColor: '#FFFFFF',
@@ -1743,12 +1761,12 @@ const styles = StyleSheet.create({
     marginTop: 14,
     height: 54,
     borderRadius: 16,
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F97316',
     justifyContent: 'center',
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#93C5FD',
+    backgroundColor: '#FDBA74',
   },
   sendButtonText: {
     color: '#FFFFFF',
@@ -1757,22 +1775,24 @@ const styles = StyleSheet.create({
   },
   voiceCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 28,
+    padding: 22,
     marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
   },
   voiceStatusCard: {
-    borderRadius: 18,
+    borderRadius: 24,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: 18,
     marginTop: 6,
     marginBottom: 16,
   },
   voiceStatusIdle: {
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#FFEDD5',
   },
   voiceStatusListening: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#FFEDD5',
   },
   voiceStatusProcessing: {
     backgroundColor: '#FEF3C7',
@@ -1784,11 +1804,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#DCFCE7',
   },
   voiceStatusTitle: {
-    fontSize: 22,
+    fontSize: 25,
+    lineHeight: 33,
     fontWeight: '800',
   },
   voiceStatusTitleBlue: {
-    color: '#1D4ED8',
+    color: '#EA580C',
   },
   voiceStatusTitleAmber: {
     color: '#B45309',
@@ -1801,11 +1822,11 @@ const styles = StyleSheet.create({
   },
   voiceStatusDescription: {
     marginTop: 8,
-    fontSize: 16,
-    lineHeight: 25,
+    fontSize: 18,
+    lineHeight: 28,
   },
   voiceStatusDescriptionBlue: {
-    color: '#1E3A8A',
+    color: '#9A3412',
   },
   voiceStatusDescriptionAmber: {
     color: '#92400E',
@@ -1861,19 +1882,24 @@ const styles = StyleSheet.create({
   },
   voiceButton: {
     marginTop: 14,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: '#0EA5E9',
+    minHeight: 72,
+    borderRadius: 24,
+    backgroundColor: '#EA580C',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 6,
   },
   voiceButtonDisabled: {
-    backgroundColor: '#7DD3FC',
+    backgroundColor: '#FDBA74',
   },
   voiceButtonText: {
     color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 21,
+    fontWeight: '900',
   },
   confirmationButtonRow: {
     flexDirection: 'row',
@@ -1900,8 +1926,8 @@ const styles = StyleSheet.create({
   },
   stopButton: {
     marginTop: 14,
-    height: 54,
-    borderRadius: 16,
+    minHeight: 72,
+    borderRadius: 24,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',

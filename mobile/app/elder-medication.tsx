@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
+import { SeniorBottomNav } from '@/components/common/SeniorBottomNav';
 import {
   getMedications,
   MedicationItem,
@@ -27,11 +28,11 @@ import {
 } from '@/services/medicationReminders';
 import { getElderProfileByUserId } from '@/services/elderProfile';
 
-const BLUE = '#4F7CFF';
-const BLUE_DARK = '#2F5FEA';
-const BLUE_LIGHT = '#EEF3FF';
-const BG = '#EEF4FF';
-const TEXT = '#16213E';
+const BLUE = '#F97316';
+const BLUE_DARK = '#EA580C';
+const BLUE_LIGHT = '#FFEDD5';
+const BG = '#FFFFFF';
+const TEXT = '#111827';
 
 type MedicationItemWithEasyName = MedicationItem & {
   id?: string | number | null;
@@ -241,8 +242,8 @@ function getStatusInfo(status: MedicationItem['status']) {
   if (status === 'taken') {
     return {
       label: '먹었어요',
-      backgroundColor: '#DBEAFE',
-      color: '#1D4ED8',
+      backgroundColor: '#DCFCE7',
+      color: '#047A36',
       icon: 'checkmark-circle' as const,
     };
   }
@@ -258,7 +259,7 @@ function getStatusInfo(status: MedicationItem['status']) {
 
   return {
     label: '먹을 시간',
-    backgroundColor: '#EAF0FF',
+    backgroundColor: '#FFEDD5',
     color: BLUE_DARK,
     icon: 'time' as const,
   };
@@ -437,6 +438,7 @@ export default function ElderMedicationsScreen() {
   ).trim();
 
   const fallbackName = String(params.parentName || '어르신');
+  const linkCode = String(params.linkCode || params.link_code || params.code || '');
 
   const [parentName] = React.useState(fallbackName);
   const [profileMedicationsText, setProfileMedicationsText] = React.useState('');
@@ -851,7 +853,7 @@ export default function ElderMedicationsScreen() {
             <Text style={styles.emptyText}>{medicationError}</Text>
           ) : doseGroups.length === 0 && !isLoading ? (
             <View style={styles.emptyBox}>
-              <MaterialCommunityIcons name="pill-off" size={48} color="#8EA4E8" />
+              <MaterialCommunityIcons name="pill-off" size={48} color="#FDBA74" />
               <Text style={styles.emptyTitle}>등록된 약이 없습니다</Text>
               <Text style={styles.emptySubText}>
                 보호자가 약 정보를 등록하면 이곳에서 볼 수 있습니다
@@ -884,7 +886,7 @@ export default function ElderMedicationsScreen() {
                     </Text>
 
                     <View style={styles.timeRow}>
-                      <Ionicons name="time-outline" size={22} color="#5B6F9F" />
+                      <Ionicons name="time-outline" size={22} color="#64748B" />
                       <Text style={styles.medicationTime}>{group.time}</Text>
                     </View>
 
@@ -962,6 +964,16 @@ export default function ElderMedicationsScreen() {
           </View>
         </TouchableOpacity>
       </ScrollView>
+
+      <SeniorBottomNav
+        active="medication"
+        params={{
+          parentId: elderUserId,
+          elderUserId,
+          parentName,
+          linkCode,
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -987,7 +999,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 18,
     paddingTop: 10,
-    paddingBottom: 36,
+    paddingBottom: 132,
   },
   topBar: {
     flexDirection: 'row',
@@ -1001,7 +1013,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1E3A8A',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -1014,7 +1026,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1E3A8A',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -1056,7 +1068,7 @@ const styles = StyleSheet.create({
   heroLabel: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#DDE7FF',
+    color: '#FFF7ED',
   },
   heroTitle: {
     marginTop: 6,
@@ -1071,7 +1083,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 24,
     fontWeight: '700',
-    color: '#EAF0FF',
+    color: '#FFF7ED',
   },
   stateCard: {
     backgroundColor: '#FFFFFF',
@@ -1084,7 +1096,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 18,
     fontWeight: '800',
-    color: '#5B6F9F',
+    color: '#64748B',
     textAlign: 'center',
   },
   noticeCard: {
@@ -1113,7 +1125,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    shadowColor: '#1E3A8A',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
     shadowRadius: 14,
@@ -1162,7 +1174,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     padding: 22,
     marginBottom: 22,
-    shadowColor: '#1E3A8A',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 14,
@@ -1177,7 +1189,7 @@ const styles = StyleSheet.create({
   nextTitle: {
     fontSize: 23,
     fontWeight: '900',
-    color: '#1F3E8A',
+    color: '#EA580C',
   },
   nextMedicineName: {
     fontSize: 34,
@@ -1203,7 +1215,7 @@ const styles = StyleSheet.create({
   nextTimeLabel: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#5B6F9F',
+    color: '#64748B',
   },
   nextTimeText: {
     marginTop: 5,
@@ -1275,7 +1287,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 10,
     alignItems: 'center',
-    shadowColor: '#1E3A8A',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -1284,7 +1296,7 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#5B6F9F',
+    color: '#64748B',
   },
   summaryValue: {
     marginTop: 8,
@@ -1323,7 +1335,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 8,
     marginBottom: 22,
-    shadowColor: '#1E3A8A',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 14,
@@ -1358,7 +1370,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
     fontWeight: '800',
-    color: '#7B8BA8',
+    color: '#64748B',
   },
   timeRow: {
     marginTop: 8,
@@ -1398,7 +1410,7 @@ const styles = StyleSheet.create({
   rowMissedButton: {
     minHeight: 42,
     borderRadius: 14,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#FFF7ED',
     justifyContent: 'center',
     paddingHorizontal: 14,
   },
@@ -1422,7 +1434,7 @@ const styles = StyleSheet.create({
   },
   withDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: '#E5EDF8',
+    borderBottomColor: '#F1F5F9',
   },
   emptyBox: {
     alignItems: 'center',
@@ -1478,6 +1490,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 25,
     fontWeight: '700',
-    color: '#EAF0FF',
+    color: '#FFF7ED',
   },
 });

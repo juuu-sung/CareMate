@@ -1,6 +1,6 @@
 import Voice from '@react-native-voice/voice';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 let isWakeWordListening = false;
 let isDetected = false;
@@ -8,6 +8,7 @@ let currentWakeName = '케어';
 let currentOnDetected: (() => void | Promise<void>) | null = null;
 let currentOnError: ((message: string) => void) | null = null;
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
+let volumeEventSubscription: { remove: () => void } | null = null;
 
 type StartWakeWordListeningParams = {
   wakeName?: string;
@@ -70,6 +71,29 @@ function isFatalStartRecordingError(message: string) {
     message.includes('start_recording') ||
     message.includes('IsFormatSampleRateAndChannelCountValid')
   );
+}
+
+function ensureSpeechVolumeEventSubscription() {
+  if (Platform.OS === 'web' || volumeEventSubscription) {
+    return;
+  }
+
+  const nativeVoiceModule = NativeModules.Voice;
+
+  if (!nativeVoiceModule) {
+    return;
+  }
+
+  try {
+    const voiceEmitter = new NativeEventEmitter(nativeVoiceModule);
+
+    volumeEventSubscription = voiceEmitter.addListener(
+      'onSpeechVolumeChanged',
+      () => {}
+    );
+  } catch (error) {
+    console.log('[WakeWord] volume listener setup error:', error);
+  }
 }
 
 function scheduleRestart(delayMs: number) {
@@ -150,6 +174,7 @@ export async function startWakeWordListening({
   currentOnError = onError ?? null;
   isDetected = false;
   clearRestartTimer();
+  ensureSpeechVolumeEventSubscription();
 
   if (isWakeWordListening) {
     return;
@@ -186,6 +211,11 @@ export async function startWakeWordListening({
     if (!isDetected && isWakeWordListening) {
       scheduleRestart(700);
     }
+  };
+
+  Voice.onSpeechVolumeChanged = () => {
+    // React Native Voice emits frequent volume events during listening.
+    // Registering a no-op listener prevents native "no listeners registered" warnings.
   };
 
   try {

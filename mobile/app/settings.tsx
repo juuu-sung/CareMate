@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { SeniorBottomNav } from '@/components/common/SeniorBottomNav';
 import {
   clearAuthSession,
   loadAuthSession,
@@ -460,6 +461,22 @@ export default function SettingsPage() {
           <Text style={styles.backButtonText}>이전으로</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {parentSession ? (
+        <SeniorBottomNav
+          active="settings"
+          params={{
+            parentId: parentSession.parentId,
+            elderUserId: parentSession.elderUserId,
+            parentName: parentSession.parentName,
+            linkCode: parentSession.linkCode,
+            guardianPhone: parentSession.guardianPhone,
+            agentName: parentSession.agentName,
+            agentVoice: parentSession.agentVoice,
+            selectedVoice: parentSession.agentVoice,
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 
@@ -505,10 +522,11 @@ export default function SettingsPage() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#EEF4FF',
+    backgroundColor: '#FFFFFF',
   },
   container: {
     padding: 24,
+    paddingBottom: 132,
   },
   title: {
     fontSize: 30,

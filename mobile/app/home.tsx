@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { SeniorBottomNav } from '@/components/common/SeniorBottomNav';
 import { createGuardianEventAlert } from '@/services/alerts';
 import {
   buildParentAuthSession,
@@ -26,7 +27,11 @@ import {
   syncCurrentElderLocation,
   syncRequestedElderLocation,
 } from '@/services/locationTask';
-import { getMedications, MedicationItem } from '@/services/medications';
+import {
+  getMedications,
+  MedicationItem,
+  recordMedicationStatus,
+} from '@/services/medications';
 import { getSchedules, ScheduleItem } from '@/services/schedules';
 import { getAgentProfile } from '@/services/chat';
 import { syncMedicationRemindersIfEnabled } from '@/services/medicationReminders';
@@ -45,10 +50,11 @@ function getMedicationDisplayName(medication: MedicationItem) {
   return medication.easy_name?.trim() || '이름 미정 약';
 }
 
-const BLUE = '#4F7CFF';
-const BLUE_DARK = '#2F5FEA';
-const BLUE_LIGHT = '#EEF3FF';
-const BG = '#EEF4FF';
+const BLUE = '#F97316';
+const BLUE_DARK = '#EA580C';
+const BLUE_LIGHT = '#FFEDD5';
+const BG = '#FFFFFF';
+const TEXT = '#111827';
 
 function extractSection(summary: string, sectionTitle: string) {
   const text = String(summary || '').trim();
@@ -150,6 +156,7 @@ export default function HomeScreen() {
   const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [isLoadingMedications, setIsLoadingMedications] = useState(true);
   const [medicationError, setMedicationError] = useState<string | null>(null);
+  const [isRecordingHomeMedication, setIsRecordingHomeMedication] = useState(false);
 
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
@@ -505,6 +512,36 @@ export default function HomeScreen() {
 
   const firstSchedule = schedules[0];
   const firstMedication = medications[0];
+  const displayName = parentName ? `${parentName}님` : '영희님';
+
+  const handleFirstMedicationTaken = async () => {
+    if (!firstMedication) {
+      goToElderMedications();
+      return;
+    }
+
+    if (isRecordingHomeMedication) return;
+
+    setIsRecordingHomeMedication(true);
+
+    try {
+      await recordMedicationStatus({
+        elder_user_id: elderUserId || undefined,
+        medication_id: firstMedication.id ?? null,
+        medication_name: firstMedication.name,
+        time_scope: firstMedication.time,
+        status: 'taken',
+      });
+
+      Alert.alert('복약 기록', '먹었다고 기록했어요.');
+      await loadMedications();
+    } catch (error) {
+      console.log('홈 복약 기록 오류:', error);
+      Alert.alert('복약 기록 실패', '복약 상태를 기록하지 못했습니다.');
+    } finally {
+      setIsRecordingHomeMedication(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -516,9 +553,9 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.helloText}>안녕하세요!</Text>
-            <Text style={styles.subHelloText}>{agentName}가 기다리고 있어요</Text>
+          <View style={styles.connectedPill}>
+            <Ionicons name="shield-checkmark-outline" size={22} color="#047A36" />
+            <Text style={styles.connectedText}>보호자 연결됨</Text>
           </View>
 
           <TouchableOpacity
@@ -526,7 +563,87 @@ export default function HomeScreen() {
             onPress={() => router.push('/settings')}
             activeOpacity={0.85}
           >
-            <Ionicons name="settings-outline" size={30} color="#FFFFFF" />
+            <Ionicons name="settings-outline" size={28} color={BLUE_DARK} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.homeTitle}>
+          {displayName},{'\n'}오늘 컨디션은 어떠세요?
+        </Text>
+
+        <TouchableOpacity
+          style={styles.voiceHeroCard}
+          onPress={() => goToChat(true)}
+          activeOpacity={0.9}
+        >
+          <View style={styles.voiceHeroTextArea}>
+            <Text style={styles.voiceHeroTitle}>{agentName || '케어'}에게 말하기</Text>
+            <Text style={styles.voiceHeroDescription}>누르고 바로 말씀하세요</Text>
+
+            <View style={styles.voiceHeroButton}>
+              <Text style={styles.voiceHeroButtonText}>말하기 시작</Text>
+            </View>
+          </View>
+
+          <View style={styles.voiceHeroMicWrap}>
+            <View style={styles.voiceHeroMic}>
+              <Ionicons name="mic-outline" size={44} color="#FFFFFF" />
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        <View style={styles.medicationNowCard}>
+          <View style={styles.cardTopRow}>
+            <View style={styles.orangePill}>
+              <Text style={styles.orangePillText}>
+                {firstMedication?.time || '복약 시간'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.medicationDoneButton,
+                (!firstMedication || isRecordingHomeMedication) && styles.disabledActionButton,
+              ]}
+              onPress={() => void handleFirstMedicationTaken()}
+              disabled={!firstMedication || isRecordingHomeMedication}
+              activeOpacity={0.88}
+            >
+              {isRecordingHomeMedication ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.medicationDoneText}>먹었어요</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {isLoadingMedications ? (
+            <SmallLoading text="복약 확인 중" />
+          ) : medicationError ? (
+            <Text style={styles.cardErrorText}>{medicationError}</Text>
+          ) : firstMedication ? (
+            <>
+              <Text style={styles.medicationNowTitle}>약 먹을 시간이에요</Text>
+              <Text style={styles.medicationNowName}>
+                {getMedicationDisplayName(firstMedication)}
+              </Text>
+              <Text style={styles.medicationNowDescription}>물 한 컵과 함께 드세요.</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.medicationNowTitle}>등록된 약이 없어요</Text>
+              <Text style={styles.medicationNowDescription}>
+                보호자가 약 정보를 등록하면 여기에서 볼 수 있어요.
+              </Text>
+            </>
+          )}
+
+          <TouchableOpacity
+            style={styles.medicationDetailButton}
+            onPress={goToElderMedications}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.medicationDetailButtonText}>약 전체 보기</Text>
           </TouchableOpacity>
         </View>
 
@@ -535,54 +652,25 @@ export default function HomeScreen() {
           onPress={() => setIsLetterModalVisible(true)}
           activeOpacity={0.9}
         >
-          <View style={styles.letterTopRow}>
-            <View style={styles.letterIconCircle}>
-              <Ionicons name="mail-outline" size={28} color={BLUE} />
-            </View>
-
-            <View style={styles.letterTitleArea}>
-              <Text style={styles.letterTitle}>보호자 메시지</Text>
-              <Text style={styles.letterCount}>
-                {letters.length > 0 ? `총 ${letters.length}개의 메시지` : '최근 메시지'}
-              </Text>
-            </View>
-
-            <Ionicons name="chevron-forward" size={24} color={BLUE_DARK} />
+          <View style={styles.letterIconCircle}>
+            <Ionicons name="mail-outline" size={28} color={BLUE_DARK} />
           </View>
 
-          {loadingLetter ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="small" color={BLUE} />
-              <Text style={styles.loadingText}>메시지를 불러오는 중입니다</Text>
-            </View>
-          ) : latestLetter ? (
-            <>
-              <Text style={styles.letterText} numberOfLines={3}>
+          <View style={styles.letterTitleArea}>
+            <Text style={styles.letterTitle}>보호자 메시지</Text>
+            {loadingLetter ? (
+              <Text style={styles.letterCount}>메시지를 불러오는 중이에요</Text>
+            ) : latestLetter ? (
+              <Text style={styles.letterCount} numberOfLines={1}>
                 {latestLetter.content}
               </Text>
-              <Text style={styles.letterTime}>
-                {formatToYearMonthDayHour(latestLetter.created_at)}
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.emptyText}>도착한 보호자 메시지가 없습니다.</Text>
-          )}
+            ) : (
+              <Text style={styles.letterCount}>도착한 메시지가 없어요</Text>
+            )}
+          </View>
+
+          <Ionicons name="chevron-forward" size={24} color={BLUE_DARK} />
         </TouchableOpacity>
-
-        <View style={styles.micArea}>
-          <TouchableOpacity
-            style={styles.bigMicButton}
-            onPress={() => goToChat(true)}
-            activeOpacity={0.9}
-          >
-            <Ionicons name="mic-outline" size={112} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <Text style={styles.micGuide}>버튼을 눌러 말씀하세요</Text>
-          <Text style={styles.wakeGuide}>
-            {`${agentName}야!라고 부르거나 버튼을 눌러 대화할 수 있어요`}
-          </Text>
-        </View>
 
         <View style={styles.summaryGrid}>
           <TouchableOpacity
@@ -590,10 +678,10 @@ export default function HomeScreen() {
             onPress={() => router.push('/calendar')}
             activeOpacity={0.88}
           >
-            <View style={styles.summaryHeader}>
-              <Ionicons name="calendar-outline" size={34} color={BLUE_DARK} />
-              <Text style={styles.summaryTitle}>오늘 일정</Text>
+            <View style={styles.summaryIconBox}>
+              <Ionicons name="calendar-outline" size={32} color={BLUE_DARK} />
             </View>
+            <Text style={styles.summaryTitle}>오늘 일정</Text>
 
             {isLoadingSchedules ? (
               <SmallLoading text="일정 확인 중" />
@@ -601,62 +689,46 @@ export default function HomeScreen() {
               <Text style={styles.cardErrorText}>{scheduleError}</Text>
             ) : firstSchedule ? (
               <>
-                <View style={styles.pillBox}>
-                  <Text style={styles.pillTime}>{firstSchedule.time}</Text>
-                  <Text style={styles.pillText} numberOfLines={1}>
-                    {firstSchedule.title}
-                  </Text>
-                </View>
-
-                {schedules[1] ? (
-                  <View style={styles.pillBox}>
-                    <Text style={styles.pillTime}>{schedules[1].time}</Text>
-                    <Text style={styles.pillText} numberOfLines={1}>
-                      {schedules[1].title}
-                    </Text>
-                  </View>
-                ) : null}
+                <Text style={styles.summaryValue}>{firstSchedule.time}</Text>
+                <Text style={styles.summaryDescription} numberOfLines={2}>
+                  {firstSchedule.title}
+                </Text>
               </>
             ) : (
-              <Text style={styles.emptyCardText}>오늘 일정이 없습니다</Text>
+              <Text style={styles.emptyCardText}>오늘 일정이 없어요</Text>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.summaryCard}
-            onPress={goToElderMedications}
+            style={styles.emergencySummaryCard}
+            onPress={handleGuardianEmergencyCall}
             activeOpacity={0.88}
           >
-            <View style={styles.summaryHeader}>
-              <Ionicons name="medical-outline" size={34} color={BLUE_DARK} />
-              <Text style={styles.summaryTitle}>복약 정보</Text>
+            <View style={styles.emergencyIconBox}>
+              <Ionicons name="call-outline" size={32} color="#B91C1C" />
             </View>
+            <Text style={styles.emergencySummaryTitle}>긴급 도움</Text>
+            <Text style={styles.emergencySummaryDescription}>보호자 전화</Text>
+          </TouchableOpacity>
+        </View>
 
-            {isLoadingMedications ? (
-              <SmallLoading text="복약 확인 중" />
-            ) : medicationError ? (
-              <Text style={styles.cardErrorText}>{medicationError}</Text>
-            ) : firstMedication ? (
-              <>
-                <View style={styles.pillBox}>
-                  <Text style={styles.pillTime}>{firstMedication.time}</Text>
-                  <Text style={styles.pillText} numberOfLines={1}>
-                    {getMedicationDisplayName(firstMedication)}
-                  </Text>
-                </View>
+        <View style={styles.quickActionRow}>
+          <TouchableOpacity
+            style={styles.call119Button}
+            onPress={handleCall119}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="call-outline" size={30} color="#FFFFFF" />
+            <Text style={styles.emergencyText}>119 전화</Text>
+          </TouchableOpacity>
 
-                {medications[1] ? (
-                  <View style={styles.pillBox}>
-                    <Text style={styles.pillTime}>{medications[1].time}</Text>
-                    <Text style={styles.pillText} numberOfLines={1}>
-                      {getMedicationDisplayName(medications[1])}
-                    </Text>
-                  </View>
-                ) : null}
-              </>
-            ) : (
-              <Text style={styles.emptyCardText}>등록된 약이 없습니다</Text>
-            )}
+          <TouchableOpacity
+            style={styles.guardianCallButton}
+            onPress={handleGuardianEmergencyCall}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="person-outline" size={30} color="#FFFFFF" />
+            <Text style={styles.emergencyText}>보호자 전화</Text>
           </TouchableOpacity>
         </View>
 
@@ -665,30 +737,28 @@ export default function HomeScreen() {
           onPress={() => goToChat(false)}
           activeOpacity={0.9}
         >
-          <Ionicons name="chatbubble-outline" size={48} color="#FFFFFF" />
+          <Ionicons name="chatbubble-ellipses-outline" size={34} color={BLUE_DARK} />
           <View style={styles.chatTextArea}>
-            <Text style={styles.chatTitle}>대화기록 보기</Text>
+            <Text style={styles.chatTitle}>대화 기록 보기</Text>
+            <Text style={styles.chatSubTitle}>이전에 나눈 말을 확인해요</Text>
           </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.call119Button}
-          onPress={handleCall119}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="call-outline" size={48} color="#FFFFFF" />
-          <Text style={styles.emergencyText}>119 긴급전화</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.guardianCallButton}
-          onPress={handleGuardianEmergencyCall}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="call-outline" size={48} color="#FFFFFF" />
-          <Text style={styles.emergencyText}>보호자 전화</Text>
+          <Ionicons name="chevron-forward" size={24} color={BLUE_DARK} />
         </TouchableOpacity>
       </ScrollView>
+
+      <SeniorBottomNav
+        active="home"
+        params={{
+          parentId: elderUserId,
+          elderUserId,
+          parentName,
+          linkCode,
+          guardianPhone,
+          agentName,
+          agentVoice: selectedVoice,
+          selectedVoice,
+        }}
+      />
 
       <Modal
         visible={isLetterModalVisible}
@@ -769,9 +839,9 @@ const styles = StyleSheet.create({
     backgroundColor: BG,
   },
   content: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 36,
+    paddingBottom: 132,
     gap: 18,
   },
   headerRow: {
@@ -779,46 +849,213 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  helloText: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: '#16213E',
-    letterSpacing: -0.8,
+  connectedPill: {
+    minHeight: 42,
+    borderRadius: 999,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  subHelloText: {
-    marginTop: 4,
-    fontSize: 18,
-    fontWeight: '700',
-    color: BLUE_DARK,
+  connectedText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#047A36',
   },
   settingsButton: {
-    width: 72,
-    height: 58,
-    borderRadius: 22,
+    width: 54,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  homeTitle: {
+    fontSize: 33,
+    lineHeight: 43,
+    fontWeight: '900',
+    color: TEXT,
+    letterSpacing: -0.5,
+  },
+  voiceHeroCard: {
+    minHeight: 178,
+    borderRadius: 30,
+    backgroundColor: BLUE_DARK,
+    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 20,
+    shadowColor: BLUE_DARK,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 7,
+  },
+  voiceHeroTextArea: {
+    flex: 1,
+  },
+  voiceHeroTitle: {
+    fontSize: 27,
+    lineHeight: 35,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.4,
+  },
+  voiceHeroDescription: {
+    marginTop: 6,
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: '700',
+    color: '#FFF7ED',
+  },
+  voiceHeroButton: {
+    marginTop: 22,
+    alignSelf: 'flex-start',
+    minHeight: 48,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voiceHeroButtonText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: BLUE_DARK,
+  },
+  voiceHeroMicWrap: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voiceHeroMic: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: BLUE,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: BLUE,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    elevation: 6,
   },
-  letterCard: {
-    backgroundColor: '#BFD0FF',
-    borderRadius: 30,
+  medicationNowCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
     padding: 22,
-    shadowColor: '#1E3A8A',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 4,
   },
-  letterTopRow: {
+  cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
+    justifyContent: 'space-between',
     gap: 12,
+    marginBottom: 18,
+  },
+  orangePill: {
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: BLUE_LIGHT,
+    paddingHorizontal: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orangePillText: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '900',
+    color: BLUE_DARK,
+  },
+  medicationDoneButton: {
+    minHeight: 62,
+    minWidth: 124,
+    borderRadius: 22,
+    backgroundColor: BLUE_DARK,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    shadowColor: BLUE_DARK,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  medicationDoneText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  medicationNowTitle: {
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '900',
+    color: TEXT,
+  },
+  medicationNowName: {
+    marginTop: 7,
+    fontSize: 25,
+    lineHeight: 34,
+    fontWeight: '900',
+    color: TEXT,
+  },
+  medicationNowDescription: {
+    marginTop: 8,
+    fontSize: 18,
+    lineHeight: 27,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  medicationDetailButton: {
+    marginTop: 18,
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: BLUE_LIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicationDetailButtonText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: BLUE_DARK,
+  },
+  disabledActionButton: {
+    opacity: 0.55,
+  },
+  loadingWrap: {
+    alignItems: 'center',
+    paddingVertical: 18,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#3159B8',
+  },
+  letterCard: {
+    minHeight: 82,
+    borderRadius: 24,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
   letterIconCircle: {
     width: 54,
@@ -832,78 +1069,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   letterTitle: {
-    fontSize: 24,
+    fontSize: 21,
+    lineHeight: 28,
     fontWeight: '900',
-    color: '#163B91',
+    color: TEXT,
   },
   letterCount: {
-    marginTop: 2,
+    marginTop: 3,
     fontSize: 15,
+    lineHeight: 21,
     fontWeight: '700',
-    color: '#3159B8',
+    color: '#64748B',
   },
   letterText: {
     fontSize: 27,
     lineHeight: 42,
     fontWeight: '900',
-    color: '#173E91',
+    color: TEXT,
     textAlign: 'center',
   },
   letterTime: {
     marginTop: 12,
     fontSize: 14,
     fontWeight: '700',
-    color: '#3159B8',
+    color: '#64748B',
     textAlign: 'right',
   },
   emptyText: {
     fontSize: 22,
     lineHeight: 32,
     fontWeight: '800',
-    color: '#3159B8',
+    color: '#64748B',
     textAlign: 'center',
     paddingVertical: 16,
-  },
-  loadingWrap: {
-    alignItems: 'center',
-    paddingVertical: 18,
-  },
-  loadingText: {
-    marginTop: 8,
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#3159B8',
-  },
-  micArea: {
-    alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  bigMicButton: {
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: BLUE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: BLUE,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  micGuide: {
-    marginTop: 24,
-    fontSize: 30,
-    fontWeight: '900',
-    color: '#1D3F8F',
-    letterSpacing: -0.7,
-  },
-  wakeGuide: {
-    marginTop: 8,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#5B6F9F',
   },
   summaryGrid: {
     flexDirection: 'row',
@@ -914,69 +1112,79 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 18,
-    minHeight: 220,
-    shadowColor: '#1E3A8A',
+    minHeight: 142,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.07,
     shadowRadius: 14,
-    elevation: 4,
+    elevation: 3,
   },
-  summaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
-    gap: 8,
-  },
-  summaryTitle: {
-    flex: 1,
-    fontSize: 23,
-    fontWeight: '900',
-    color: '#1F3E8A',
-    letterSpacing: -0.5,
-  },
-  pillBox: {
+  summaryIconBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
     backgroundColor: BLUE_LIGHT,
-    borderRadius: 20,
-    paddingVertical: 15,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  pillTime: {
-    fontSize: 19,
-    fontWeight: '900',
-    color: BLUE_DARK,
-    marginBottom: 6,
-  },
-  pillText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#222B45',
-    textAlign: 'center',
-  },
-  medicationCountBox: {
-    flex: 1,
-    backgroundColor: BLUE_LIGHT,
-    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 28,
-    paddingHorizontal: 12,
+    marginBottom: 12,
   },
-  medicationCountNumber: {
-    fontSize: 58,
-    lineHeight: 66,
+  summaryTitle: {
+    fontSize: 21,
+    lineHeight: 28,
+    fontWeight: '900',
+    color: TEXT,
+  },
+  summaryValue: {
+    marginTop: 8,
+    fontSize: 23,
+    lineHeight: 31,
     fontWeight: '900',
     color: BLUE_DARK,
-    letterSpacing: -1.2,
   },
-  medicationCountLabel: {
-    marginTop: 6,
+  summaryDescription: {
+    marginTop: 4,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  emergencySummaryCard: {
+    flex: 1,
+    minHeight: 142,
+    borderRadius: 24,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    padding: 18,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  emergencyIconBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emergencySummaryTitle: {
     fontSize: 21,
-    lineHeight: 29,
+    lineHeight: 28,
     fontWeight: '900',
-    color: '#1F3E8A',
-    textAlign: 'center',
+    color: '#B91C1C',
+  },
+  emergencySummaryDescription: {
+    marginTop: 8,
+    fontSize: 19,
+    lineHeight: 27,
+    fontWeight: '900',
+    color: '#B91C1C',
   },
   emptyCardText: {
     marginTop: 18,
@@ -1005,70 +1213,77 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#6B7280',
   },
-  chatButton: {
-    backgroundColor: BLUE,
-    borderRadius: 26,
-    paddingVertical: 25,
-    paddingHorizontal: 24,
+  quickActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  call119Button: {
+    flex: 1,
+    minHeight: 70,
+    backgroundColor: '#FF4D4F',
+    borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 18,
-    shadowColor: BLUE,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#FF4D4F',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
     elevation: 6,
+  },
+  guardianCallButton: {
+    flex: 1,
+    minHeight: 70,
+    backgroundColor: BLUE_DARK,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: BLUE_DARK,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  emergencyText: {
+    fontSize: 19,
+    lineHeight: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  chatButton: {
+    minHeight: 82,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    elevation: 3,
   },
   chatTextArea: {
     flex: 1,
   },
   chatTitle: {
-    fontSize: 30,
+    fontSize: 21,
+    lineHeight: 28,
     fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.8,
+    color: TEXT,
   },
   chatSubTitle: {
-    marginTop: 7,
-    fontSize: 22,
+    marginTop: 3,
+    fontSize: 15,
+    lineHeight: 21,
     fontWeight: '700',
-    color: '#EAF0FF',
-  },
-  call119Button: {
-    backgroundColor: '#FF4D4F',
-    borderRadius: 26,
-    paddingVertical: 25,
-    paddingHorizontal: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 18,
-    shadowColor: '#FF4D4F',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  guardianCallButton: {
-    backgroundColor: BLUE_DARK,
-    borderRadius: 26,
-    paddingVertical: 25,
-    paddingHorizontal: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 18,
-    shadowColor: BLUE_DARK,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  emergencyText: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.8,
+    color: '#64748B',
   },
   modalOverlay: {
     flex: 1,
