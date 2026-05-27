@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Notifications from 'expo-notifications';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import type * as ExpoCalendar from 'expo-calendar';
 
 import { getSchedules, ScheduleItem } from '@/services/schedules';
@@ -34,10 +35,14 @@ function getCalendarModule() {
     return calendarModule;
   }
 
+  if (!requireOptionalNativeModule('ExpoCalendar')) {
+    calendarModule = null;
+    return calendarModule;
+  }
+
   try {
     calendarModule = require('expo-calendar') as CalendarModule;
-  } catch (error) {
-    console.log('[ScheduleSync] ExpoCalendar native module unavailable:', error);
+  } catch {
     calendarModule = null;
   }
 

@@ -1,0 +1,352 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2360" height="1500" viewBox="0 0 2360 1500" role="img" aria-labelledby="title desc">
+  <title id="title">CareMate Senior Mobile App Concept</title>
+  <desc id="desc">Five elderly-first CareMate mobile app screen concepts: home, medication, voice companion, emergency help, and guardian dashboard.</desc>
+  <defs>
+    <filter id="phoneShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="24" stdDeviation="20" flood-color="#0F172A" flood-opacity="0.18"/>
+    </filter>
+    <filter id="cardShadow" x="-12%" y="-12%" width="124%" height="135%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#1E293B" flood-opacity="0.10"/>
+    </filter>
+    <filter id="strongBlueShadow" x="-18%" y="-18%" width="136%" height="145%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#EA580C" flood-opacity="0.26"/>
+    </filter>
+    <filter id="strongRedShadow" x="-18%" y="-18%" width="136%" height="145%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#B91C1C" flood-opacity="0.24"/>
+    </filter>
+    <style>
+      .font { font-family: "Noto Sans KR", "Apple SD Gothic Neo", Arial, sans-serif; }
+      .title { font-size: 38px; font-weight: 800; fill: #111827; letter-spacing: 0; }
+      .subtitle { font-size: 21px; font-weight: 500; fill: #334155; letter-spacing: 0; }
+      .screen-label { font-size: 20px; font-weight: 800; fill: #111827; }
+      .h1 { font-size: 32px; font-weight: 800; fill: #111827; letter-spacing: 0; }
+      .h2 { font-size: 24px; font-weight: 800; fill: #111827; letter-spacing: 0; }
+      .body { font-size: 18px; font-weight: 500; fill: #334155; letter-spacing: 0; }
+      .body-small { font-size: 15px; font-weight: 500; fill: #64748B; letter-spacing: 0; }
+      .caption { font-size: 13px; font-weight: 700; fill: #64748B; letter-spacing: 0; }
+      .white { fill: #FFFFFF; }
+      .white-soft { fill: #FFF7ED; }
+      .blue { fill: #F97316; }
+      .blue-dark { fill: #EA580C; }
+      .green-dark { fill: #047A36; }
+      .red-dark { fill: #B91C1C; }
+      .yellow-dark { fill: #92400E; }
+      .center { text-anchor: middle; }
+      .right { text-anchor: end; }
+      .phone-bg { stroke: #D7DFEF; stroke-width: 1; filter: url(#phoneShadow); }
+      .surface { fill: #FFFFFF; stroke: #D8E0F0; stroke-width: 1; filter: url(#cardShadow); }
+      .nav-text { font-size: 13px; font-weight: 800; }
+      .pill-text { font-size: 15px; font-weight: 800; }
+      .button-text { font-size: 20px; font-weight: 800; }
+    </style>
+  </defs>
+
+  <rect width="2360" height="1500" fill="#FFFFFF"/>
+
+  <g class="font">
+    <rect x="40" y="32" width="2280" height="190" rx="32" fill="#FFFFFF" stroke="#E2E8F0" filter="url(#cardShadow)"/>
+    <text x="80" y="76" class="subtitle blue-dark">CareMate elderly-first mobile concept</text>
+    <text x="80" y="128" class="title">노인 맞춤 앱 디자인 시안</text>
+    <text x="80" y="170" class="subtitle">큰 터치 영역, 높은 대비, 간단한 문장, 보호자 대시보드를 기존 CareMate 구조에 맞춰 재구성했습니다.</text>
+
+    <g transform="translate(1260 62)">
+      <rect width="190" height="116" rx="24" fill="#FFEDD5"/>
+      <text x="95" y="42" class="caption center">터치 영역</text>
+      <text x="95" y="78" class="h2 center blue-dark">64px+</text>
+    </g>
+    <g transform="translate(1470 62)">
+      <rect width="190" height="116" rx="24" fill="#DCFCE7"/>
+      <text x="95" y="42" class="caption center">본문 크기</text>
+      <text x="95" y="78" class="h2 center green-dark">18px+</text>
+    </g>
+    <g transform="translate(1680 62)">
+      <rect width="190" height="116" rx="24" fill="#FEF3C7"/>
+      <text x="95" y="42" class="caption center">상태 표현</text>
+      <text x="95" y="78" class="h2 center yellow-dark">색상 고정</text>
+    </g>
+    <g transform="translate(1890 62)">
+      <rect width="190" height="116" rx="24" fill="#FEE2E2"/>
+      <text x="95" y="42" class="caption center">문장 원칙</text>
+      <text x="95" y="78" class="h2 center red-dark">짧고 명확</text>
+    </g>
+  </g>
+
+  <g class="font">
+    <text x="255" y="280" class="screen-label center">시니어 홈</text>
+    <text x="695" y="280" class="screen-label center">복약 확인</text>
+    <text x="1135" y="280" class="screen-label center">음성 대화</text>
+    <text x="1575" y="280" class="screen-label center">긴급 도움</text>
+    <text x="2015" y="280" class="screen-label center">보호자 대시보드</text>
+  </g>
+
+  <g class="font" transform="translate(60 320)">
+    <rect class="phone-bg" width="390" height="844" rx="38" fill="#FFFFFF"/>
+    <text x="28" y="34" class="caption" fill="#111827">9:41</text>
+    <rect x="304" y="22" width="18" height="10" rx="2" fill="#111827"/>
+    <rect x="330" y="22" width="17" height="10" rx="5" fill="#111827"/>
+    <rect x="355" y="20" width="24" height="12" rx="3" fill="#111827"/>
+
+    <rect x="24" y="58" width="132" height="36" rx="18" fill="#DCFCE7"/>
+    <text x="90" y="82" class="pill-text center green-dark">보호자 연결됨</text>
+    <circle cx="343" cy="81" r="23" fill="#FFFFFF" stroke="#D8E0F0"/>
+    <text x="343" y="86" class="body center" fill="#64748B">•••</text>
+
+    <text x="24" y="142" class="h1">영희님,</text>
+    <text x="24" y="184" class="h1">오늘 컨디션은 어떠세요?</text>
+
+    <rect x="24" y="208" width="342" height="176" rx="30" fill="#EA580C" filter="url(#strongBlueShadow)"/>
+    <text x="48" y="264" class="h2 white">케어에게 말하기</text>
+    <text x="48" y="302" class="body white-soft">누르고 바로 말씀하세요</text>
+    <circle cx="277" cy="78" r="43" transform="translate(0 173)" fill="#FFFFFF"/>
+    <circle cx="277" cy="251" r="21" fill="#F97316"/>
+    <rect x="273" y="239" width="8" height="24" rx="4" fill="#FFFFFF"/>
+    <rect x="265" y="268" width="24" height="6" rx="3" fill="#FFFFFF"/>
+    <rect x="48" y="322" width="184" height="46" rx="18" fill="#FFFFFF"/>
+    <text x="140" y="352" class="button-text center blue-dark">말하기 시작</text>
+
+    <rect x="24" y="404" width="342" height="166" rx="26" class="surface"/>
+    <rect x="46" y="426" width="96" height="34" rx="17" fill="#FFEDD5"/>
+    <text x="94" y="449" class="pill-text center blue-dark">오전 9시</text>
+    <text x="46" y="491" class="h2">아침 약 먹을 시간이에요</text>
+    <text x="46" y="526" class="body">물 한 컵과 함께 드세요.</text>
+    <rect x="214" y="426" width="130" height="64" rx="22" fill="#EA580C" filter="url(#strongBlueShadow)"/>
+    <text x="279" y="466" class="button-text center white">먹었어요</text>
+    <rect x="214" y="500" width="130" height="48" rx="18" fill="#FFEDD5"/>
+    <text x="279" y="531" class="body center blue-dark" font-weight="800">나중에요</text>
+
+    <rect x="24" y="590" width="164" height="126" rx="24" class="surface"/>
+    <text x="42" y="628" class="body-small" font-weight="800">오늘 일정</text>
+    <text x="42" y="660" class="h2">오후 2시</text>
+    <text x="42" y="696" class="body-small">내과 진료</text>
+    <rect x="202" y="590" width="164" height="126" rx="24" fill="#FEE2E2" stroke="#FECACA" filter="url(#cardShadow)"/>
+    <text x="220" y="628" class="body-small red-dark" font-weight="800">긴급 도움</text>
+    <text x="220" y="662" class="h2 red-dark">보호자</text>
+    <text x="220" y="692" class="h2 red-dark">전화하기</text>
+
+    <rect x="24" y="748" width="342" height="72" rx="26" fill="#FFFFFF" stroke="#E2E8F0" filter="url(#cardShadow)"/>
+    <rect x="38" y="758" width="70" height="52" rx="18" fill="#FFEDD5"/>
+    <text x="73" y="782" class="nav-text center blue-dark">●</text>
+    <text x="73" y="803" class="nav-text center blue-dark">홈</text>
+    <text x="151" y="782" class="nav-text center" fill="#64748B">＋</text>
+    <text x="151" y="803" class="nav-text center" fill="#64748B">약</text>
+    <text x="229" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="229" y="803" class="nav-text center" fill="#64748B">대화</text>
+    <text x="307" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="307" y="803" class="nav-text center" fill="#64748B">설정</text>
+  </g>
+
+  <g class="font" transform="translate(500 320)">
+    <rect class="phone-bg" width="390" height="844" rx="38" fill="#FFFFFF"/>
+    <text x="28" y="34" class="caption" fill="#111827">9:41</text>
+    <rect x="304" y="22" width="18" height="10" rx="2" fill="#111827"/>
+    <rect x="330" y="22" width="17" height="10" rx="5" fill="#111827"/>
+    <rect x="355" y="20" width="24" height="12" rx="3" fill="#111827"/>
+
+    <text x="24" y="98" class="h1">오늘 약</text>
+    <rect x="254" y="72" width="112" height="38" rx="19" fill="#DCFCE7"/>
+    <text x="310" y="97" class="pill-text center green-dark">2 / 3 완료</text>
+    <rect x="24" y="130" width="342" height="12" rx="6" fill="#FED7AA"/>
+    <rect x="24" y="130" width="228" height="12" rx="6" fill="#05B547"/>
+
+    <rect x="24" y="166" width="342" height="294" rx="30" class="surface"/>
+    <rect x="50" y="192" width="124" height="38" rx="19" fill="#FFEDD5"/>
+    <text x="112" y="217" class="pill-text center blue-dark">지금 먹을 약</text>
+    <text x="50" y="282" class="h1">오전 9시</text>
+    <text x="50" y="330" class="h2">혈압약 · 위장약</text>
+    <text x="50" y="376" class="body">봉투에 적힌 아침 약을 드세요.</text>
+    <text x="50" y="405" class="body">물 한 컵을 같이 마시면 좋아요.</text>
+    <rect x="50" y="398" width="138" height="64" rx="22" fill="#EA580C" filter="url(#strongBlueShadow)" transform="translate(0 0)"/>
+    <text x="119" y="438" class="button-text center white">먹었어요</text>
+    <rect x="202" y="398" width="138" height="64" rx="22" fill="#FFFFFF" stroke="#F97316"/>
+    <text x="271" y="438" class="button-text center blue-dark">아직이에요</text>
+
+    <rect x="24" y="484" width="342" height="86" rx="24" fill="#EA580C" filter="url(#strongBlueShadow)"/>
+    <text x="46" y="526" class="h2 white">한 번만 더 챙기면 돼요</text>
+    <text x="46" y="557" class="body-small white-soft">저녁 약은 오후 8시에 알려드릴게요.</text>
+
+    <rect x="24" y="594" width="342" height="58" rx="20" fill="#DCFCE7"/>
+    <text x="42" y="630" class="body" font-weight="800">점심 약</text>
+    <text x="342" y="630" class="body right green-dark" font-weight="800">완료</text>
+    <rect x="24" y="664" width="342" height="58" rx="20" fill="#FFFFFF" stroke="#D8E0F0"/>
+    <text x="42" y="700" class="body" font-weight="800">저녁 약</text>
+    <text x="342" y="700" class="body right blue-dark" font-weight="800">오후 8시</text>
+
+    <rect x="24" y="748" width="342" height="72" rx="26" fill="#FFFFFF" stroke="#E2E8F0" filter="url(#cardShadow)"/>
+    <text x="73" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="73" y="803" class="nav-text center" fill="#64748B">홈</text>
+    <rect x="116" y="758" width="70" height="52" rx="18" fill="#FFEDD5"/>
+    <text x="151" y="782" class="nav-text center blue-dark">＋</text>
+    <text x="151" y="803" class="nav-text center blue-dark">약</text>
+    <text x="229" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="229" y="803" class="nav-text center" fill="#64748B">대화</text>
+    <text x="307" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="307" y="803" class="nav-text center" fill="#64748B">설정</text>
+  </g>
+
+  <g class="font" transform="translate(940 320)">
+    <rect class="phone-bg" width="390" height="844" rx="38" fill="#FFFFFF"/>
+    <text x="28" y="34" class="caption" fill="#111827">9:41</text>
+    <rect x="304" y="22" width="18" height="10" rx="2" fill="#111827"/>
+    <rect x="330" y="22" width="17" height="10" rx="5" fill="#111827"/>
+    <rect x="355" y="20" width="24" height="12" rx="3" fill="#111827"/>
+
+    <text x="24" y="100" class="h1">무엇이 궁금하세요?</text>
+    <text x="24" y="140" class="body">짧게 말해도 케어가 알아들을게요.</text>
+    <circle cx="195" cy="250" r="83" fill="#FFEDD5" stroke="#FDBA74"/>
+    <circle cx="195" cy="250" r="50" fill="#EA580C"/>
+    <text x="195" y="260" class="h2 center white">케어</text>
+
+    <rect x="54" y="364" width="282" height="74" rx="26" class="surface"/>
+    <rect x="84" y="386" width="10" height="30" rx="5" fill="#EA580C"/>
+    <rect x="109" y="378" width="10" height="46" rx="5" fill="#F97316"/>
+    <rect x="134" y="390" width="10" height="24" rx="5" fill="#EA580C"/>
+    <rect x="159" y="373" width="10" height="56" rx="5" fill="#F97316"/>
+    <rect x="184" y="382" width="10" height="38" rx="5" fill="#EA580C"/>
+    <rect x="209" y="370" width="10" height="62" rx="5" fill="#F97316"/>
+    <rect x="234" y="387" width="10" height="28" rx="5" fill="#EA580C"/>
+    <rect x="259" y="376" width="10" height="50" rx="5" fill="#F97316"/>
+    <rect x="284" y="384" width="10" height="34" rx="5" fill="#EA580C"/>
+
+    <rect x="24" y="464" width="342" height="118" rx="26" class="surface"/>
+    <text x="46" y="502" class="body" font-weight="800">오늘 오후 2시에 내과 진료가 있어요.</text>
+    <text x="46" y="534" class="body" font-weight="800">외출 전 지갑과 약 봉투를 챙기세요.</text>
+
+    <rect x="24" y="606" width="102" height="48" rx="24" fill="#FFEDD5"/>
+    <text x="75" y="636" class="pill-text center blue-dark">오늘 일정</text>
+    <rect x="137" y="606" width="102" height="48" rx="24" fill="#DCFCE7"/>
+    <text x="188" y="636" class="pill-text center green-dark">약 알려줘</text>
+    <rect x="250" y="606" width="102" height="48" rx="24" fill="#FEE2E2"/>
+    <text x="301" y="636" class="pill-text center red-dark">전화해줘</text>
+
+    <circle cx="195" cy="728" r="58" fill="#EA580C" filter="url(#strongBlueShadow)"/>
+    <rect x="186" y="704" width="18" height="42" rx="9" fill="#FFFFFF"/>
+    <rect x="172" y="754" width="46" height="8" rx="4" fill="#FFFFFF"/>
+
+    <rect x="24" y="748" width="342" height="72" rx="26" fill="#FFFFFF" stroke="#E2E8F0" filter="url(#cardShadow)"/>
+    <text x="73" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="73" y="803" class="nav-text center" fill="#64748B">홈</text>
+    <text x="151" y="782" class="nav-text center" fill="#64748B">＋</text>
+    <text x="151" y="803" class="nav-text center" fill="#64748B">약</text>
+    <rect x="194" y="758" width="70" height="52" rx="18" fill="#FFEDD5"/>
+    <text x="229" y="782" class="nav-text center blue-dark">●</text>
+    <text x="229" y="803" class="nav-text center blue-dark">대화</text>
+    <text x="307" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="307" y="803" class="nav-text center" fill="#64748B">설정</text>
+  </g>
+
+  <g class="font" transform="translate(1380 320)">
+    <rect class="phone-bg" width="390" height="844" rx="38" fill="#FFFFFF"/>
+    <text x="28" y="34" class="caption" fill="#111827">9:41</text>
+    <rect x="304" y="22" width="18" height="10" rx="2" fill="#111827"/>
+    <rect x="330" y="22" width="17" height="10" rx="5" fill="#111827"/>
+    <rect x="355" y="20" width="24" height="12" rx="3" fill="#111827"/>
+
+    <text x="24" y="100" class="h1">도움이 필요하세요?</text>
+    <text x="24" y="140" class="body">큰 버튼 하나만 누르면 바로 연결돼요.</text>
+    <rect x="24" y="170" width="342" height="158" rx="32" fill="#DC2626" filter="url(#strongRedShadow)"/>
+    <text x="195" y="250" class="title center white">119 전화</text>
+    <text x="195" y="296" class="body center" fill="#FEE2E2" font-weight="800">응급 상황이면 누르세요</text>
+
+    <rect x="24" y="352" width="342" height="74" rx="24" fill="#EA580C" filter="url(#strongBlueShadow)"/>
+    <text x="195" y="398" class="h2 center white">보호자에게 전화</text>
+
+    <rect x="24" y="450" width="342" height="116" rx="26" class="surface"/>
+    <rect x="46" y="472" width="120" height="36" rx="18" fill="#DCFCE7"/>
+    <text x="106" y="496" class="pill-text center green-dark">위치 공유 중</text>
+    <text x="46" y="536" class="body" font-weight="800">보호자가 지금 위치를 볼 수 있어요.</text>
+
+    <rect x="24" y="592" width="162" height="68" rx="24" fill="#FEE2E2" stroke="#FECACA"/>
+    <text x="105" y="634" class="button-text center red-dark">넘어졌어요</text>
+    <rect x="204" y="592" width="162" height="68" rx="24" fill="#FEF3C7" stroke="#FDE68A"/>
+    <text x="285" y="634" class="button-text center yellow-dark">어지러워요</text>
+
+    <rect x="24" y="686" width="342" height="62" rx="20" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="195" y="724" class="body center" fill="#334155" font-weight="800">실수로 눌러도 연결 전에 확인해요.</text>
+
+    <rect x="24" y="748" width="342" height="72" rx="26" fill="#FFFFFF" stroke="#E2E8F0" filter="url(#cardShadow)"/>
+    <rect x="38" y="758" width="70" height="52" rx="18" fill="#FEE2E2"/>
+    <text x="73" y="782" class="nav-text center red-dark">●</text>
+    <text x="73" y="803" class="nav-text center red-dark">홈</text>
+    <text x="151" y="782" class="nav-text center" fill="#64748B">＋</text>
+    <text x="151" y="803" class="nav-text center" fill="#64748B">약</text>
+    <text x="229" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="229" y="803" class="nav-text center" fill="#64748B">대화</text>
+    <text x="307" y="782" class="nav-text center" fill="#64748B">●</text>
+    <text x="307" y="803" class="nav-text center" fill="#64748B">설정</text>
+  </g>
+
+  <g class="font" transform="translate(1820 320)">
+    <rect class="phone-bg" width="390" height="844" rx="38" fill="#FFFFFF"/>
+    <text x="28" y="34" class="caption" fill="#111827">9:41</text>
+    <rect x="304" y="22" width="18" height="10" rx="2" fill="#111827"/>
+    <rect x="330" y="22" width="17" height="10" rx="5" fill="#111827"/>
+    <rect x="355" y="20" width="24" height="12" rx="3" fill="#111827"/>
+
+    <text x="24" y="78" class="caption blue-dark">보호자 홈</text>
+    <text x="24" y="122" class="h1">김영희님 상태</text>
+    <rect x="296" y="88" width="70" height="38" rx="19" fill="#DCFCE7"/>
+    <text x="331" y="113" class="pill-text center green-dark">안정</text>
+
+    <rect x="24" y="152" width="160" height="82" rx="22" fill="#FFEDD5" stroke="#E2E8F0"/>
+    <text x="42" y="184" class="caption" fill="#334155">복약</text>
+    <text x="42" y="217" class="h2 blue-dark">67%</text>
+    <rect x="198" y="152" width="160" height="82" rx="22" fill="#FEF3C7" stroke="#E2E8F0"/>
+    <text x="216" y="184" class="caption" fill="#334155">일정</text>
+    <text x="216" y="217" class="h2 yellow-dark">2건</text>
+    <rect x="24" y="252" width="160" height="82" rx="22" fill="#DCFCE7" stroke="#E2E8F0"/>
+    <text x="42" y="284" class="caption" fill="#334155">위치</text>
+    <text x="42" y="317" class="h2 green-dark">3분 전</text>
+    <rect x="198" y="252" width="160" height="82" rx="22" fill="#FEE2E2" stroke="#E2E8F0"/>
+    <text x="216" y="284" class="caption" fill="#334155">알림</text>
+    <text x="216" y="317" class="h2 red-dark">1건</text>
+
+    <rect x="24" y="370" width="342" height="168" rx="28" fill="#FFF7ED" stroke="#FDBA74" filter="url(#cardShadow)"/>
+    <text x="46" y="414" class="body" font-weight="800">최근 위치</text>
+    <rect x="42" y="430" width="310" height="12" rx="6" fill="#FED7AA"/>
+    <rect x="152" y="388" width="12" height="132" rx="6" fill="#FED7AA"/>
+    <circle cx="238" cy="464" r="26" fill="#EA580C" filter="url(#strongBlueShadow)"/>
+    <circle cx="238" cy="464" r="10" fill="#FFFFFF"/>
+    <text x="46" y="518" class="body-small">진주시 병원 근처</text>
+
+    <rect x="24" y="562" width="342" height="126" rx="26" class="surface"/>
+    <text x="44" y="600" class="h2">최근 알림</text>
+    <rect x="244" y="580" width="100" height="34" rx="17" fill="#FEE2E2"/>
+    <text x="294" y="602" class="caption center red-dark">확인 필요</text>
+    <text x="44" y="642" class="body" font-weight="800">오전 약을 아직 기록하지 않았어요.</text>
+    <text x="44" y="672" class="body-small">오전 9:25 · 복약 알림</text>
+
+    <rect x="24" y="710" width="162" height="62" rx="22" fill="#EA580C" filter="url(#strongBlueShadow)"/>
+    <text x="105" y="748" class="body center white" font-weight="800">부모님께 전화</text>
+    <rect x="204" y="710" width="162" height="62" rx="22" fill="#FFFFFF" stroke="#F97316"/>
+    <text x="285" y="748" class="body center blue-dark" font-weight="800">편지 쓰기</text>
+  </g>
+
+  <g class="font" transform="translate(40 1240)">
+    <rect width="2280" height="210" rx="32" fill="#FFFFFF" stroke="#E2E8F0" filter="url(#cardShadow)"/>
+    <text x="40" y="58" class="h1">디자인 적용 기준</text>
+    <g transform="translate(430 34)">
+      <rect width="390" height="142" rx="24" fill="#FFEDD5"/>
+      <text x="24" y="44" class="body" font-weight="800">주요 행동은 한 화면에 하나</text>
+      <text x="24" y="82" class="body-small">복약 화면은 지금 먹을 약과</text>
+      <text x="24" y="108" class="body-small">두 개의 선택지만 보여줍니다.</text>
+    </g>
+    <g transform="translate(850 34)">
+      <rect width="390" height="142" rx="24" fill="#DCFCE7"/>
+      <text x="24" y="44" class="body" font-weight="800">CTA 높이 64px 이상</text>
+      <text x="24" y="82" class="body-small">흔들림이 있어도 쉽게 누르도록</text>
+      <text x="24" y="108" class="body-small">버튼과 여백을 크게 잡았습니다.</text>
+    </g>
+    <g transform="translate(1270 34)">
+      <rect width="390" height="142" rx="24" fill="#FEE2E2"/>
+      <text x="24" y="44" class="body" font-weight="800">상태색 의미 고정</text>
+      <text x="24" y="82" class="body-small">파랑은 기본 행동, 초록은 완료,</text>
+      <text x="24" y="108" class="body-small">빨강은 긴급과 확인 필요입니다.</text>
+    </g>
+    <g transform="translate(1690 34)">
+      <rect width="390" height="142" rx="24" fill="#FEF3C7"/>
+      <text x="24" y="44" class="body" font-weight="800">보호자 화면은 요약 우선</text>
+      <text x="24" y="82" class="body-small">위치, 복약, 일정, 알림을</text>
+      <text x="24" y="108" class="body-small">5초 안에 훑을 수 있게 구성합니다.</text>
+    </g>
+  </g>
+</svg>
