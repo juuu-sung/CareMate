@@ -112,7 +112,7 @@ function medicationNameKey(value: string) {
 }
 
 function getMedicationDisplayName(item: MedicationItem) {
-  return item.easy_name?.trim() || '이름 미정 약';
+  return item.easy_name?.trim() || item.name?.trim() || '이름 미정 약';
 }
 
 function groupMedicationItems(items: MedicationItem[]) {
@@ -498,7 +498,7 @@ export default function GuardianMedicationsScreen() {
                 analytics.recent_missed.map((item, index) => (
                   <Text key={`${item.date}-${item.time}-${item.medication_name}-${index}`} style={styles.missedText}>
                     {formatShortDate(item.date)} · {item.time} ·{' '}
-                    {item.medication_easy_name || '이름 미정 약'}
+                    {item.medication_easy_name || item.medication_name || '이름 미정 약'}
                   </Text>
                 ))
               )}
@@ -554,7 +554,7 @@ export default function GuardianMedicationsScreen() {
                 >
                   <View style={styles.medicationTextWrap}>
                     <Text style={styles.medicationName}>{group.displayName}</Text>
-                    {group.displayName !== '이름 미정 약' ? (
+                    {group.displayName !== group.name ? (
                       <Text style={styles.medicationMeta}>{group.name}</Text>
                     ) : null}
                     <Text style={styles.medicationMeta}>
@@ -685,7 +685,10 @@ function ScheduleGridDetail({
 }: {
   selectedScheduleCell: SelectedScheduleCell;
 }) {
-  const displayNames = selectedScheduleCell.cell.medication_easy_names ?? [];
+  const displayNames =
+    selectedScheduleCell.cell.medication_easy_names?.length > 0
+      ? selectedScheduleCell.cell.medication_easy_names
+      : selectedScheduleCell.cell.medication_names ?? [];
 
   return (
     <View style={styles.scheduleGridDetail}>
@@ -701,7 +704,7 @@ function ScheduleGridDetail({
       <Text style={styles.scheduleGridDetailNames}>
         {displayNames.length > 0
           ? displayNames.join(', ')
-          : '쉬운 약 이름이 아직 설정되지 않았습니다.'}
+          : '등록된 약 이름이 없습니다.'}
       </Text>
     </View>
   );

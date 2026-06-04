@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     STT_TIMEOUT_SECONDS: int = 30
     STT_LANGUAGE: str = "ko"
     STT_PROMPT: str | None = None
+    CAREMATE_STT_URL: str = "http://127.0.0.1:8002/stt"
     TTS_PROVIDER: str = "stub"
     TTS_MODEL: str = "gpt-4o-mini-tts"
     TTS_TIMEOUT_SECONDS: int = 30
@@ -121,6 +122,10 @@ class Settings(BaseSettings):
     @property
     def stt_prompt(self) -> str | None:
         return self.STT_PROMPT
+
+    @property
+    def caremate_stt_url(self) -> str:
+        return self.CAREMATE_STT_URL
 
     @property
     def tts_provider(self) -> str:

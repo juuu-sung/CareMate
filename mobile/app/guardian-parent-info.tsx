@@ -12,26 +12,51 @@ import {
   Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 
 import {
   buildGuardianAuthSession,
   saveAuthSession,
 } from '@/services/authSession';
-import { updateParentCareInfoWithImages } from '@/services/parents';
+import {
+  analyzeParentMedicationImages,
+  updateParentCareInfoWithImages,
+  type MedicationImageAnalysisEntry,
+} from '@/services/parents';
 
 type MealTiming = '식전' | '식간' | '식후';
+type MedicationTimeSlot = '아침' | '점심' | '저녁' | '취침';
+type PickedImageUpload = {
+  uri: string;
+  name: string;
+  mimeType: string;
+};
 
 type MedicationScheduleDraft = {
   id: string;
   name: string;
   easyName: string;
+  timeSlots: MedicationTimeSlot[];
   mealTiming: MealTiming;
   timesPerDay: number;
   daysSupply: number;
 };
 
 const MEAL_TIMING_OPTIONS: MealTiming[] = ['식전', '식간', '식후'];
+const MEDICATION_TIME_SLOT_OPTIONS: MedicationTimeSlot[] = ['아침', '점심', '저녁', '취침'];
+const MEDICATION_TIME_SLOT_TIMES: Record<MedicationTimeSlot, string> = {
+  아침: '08:00',
+  점심: '13:00',
+  저녁: '19:00',
+  취침: '22:00',
+};
+const DEFAULT_TIME_SLOTS_BY_COUNT: Record<number, MedicationTimeSlot[]> = {
+  1: ['아침'],
+  2: ['아침', '저녁'],
+  3: ['아침', '점심', '저녁'],
+  4: ['아침', '점심', '저녁', '취침'],
+};
 const EASY_MEDICATION_NAME_OPTIONS = [
   '혈압약',
   '당뇨약',
@@ -54,15 +79,93 @@ const EASY_MEDICATION_NAME_OPTIONS = [
 function createMedicationScheduleDraft(
   patch: Partial<Omit<MedicationScheduleDraft, 'id'>> = {}
 ): MedicationScheduleDraft {
+  const requestedTimesPerDay = Math.min(
+    MEDICATION_TIME_SLOT_OPTIONS.length,
+    Math.max(1, patch.timesPerDay || 1)
+  );
+  const timeSlots = patch.timeSlots?.length
+    ? sortMedicationTimeSlots(patch.timeSlots)
+    : getDefaultTimeSlotsForCount(requestedTimesPerDay);
+
   return {
     id: `med-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: '',
-    easyName: '',
-    mealTiming: '식후',
-    timesPerDay: 1,
-    daysSupply: 7,
-    ...patch,
+    name: patch.name ?? '',
+    easyName: patch.easyName ?? '',
+    timeSlots,
+    mealTiming: patch.mealTiming ?? '식후',
+    timesPerDay: timeSlots.length || requestedTimesPerDay,
+    daysSupply: patch.daysSupply ?? 7,
   };
+}
+
+function sortMedicationTimeSlots(values: MedicationTimeSlot[]) {
+  const unique = new Set(values);
+  return MEDICATION_TIME_SLOT_OPTIONS.filter((option) => unique.has(option));
+}
+
+function isMedicationTimeSlot(value: string): value is MedicationTimeSlot {
+  return MEDICATION_TIME_SLOT_OPTIONS.includes(value as MedicationTimeSlot);
+}
+
+function normalizeMedicationTimeSlots(values: string[] | undefined) {
+  const slots = (values || []).filter(isMedicationTimeSlot);
+  return sortMedicationTimeSlots(slots);
+}
+
+function isMealTiming(value: string): value is MealTiming {
+  return MEAL_TIMING_OPTIONS.includes(value as MealTiming);
+}
+
+function getDefaultTimeSlotsForCount(count: number) {
+  return [
+    ...(DEFAULT_TIME_SLOTS_BY_COUNT[
+      Math.min(MEDICATION_TIME_SLOT_OPTIONS.length, Math.max(1, count))
+    ] || ['아침']),
+  ];
+}
+
+function medicationTimeSlotFromHour(hour: number): MedicationTimeSlot | null {
+  if (hour >= 5 && hour < 11) {
+    return '아침';
+  }
+
+  if (hour >= 11 && hour < 16) {
+    return '점심';
+  }
+
+  if (hour >= 16 && hour < 22) {
+    return '저녁';
+  }
+
+  if (hour >= 22 || hour < 5) {
+    return '취침';
+  }
+
+  return null;
+}
+
+function parseMedicationTimeSlots(value: string) {
+  const raw = String(value || '');
+  const slots: MedicationTimeSlot[] = [];
+
+  MEDICATION_TIME_SLOT_OPTIONS.forEach((option) => {
+    if (raw.includes(option)) {
+      slots.push(option);
+    }
+  });
+
+  for (const match of raw.matchAll(/([01]?\d|2[0-3])\s*[:시]\s*([0-5]\d)?/g)) {
+    const slot = medicationTimeSlotFromHour(Number(match[1]));
+    if (slot && !slots.includes(slot)) {
+      slots.push(slot);
+    }
+  }
+
+  return sortMedicationTimeSlots(slots);
+}
+
+function scheduledTimesFromTimeSlots(slots: MedicationTimeSlot[]) {
+  return sortMedicationTimeSlots(slots).map((slot) => MEDICATION_TIME_SLOT_TIMES[slot]);
 }
 
 function cleanMedicationName(value: string) {
@@ -125,6 +228,19 @@ function parseMedicationDraftFromLine(line: string) {
       return null;
     }
 
+    const parsedTimeSlots = parseMedicationTimeSlots(
+      fields['복용 시간대'] || fields['복용 시간'] || fields['시간대'] || fields['시간'] || ''
+    );
+    const parsedTimesPerDay =
+      parseTimesPerDay(
+        fields['1일 복용 횟수'] || fields['복용 횟수'] || fields['횟수'] || ''
+      ) ||
+      parsePositiveNumber(
+        fields['1일 복용 횟수'] || fields['복용 횟수'] || fields['횟수'] || ''
+      ) ||
+      parsedTimeSlots.length ||
+      1;
+
     return createMedicationScheduleDraft({
       name,
       easyName: cleanMedicationName(
@@ -135,14 +251,10 @@ function parseMedicationDraftFromLine(line: string) {
           ''
       ),
       mealTiming: parseMealTiming(fields['복용 시점'] || '') || '식후',
-      timesPerDay:
-        parseTimesPerDay(
-          fields['1일 복용 횟수'] || fields['복용 횟수'] || fields['횟수'] || ''
-        ) ||
-        parsePositiveNumber(
-          fields['1일 복용 횟수'] || fields['복용 횟수'] || fields['횟수'] || ''
-        ) ||
-        1,
+      timeSlots: parsedTimeSlots.length
+        ? parsedTimeSlots
+        : getDefaultTimeSlotsForCount(parsedTimesPerDay),
+      timesPerDay: parsedTimeSlots.length || parsedTimesPerDay,
       daysSupply:
         parsePositiveNumber(fields['처방 일수'] || fields['일수'] || '') || 7,
     });
@@ -158,6 +270,7 @@ function parseMedicationDraftFromLine(line: string) {
 
   return createMedicationScheduleDraft({
     name,
+    timeSlots: parseMedicationTimeSlots(note),
     mealTiming: parseMealTiming(note) || '식후',
     timesPerDay: parseTimesPerDay(note) || 1,
     daysSupply: parseDaysSupply(note) || 7,
@@ -255,10 +368,137 @@ function findEasyMedicationName(
 }
 
 function medicationTextFromSummary(value: string) {
-  return parseMedicationDraftsFromSummary(value)
+  return parseMedicationDraftsFromSummary(stripMedicationAnalysisErrorText(value))
     .map((entry) => entry.name.trim())
     .filter(Boolean)
     .join(', ');
+}
+
+function stripMedicationAnalysisErrorText(value: string) {
+  const raw = String(value || '');
+  const markers = [
+    /,\s*"?error"?\s*:/i,
+    /\n\s*"?error"?\s*:/i,
+    /요약 실패\s*:/i,
+    /The image data you provided/i,
+    /invalid_request_error/i,
+    /invalid_value/i,
+  ];
+  const markerIndexes = markers
+    .map((marker) => raw.search(marker))
+    .filter((index) => index >= 0);
+
+  if (markerIndexes.length === 0) {
+    return raw.trim();
+  }
+
+  return raw.slice(0, Math.min(...markerIndexes)).replace(/[,\s]+$/g, '').trim();
+}
+
+function supportedImageMimeType(value: string | undefined | null) {
+  if (value === 'image/jpeg' || value === 'image/png' || value === 'image/webp') {
+    return value;
+  }
+
+  return '';
+}
+
+async function normalizePickedImageAsset(
+  asset: ImagePicker.ImagePickerAsset,
+  type: 'medication' | 'medicationBag' | 'disease' | 'allergy',
+  index: number
+): Promise<PickedImageUpload> {
+  const timestamp = Date.now();
+  const jpegName = `${type}_${timestamp}_${index + 1}.jpg`;
+
+  if (asset.base64 && FileSystem.cacheDirectory) {
+    const jpegUri = `${FileSystem.cacheDirectory}caremate_${jpegName}`;
+    await FileSystem.writeAsStringAsync(jpegUri, asset.base64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    return {
+      uri: jpegUri,
+      name: jpegName,
+      mimeType: 'image/jpeg',
+    };
+  }
+
+  const mimeType = supportedImageMimeType(asset.mimeType) || 'image/jpeg';
+  const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+
+  return {
+    uri: asset.uri,
+    name: asset.fileName || `${type}_${timestamp}_${index + 1}.${extension}`,
+    mimeType,
+  };
+}
+
+function createMedicationDraftsFromAnalysisEntries(
+  entries: MedicationImageAnalysisEntry[]
+) {
+  return entries
+    .map((entry) => {
+      const name = cleanMedicationName(entry.name || '');
+      if (!name) {
+        return null;
+      }
+
+      const explicitTimeSlots = normalizeMedicationTimeSlots(entry.timeSlots);
+      const timeSlots = explicitTimeSlots.length
+        ? explicitTimeSlots
+        : parseMedicationTimeSlots((entry.scheduledTimes || []).join(', '));
+      const timesPerDay = Math.min(
+        MEDICATION_TIME_SLOT_OPTIONS.length,
+        Math.max(1, entry.timesPerDay || timeSlots.length || 1)
+      );
+      const rawMealTiming = entry.mealTiming || '';
+      const mealTiming: MealTiming = isMealTiming(rawMealTiming) ? rawMealTiming : '식후';
+
+      return createMedicationScheduleDraft({
+        name,
+        easyName: cleanMedicationName(entry.easyName || ''),
+        mealTiming,
+        timeSlots: timeSlots.length ? timeSlots : getDefaultTimeSlotsForCount(timesPerDay),
+        timesPerDay,
+        daysSupply: entry.daysSupply || 7,
+      });
+    })
+    .filter((entry): entry is MedicationScheduleDraft => !!entry);
+}
+
+function mergeMedicationDrafts(
+  currentEntries: MedicationScheduleDraft[],
+  incomingEntries: MedicationScheduleDraft[]
+) {
+  if (incomingEntries.length === 0) {
+    return currentEntries;
+  }
+
+  const currentMeaningfulEntries = currentEntries.filter((entry) => entry.name.trim());
+  if (currentMeaningfulEntries.length === 0) {
+    return incomingEntries;
+  }
+
+  const merged = [...currentMeaningfulEntries];
+  incomingEntries.forEach((incomingEntry) => {
+    const incomingKey = medicationNameKey(incomingEntry.name);
+    const existingIndex = merged.findIndex(
+      (entry) => medicationNameKey(entry.name) === incomingKey
+    );
+
+    if (existingIndex >= 0) {
+      merged[existingIndex] = {
+        ...incomingEntry,
+        id: merged[existingIndex].id,
+      };
+      return;
+    }
+
+    merged.push(incomingEntry);
+  });
+
+  return merged;
 }
 
 export default function GuardianParentInfoScreen() {
@@ -284,6 +524,11 @@ export default function GuardianParentInfoScreen() {
   );
   const [memo, setMemo] = useState(String(params.memo || ''));
   const [loading, setLoading] = useState(false);
+  const [medicationImageAnalysisLoading, setMedicationImageAnalysisLoading] =
+    useState(false);
+  const [processedMedicationImageUris, setProcessedMedicationImageUris] = useState<
+    string[]
+  >([]);
 
   const [medicationImages, setMedicationImages] = useState<string[]>([]);
   const [medicationBagImages, setMedicationBagImages] = useState<string[]>([]);
@@ -314,8 +559,16 @@ export default function GuardianParentInfoScreen() {
         }
 
         const min = 1;
-        const max = field === 'timesPerDay' ? 4 : 120;
+        const max = field === 'timesPerDay' ? MEDICATION_TIME_SLOT_OPTIONS.length : 120;
         const nextValue = Math.min(max, Math.max(min, entry[field] + delta));
+
+        if (field === 'timesPerDay') {
+          return {
+            ...entry,
+            timesPerDay: nextValue,
+            timeSlots: getDefaultTimeSlotsForCount(nextValue),
+          };
+        }
 
         return {
           ...entry,
@@ -327,6 +580,30 @@ export default function GuardianParentInfoScreen() {
 
   const addMedicationEntry = () => {
     setMedicationEntries((prev) => [...prev, createMedicationScheduleDraft()]);
+  };
+
+  const toggleMedicationTimeSlot = (id: string, slot: MedicationTimeSlot) => {
+    setMedicationEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== id) {
+          return entry;
+        }
+
+        const alreadySelected = entry.timeSlots.includes(slot);
+        const nextTimeSlots =
+          alreadySelected && entry.timeSlots.length > 1
+            ? entry.timeSlots.filter((value) => value !== slot)
+            : alreadySelected
+              ? entry.timeSlots
+              : sortMedicationTimeSlots([...entry.timeSlots, slot]);
+
+        return {
+          ...entry,
+          timeSlots: nextTimeSlots,
+          timesPerDay: nextTimeSlots.length,
+        };
+      })
+    );
   };
 
   const removeMedicationEntry = (id: string) => {
@@ -344,7 +621,7 @@ export default function GuardianParentInfoScreen() {
   const pickImages = async (
     type: 'medication' | 'medicationBag' | 'disease' | 'allergy'
   ) => {
-    if (loading) return;
+    if (loading || medicationImageAnalysisLoading) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
@@ -353,14 +630,22 @@ export default function GuardianParentInfoScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 0.8,
+      base64: true,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
     });
 
     if (result.canceled) return;
 
-    const selectedUris = result.assets.map((asset) => asset.uri);
+    const selectedImages = await Promise.all(
+      result.assets.map((asset, index) =>
+        normalizePickedImageAsset(asset, type, index)
+      )
+    );
+    const selectedUris = selectedImages.map((image) => image.uri);
 
     if (type === 'medication') {
       setMedicationImages((prev) => [...prev, ...selectedUris]);
@@ -377,13 +662,72 @@ export default function GuardianParentInfoScreen() {
     if (type === 'allergy') {
       setAllergyImages((prev) => [...prev, ...selectedUris]);
     }
+
+    if (type === 'medication' || type === 'medicationBag') {
+      await analyzeMedicationImages(type, selectedImages);
+    }
+  };
+
+  const analyzeMedicationImages = async (
+    type: 'medication' | 'medicationBag',
+    images: PickedImageUpload[]
+  ) => {
+    if (!parentId || images.length === 0) {
+      return;
+    }
+
+    try {
+      setMedicationImageAnalysisLoading(true);
+
+      const formData = new FormData();
+      formData.append('document_type', type === 'medicationBag' ? 'medication_bag' : 'prescription');
+      images.forEach((image) => {
+        formData.append('images', {
+          uri: image.uri,
+          name: image.name,
+          type: image.mimeType,
+        } as any);
+      });
+
+      const result = await analyzeParentMedicationImages(parentId, formData);
+      const analyzedEntries = createMedicationDraftsFromAnalysisEntries(result.entries || []);
+
+      if (analyzedEntries.length === 0) {
+        Alert.alert('분석 결과 없음', '사진에서 약 정보를 찾지 못했습니다. 아래에서 직접 입력해 주세요.');
+        return;
+      }
+
+      setMedicationEntries((prev) => mergeMedicationDrafts(prev, analyzedEntries));
+      setMedications((prev) => {
+        const names = [
+          ...stripMedicationAnalysisErrorText(prev).split(/[\n,]+/),
+          ...analyzedEntries.map((entry) => entry.name),
+        ]
+          .map((name) => cleanMedicationName(name))
+          .filter(Boolean);
+
+        return Array.from(new Set(names)).join(', ');
+      });
+      const uris = images.map((image) => image.uri);
+      setProcessedMedicationImageUris((prev) =>
+        Array.from(new Set([...prev, ...uris]))
+      );
+    } catch (error: any) {
+      setMedications((prev) => stripMedicationAnalysisErrorText(prev));
+      Alert.alert(
+        '약 사진 분석 실패',
+        error.message || '사진을 분석하지 못했습니다. 저장 시 다시 분석합니다.'
+      );
+    } finally {
+      setMedicationImageAnalysisLoading(false);
+    }
   };
 
   const removeImage = (
     type: 'medication' | 'medicationBag' | 'disease' | 'allergy',
     index: number
   ) => {
-    if (loading) return;
+    if (loading || medicationImageAnalysisLoading) return;
 
     if (type === 'medication') {
       setMedicationImages((prev) => prev.filter((_, i) => i !== index));
@@ -418,7 +762,7 @@ export default function GuardianParentInfoScreen() {
   };
 
   const handleComplete = async () => {
-    if (loading) return;
+    if (loading || medicationImageAnalysisLoading) return;
 
     if (!parentId) {
       Alert.alert('오류', '부모님 정보가 올바르게 전달되지 않았습니다.');
@@ -430,7 +774,7 @@ export default function GuardianParentInfoScreen() {
 
       const formData = new FormData();
 
-      formData.append('medications', medications.trim());
+      formData.append('medications', stripMedicationAnalysisErrorText(medications));
       formData.append('diseases', diseases.trim());
       formData.append('allergies', allergies.trim());
       formData.append('hospital', hospital.trim());
@@ -443,6 +787,8 @@ export default function GuardianParentInfoScreen() {
             .map((entry) => ({
               name: entry.name.trim(),
               easyName: entry.easyName.trim(),
+              timeSlots: entry.timeSlots,
+              scheduledTimes: scheduledTimesFromTimeSlots(entry.timeSlots),
               mealTiming: entry.mealTiming,
               timesPerDay: entry.timesPerDay,
               daysSupply: entry.daysSupply,
@@ -454,14 +800,14 @@ export default function GuardianParentInfoScreen() {
       appendImagesToFormData(
         formData,
         'prescription_images',
-        medicationImages,
+        medicationImages.filter((uri) => !processedMedicationImageUris.includes(uri)),
         'prescription'
       );
 
       appendImagesToFormData(
         formData,
         'medication_bag_images',
-        medicationBagImages,
+        medicationBagImages.filter((uri) => !processedMedicationImageUris.includes(uri)),
         'medication_bag'
       );
 
@@ -540,18 +886,26 @@ export default function GuardianParentInfoScreen() {
     images: string[];
     type: 'medication' | 'medicationBag' | 'disease' | 'allergy';
   }) => {
+    const uploadDisabled = loading || medicationImageAnalysisLoading;
+    const isMedicationDocument =
+      type === 'medication' || type === 'medicationBag';
+    const uploadSubText =
+      isMedicationDocument && medicationImageAnalysisLoading
+        ? '약 정보 분석 중...'
+        : '여러 장 선택 가능';
+
     return (
       <View style={styles.uploadSection}>
         <TouchableOpacity
-          style={[styles.uploadButton, loading && styles.disabledButton]}
+          style={[styles.uploadButton, uploadDisabled && styles.disabledButton]}
           onPress={() => pickImages(type)}
           activeOpacity={0.85}
-          disabled={loading}
+          disabled={uploadDisabled}
         >
           <Text style={styles.uploadPlus}>＋</Text>
           <View style={styles.uploadTextBox}>
             <Text style={styles.uploadButtonText}>{buttonText}</Text>
-            <Text style={styles.uploadSubText}>여러 장 선택 가능</Text>
+            <Text style={styles.uploadSubText}>{uploadSubText}</Text>
           </View>
         </TouchableOpacity>
 
@@ -569,10 +923,10 @@ export default function GuardianParentInfoScreen() {
                   <TouchableOpacity
                     style={[
                       styles.deleteImageButton,
-                      loading && styles.disabledButton,
+                      uploadDisabled && styles.disabledButton,
                     ]}
                     onPress={() => removeImage(type, index)}
-                    disabled={loading}
+                    disabled={uploadDisabled}
                   >
                     <Text style={styles.deleteImageText}>삭제</Text>
                   </TouchableOpacity>
@@ -710,6 +1064,35 @@ export default function GuardianParentInfoScreen() {
               })}
             </ScrollView>
 
+            <Text style={styles.medicationControlLabel}>복용 시간대</Text>
+            <View style={styles.timeSlotRow}>
+              {MEDICATION_TIME_SLOT_OPTIONS.map((option) => {
+                const selected = entry.timeSlots.includes(option);
+
+                return (
+                  <TouchableOpacity
+                    key={`${entry.id}-${option}`}
+                    style={[
+                      styles.timeSlotButton,
+                      selected && styles.timeSlotButtonSelected,
+                    ]}
+                    onPress={() => toggleMedicationTimeSlot(entry.id, option)}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.timeSlotButtonText,
+                        selected && styles.timeSlotButtonTextSelected,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.medicationControlLabel}>식사 기준</Text>
             <View style={styles.mealTimingRow}>
               {MEAL_TIMING_OPTIONS.map((option) => {
                 const selected = entry.mealTiming === option;
@@ -765,8 +1148,8 @@ export default function GuardianParentInfoScreen() {
             </View>
 
             <Text style={styles.medicationEntryPreview}>
-              {entry.mealTiming} / 1일 {entry.timesPerDay}회 / {entry.daysSupply}
-              일분
+              {entry.timeSlots.join(', ')} / {entry.mealTiming} / 1일{' '}
+              {entry.timesPerDay}회 / {entry.daysSupply}일분
             </Text>
           </View>
         ))}
@@ -819,7 +1202,9 @@ export default function GuardianParentInfoScreen() {
         <TextInput
           style={styles.textArea}
           value={medications}
-          onChangeText={setMedications}
+          onChangeText={(value) =>
+            setMedications(stripMedicationAnalysisErrorText(value))
+          }
           placeholder="예: 혈압약, 당뇨약"
           placeholderTextColor="#A0A0A0"
           multiline
@@ -908,15 +1293,20 @@ export default function GuardianParentInfoScreen() {
         />
 
         <TouchableOpacity
-          style={[styles.submitButton, loading && styles.submitButtonLoading]}
+          style={[
+            styles.submitButton,
+            (loading || medicationImageAnalysisLoading) && styles.submitButtonLoading,
+          ]}
           onPress={handleComplete}
           activeOpacity={0.85}
-          disabled={loading}
+          disabled={loading || medicationImageAnalysisLoading}
         >
-          {loading ? (
+          {loading || medicationImageAnalysisLoading ? (
             <View style={styles.submitLoadingRow}>
               <ActivityIndicator color="#fff" />
-              <Text style={styles.submitLoadingText}>문서 요약 중...</Text>
+              <Text style={styles.submitLoadingText}>
+                {medicationImageAnalysisLoading ? '약 사진 분석 중...' : '문서 요약 중...'}
+              </Text>
             </View>
           ) : (
             <Text style={styles.submitText}>정보 저장 후 케어 시작하기</Text>
@@ -926,9 +1316,14 @@ export default function GuardianParentInfoScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
-          disabled={loading}
+          disabled={loading || medicationImageAnalysisLoading}
         >
-          <Text style={[styles.backText, loading && styles.disabledText]}>
+          <Text
+            style={[
+              styles.backText,
+              (loading || medicationImageAnalysisLoading) && styles.disabledText,
+            ]}
+          >
             이전으로
           </Text>
         </TouchableOpacity>
@@ -1230,10 +1625,42 @@ const styles = StyleSheet.create({
   easyNameChipTextSelected: {
     color: '#166534',
   },
+  medicationControlLabel: {
+    marginTop: 12,
+    marginBottom: 7,
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '900',
+  },
+  timeSlotRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  timeSlotButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  timeSlotButtonSelected: {
+    backgroundColor: '#FFEDD5',
+    borderColor: '#FB923C',
+  },
+  timeSlotButtonText: {
+    fontSize: 15,
+    color: '#4B5563',
+    fontWeight: '900',
+  },
+  timeSlotButtonTextSelected: {
+    color: '#C2410C',
+  },
   mealTimingRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 12,
   },
   mealTimingButton: {
     flex: 1,

@@ -23,6 +23,12 @@ from app.services.gpt_summary import summarize_medical_image
 
 MEAL_TIMING_VALUES = {"식전", "식간", "식후"}
 UNKNOWN_TEXT_VALUES = {"", "확인 불가", "미확인", "unknown", "none", "null"}
+MEDICATION_TIME_LABELS = {
+    "아침": "08:00",
+    "점심": "13:00",
+    "저녁": "19:00",
+    "취침": "22:00",
+}
 DEFAULT_MEDICATION_TIMES = {
     1: ["08:00"],
     2: ["08:00", "20:00"],
@@ -88,7 +94,15 @@ def _find_parent_user(db: Session, payload: ParentLoginRequest) -> User | None:
 
 
 def create_parent(db: Session, payload: ParentSignupRequest):
-    existing_user = db.query(User).filter(User.phone == payload.phone).first()
+    normalized_phone = _normalize_phone(payload.phone)
+    existing_user = next(
+        (
+            user
+            for user in db.query(User).all()
+            if _normalize_phone(user.phone) == normalized_phone
+        ),
+        None,
+    )
     if existing_user:
         raise ValueError("이미 가입된 전화번호입니다.")
 
@@ -243,13 +257,54 @@ def update_parent_care_info(
     }
 
 
+def _is_failed_document_summary(value: str | None) -> bool:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return False
+
+    failed_fragments = (
+        "요약 실패",
+        "invalid_request_error",
+        "invalid_value",
+        "the image data you provided",
+        "지원하지 않는 문서 종류",
+    )
+    return any(fragment in raw for fragment in failed_fragments)
+
+
+def _strip_failed_document_summary_fragments(value: str | None) -> str:
+    raw = str(value or "")
+    marker_patterns = (
+        r",\s*\"?error\"?\s*:",
+        r"\n\s*\"?error\"?\s*:",
+        r"요약 실패\s*:",
+        r"The image data you provided",
+        r"invalid_request_error",
+        r"invalid_value",
+    )
+    marker_indexes = [
+        match.start()
+        for pattern in marker_patterns
+        for match in [re.search(pattern, raw, flags=re.IGNORECASE)]
+        if match
+    ]
+
+    if not marker_indexes:
+        return raw.strip()
+
+    return raw[: min(marker_indexes)].rstrip(" ,\n\t")
+
+
 def merge_summaries(base_text: str, title: str, summaries: list[str]) -> str:
     base_text = (base_text or "").strip()
 
     valid_summaries = [
-        str(summary).strip()
+        _strip_failed_document_summary_fragments(summary)
         for summary in summaries
-        if summary and str(summary).strip()
+        if summary
+        and str(summary).strip()
+        and not _is_failed_document_summary(summary)
+        and _strip_failed_document_summary_fragments(summary)
     ]
 
     if not valid_summaries:
@@ -269,7 +324,7 @@ def merge_summaries(base_text: str, title: str, summaries: list[str]) -> str:
 
 
 def _normalize_medication_name(value: str | None) -> str:
-    name = str(value or "").strip()
+    name = _strip_failed_document_summary_fragments(value)
     name = re.sub(r"^[\-\*\d\.\)\s]+", "", name).strip()
     name = re.sub(r"\([^)]*\)", "", name).strip()
     name = re.sub(r"\[[^\]]*\]", "", name).strip()
@@ -286,9 +341,18 @@ def _normalize_medication_name(value: str | None) -> str:
         "쉬운 안내",
         "개인정보",
         "약이름",
+        '"error"',
+        '"message"',
+        '"type"',
+        '"param"',
+        '"code"',
+        "invalid_request_error",
+        "invalid_value",
+        "image data",
     ]
 
-    if not name or any(fragment in name for fragment in invalid_fragments):
+    name_lower = name.lower()
+    if not name or any(fragment.lower() in name_lower for fragment in invalid_fragments):
         return ""
 
     return name[:120]
@@ -299,7 +363,7 @@ def _medication_match_key(name: str) -> str:
 
 
 def _normalize_easy_medication_name(value: str | None) -> str:
-    name = str(value or "").strip()
+    name = _strip_failed_document_summary_fragments(value)
     name = re.sub(r"^[\-\*\d\.\)\s]+", "", name).strip()
     name = re.sub(r"\s+", " ", name).strip()
 
@@ -312,9 +376,18 @@ def _normalize_easy_medication_name(value: str | None) -> str:
         "한 번에",
         "하루에",
         "개인정보",
+        '"error"',
+        '"message"',
+        '"type"',
+        '"param"',
+        '"code"',
+        "invalid_request_error",
+        "invalid_value",
+        "image data",
     ]
 
-    if not name or any(fragment in name for fragment in invalid_fragments):
+    name_lower = name.lower()
+    if not name or any(fragment.lower() in name_lower for fragment in invalid_fragments):
         return ""
 
     return name[:80]
@@ -411,6 +484,10 @@ def _normalize_times(value: str | None) -> list[str]:
     raw = str(value or "").strip()
     times = []
 
+    for label, time_value in MEDICATION_TIME_LABELS.items():
+        if label in raw and time_value not in times:
+            times.append(time_value)
+
     for match in re.finditer(r"([01]?\d|2[0-3])\s*[:시]\s*([0-5]\d)?", raw):
         hour = int(match.group(1))
         minute = int(match.group(2) or 0)
@@ -421,6 +498,47 @@ def _normalize_times(value: str | None) -> list[str]:
     return times
 
 
+def _medication_time_label_for(value: str | None) -> str:
+    normalized = _normalize_time(value)
+    if not normalized:
+        return ""
+
+    for label, time_value in MEDICATION_TIME_LABELS.items():
+        if normalized == time_value:
+            return label
+
+    hour = int(normalized.split(":", 1)[0])
+    if 5 <= hour < 11:
+        return "아침"
+    if 11 <= hour < 16:
+        return "점심"
+    if 16 <= hour < 22:
+        return "저녁"
+    if hour >= 22 or hour < 5:
+        return "취침"
+    return normalized
+
+
+def _format_scheduled_time_labels(scheduled_times: list[str] | None) -> str:
+    labels = []
+    for scheduled_time in scheduled_times or []:
+        label = _medication_time_label_for(scheduled_time)
+        if label and label not in labels:
+            labels.append(label)
+
+    return "/".join(labels)
+
+
+def _scheduled_time_labels_for_client(scheduled_times: list[str] | None) -> list[str]:
+    labels = []
+    for scheduled_time in scheduled_times or []:
+        label = _medication_time_label_for(scheduled_time)
+        if label in MEDICATION_TIME_LABELS and label not in labels:
+            labels.append(label)
+
+    return labels
+
+
 def _default_times_for_count(times_per_day: int | None) -> list[str]:
     count = min(4, max(1, times_per_day or 1))
     return DEFAULT_MEDICATION_TIMES.get(count, DEFAULT_MEDICATION_TIMES[1])
@@ -428,12 +546,16 @@ def _default_times_for_count(times_per_day: int | None) -> list[str]:
 
 def _build_dosage_note(
     *,
+    scheduled_times: list[str] | None = None,
     meal_timing: str = "",
     times_per_day: int | None = None,
     days_supply: int | None = None,
     amount: str = "",
 ) -> str:
     parts = []
+    time_labels = _format_scheduled_time_labels(scheduled_times)
+    if time_labels:
+        parts.append(time_labels)
     if meal_timing:
         parts.append(meal_timing)
     if times_per_day:
@@ -451,7 +573,10 @@ def _build_medication_summary_note(entry: dict) -> str:
     times_per_day = entry.get("times_per_day")
     days_supply = entry.get("days_supply")
     amount = entry.get("amount", "")
+    time_labels = _format_scheduled_time_labels(entry.get("scheduled_times"))
 
+    if time_labels:
+        parts.append(time_labels)
     if meal_timing:
         parts.append(meal_timing)
     if times_per_day:
@@ -473,14 +598,8 @@ def _format_medication_entries_summary(entries: list[dict]) -> str:
 
     guide_lines = []
     easy_name_lines = []
-    grouped_entries: dict[str, dict] = {}
 
-    for entry in normalized_entries:
-        name = entry["name"]
-        if name not in grouped_entries:
-            grouped_entries[name] = entry
-
-    for entry in grouped_entries.values():
+    for entry in _merge_medication_entries(normalized_entries):
         guide_lines.append(f"- {entry['name']}: {_build_medication_summary_note(entry)}")
         easy_name = _normalize_easy_medication_name(entry.get("easy_name"))
         if easy_name:
@@ -495,6 +614,33 @@ def _format_medication_entries_summary(entries: list[dict]) -> str:
         sections.extend(["", "[쉬운 약 이름]", *easy_name_lines])
 
     return "\n".join(sections)
+
+
+def _format_medication_entries_for_client(entries: list[dict]) -> list[dict]:
+    result = []
+
+    for entry in _merge_medication_entries(_dedupe_medication_entries(entries)):
+        scheduled_times = entry.get("scheduled_times") or _default_times_for_count(
+            entry.get("times_per_day")
+        )
+        time_slots = _scheduled_time_labels_for_client(scheduled_times)
+        times_per_day = _coerce_positive_int(entry.get("times_per_day")) or len(time_slots) or 1
+
+        result.append(
+            {
+                "name": entry["name"],
+                "easyName": _normalize_easy_medication_name(entry.get("easy_name")),
+                "mealTiming": _normalize_meal_timing(entry.get("meal_timing")) or "식후",
+                "timesPerDay": times_per_day,
+                "daysSupply": _coerce_positive_int(entry.get("days_supply")) or 7,
+                "timeSlots": time_slots or _scheduled_time_labels_for_client(
+                    _default_times_for_count(times_per_day)
+                ),
+                "scheduledTimes": scheduled_times,
+            }
+        )
+
+    return result
 
 
 def _parse_medication_entries_json(value: str | None) -> list[dict]:
@@ -535,13 +681,30 @@ def _parse_medication_entries_json(value: str | None) -> list[dict]:
         )
         scheduled_times = []
 
-        raw_scheduled_times = raw_entry.get("scheduledTimes") or raw_entry.get(
-            "scheduled_times"
-        ) or []
+        raw_scheduled_times = (
+            raw_entry.get("scheduledTimes")
+            or raw_entry.get("scheduled_times")
+            or raw_entry.get("timeSlots")
+            or raw_entry.get("time_slots")
+            or []
+        )
+        if isinstance(raw_scheduled_times, str):
+            raw_scheduled_times = re.split(r"[,/|]+", raw_scheduled_times)
         for item in raw_scheduled_times:
-            normalized_time = _normalize_time(item)
-            if normalized_time:
-                scheduled_times.append(normalized_time)
+            for normalized_time in _normalize_times(item):
+                if normalized_time and normalized_time not in scheduled_times:
+                    scheduled_times.append(normalized_time)
+            if not scheduled_times:
+                normalized_time = _normalize_time(item)
+                if normalized_time and normalized_time not in scheduled_times:
+                    scheduled_times.append(normalized_time)
+
+        if scheduled_times:
+            normalized_scheduled_times = []
+            for normalized_time in scheduled_times:
+                if normalized_time not in normalized_scheduled_times:
+                    normalized_scheduled_times.append(normalized_time)
+            scheduled_times = normalized_scheduled_times
 
         if not scheduled_times:
             scheduled_times = _default_times_for_count(times_per_day)
@@ -743,7 +906,7 @@ def _parse_structured_medication_summary(summary: str) -> list[dict]:
 
 
 def _parse_plain_medication_text(value: str | None) -> list[dict]:
-    text_value = str(value or "").strip()
+    text_value = _strip_failed_document_summary_fragments(value)
     if not text_value:
         return []
 
@@ -838,16 +1001,15 @@ def _merge_medication_entries(*entry_groups: list[dict]) -> list[dict]:
                 if value:
                     current[field] = value
 
-            scheduled_times = [
-                normalized_time
-                for normalized_time in (
-                    _normalize_time(item)
-                    for item in entry.get("scheduled_times") or []
-                )
-                if normalized_time
-            ]
-            if scheduled_times and (entry.get("times_per_day") or not current["scheduled_times"]):
-                current["scheduled_times"] = scheduled_times
+            scheduled_times = []
+            for item in entry.get("scheduled_times") or []:
+                for normalized_time in _normalize_times(item):
+                    if normalized_time and normalized_time not in scheduled_times:
+                        scheduled_times.append(normalized_time)
+            if scheduled_times:
+                for scheduled_time in scheduled_times:
+                    if scheduled_time not in current["scheduled_times"]:
+                        current["scheduled_times"].append(scheduled_time)
 
     merged_entries = []
     for key in order:
@@ -882,6 +1044,7 @@ def _sync_medication_schedule_rows(
 
     for entry in normalized_entries:
         dosage_note = _build_dosage_note(
+            scheduled_times=entry.get("scheduled_times"),
             meal_timing=entry.get("meal_timing", ""),
             times_per_day=entry.get("times_per_day"),
             days_supply=entry.get("days_supply"),
@@ -963,6 +1126,56 @@ async def _save_and_summarize_document(
     )
 
     return summary or ""
+
+
+async def analyze_parent_medication_images(
+    db: Session,
+    parent_user_id: str,
+    document_type: str,
+    images,
+) -> dict:
+    profile = (
+        db.query(ElderProfile)
+        .filter(ElderProfile.user_id == parent_user_id)
+        .first()
+    )
+
+    if not profile:
+        raise ValueError("부모님 프로필을 찾을 수 없습니다.")
+
+    normalized_document_type = "medication_bag" if document_type == "medication_bag" else "prescription"
+    folder_name = "medication_bags" if normalized_document_type == "medication_bag" else "prescriptions"
+    summary_title = "약 봉투" if normalized_document_type == "medication_bag" else "처방전"
+    summaries: list[str] = []
+
+    try:
+        for image in images or []:
+            summary = await _save_and_summarize_document(
+                db=db,
+                image=image,
+                folder_name=folder_name,
+                document_type=normalized_document_type,
+                summary_title=summary_title,
+                parent_user_id=parent_user_id,
+            )
+            summaries.append(summary)
+
+        raw_medication_summary = merge_summaries("", "복약 문서", summaries)
+        medication_entries = _parse_structured_medication_summary(raw_medication_summary)
+        if not medication_entries:
+            medication_entries = _parse_plain_medication_text(raw_medication_summary)
+
+        db.commit()
+
+        return {
+            "message": "약 사진 분석이 완료되었습니다.",
+            "summary": raw_medication_summary,
+            "medications": _format_medication_entries_summary(medication_entries),
+            "entries": _format_medication_entries_for_client(medication_entries),
+        }
+    except Exception:
+        db.rollback()
+        raise
 
 
 async def update_parent_care_info_with_images(

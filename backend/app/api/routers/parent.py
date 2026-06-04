@@ -11,6 +11,7 @@ from app.schemas.parent import (
     ParentSignupRequest,
 )
 from app.services.parent_service import (
+    analyze_parent_medication_images,
     create_parent,
     get_parent_by_code,
     login_parent,
@@ -60,6 +61,30 @@ def parent_care_info_update(
         return update_parent_care_info(db, parent_user_id, payload)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{parent_user_id}/medication-image-analysis")
+async def parent_medication_image_analysis(
+    parent_user_id: str,
+    document_type: str = Form("medication_bag"),
+    images: Optional[List[UploadFile]] = File(None),
+    db: Session = Depends(get_db),
+):
+    try:
+        return await analyze_parent_medication_images(
+            db=db,
+            parent_user_id=parent_user_id,
+            document_type=document_type,
+            images=images or [],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print("medication-image-analysis error:", repr(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"약 사진 분석 서버 오류: {str(e)}",
+        )
 
 
 @router.put("/{parent_user_id}/care-info-with-images")

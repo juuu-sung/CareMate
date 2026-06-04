@@ -1,0 +1,9 @@
+-r requirements.txt
+torch
+transformers
+peft
+accelerate
+librosa
+soundfile
+numpy
+

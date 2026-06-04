@@ -11,24 +11,58 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import {
+  PhoneNumberInput,
+  isValidKoreanPhoneNumber,
+} from '@/components/common/PhoneNumberInput';
+import {
+  BirthDateInput,
+  GenderSelect,
+  NameInput,
+  isValidBirthDate,
+  isValidPersonName,
+} from '@/components/common/ProfileFormInputs';
 import { guardianSignup } from '@/services/guardian';
 import { getParentByCode } from '@/services/parents';
 
 const relationOptions = ['아들', '딸', '며느리', '사위', '손주', '기타'];
+const ORANGE = '#F97316';
+const ORANGE_DARK = '#EA580C';
+const ORANGE_SOFT = '#FFEDD5';
+const CARD_BORDER = '#FED7AA';
+const BG = '#FFFFFF';
+const TEXT = '#111827';
 
 export default function GuardianSignupScreen() {
   const router = useRouter();
 
   const [name, setName] = useState('');
   const [birth, setBirth] = useState('');
+  const [gender, setGender] = useState('');
   const [phone, setPhone] = useState('');
   const [relation, setRelation] = useState('');
   const [linkCode, setLinkCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!name.trim() || !birth.trim() || !phone.trim() || !relation || !linkCode.trim()) {
+    if (!name.trim() || !birth.trim() || !gender || !phone.trim() || !relation || !linkCode.trim()) {
       Alert.alert('입력 확인', '모든 항목을 입력해주세요.');
+      return;
+    }
+
+    if (!isValidPersonName(name)) {
+      Alert.alert('입력 확인', '성명을 올바르게 입력해주세요.');
+      return;
+    }
+
+    if (!isValidBirthDate(birth)) {
+      Alert.alert('입력 확인', '생년월일을 올바르게 입력해주세요.');
+      return;
+    }
+
+    if (!isValidKoreanPhoneNumber(phone)) {
+      Alert.alert('입력 확인', '전화번호를 올바르게 입력해주세요.');
       return;
     }
 
@@ -43,6 +77,7 @@ export default function GuardianSignupScreen() {
         name: name.trim(),
         birth: birth.trim(),
         phone: phone.trim(),
+        gender,
         relation,
         link_code: normalizedCode,
       });
@@ -77,32 +112,37 @@ export default function GuardianSignupScreen() {
       >
         <Text style={styles.title}>보호자 가입</Text>
 
-        <Text style={styles.label}>성명 *</Text>
-        <TextInput
-          style={styles.input}
+        <NameInput
           value={name}
           onChangeText={setName}
-          placeholder="예: 김민수"
-          placeholderTextColor="#A0A0A0"
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
         />
 
-        <Text style={styles.label}>생년월일 *</Text>
-        <TextInput
-          style={styles.input}
+        <BirthDateInput
           value={birth}
           onChangeText={setBirth}
-          placeholder="예: 1978. 09. 21."
-          placeholderTextColor="#A0A0A0"
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
         />
 
-        <Text style={styles.label}>전화번호 *</Text>
-        <TextInput
-          style={styles.input}
+        <GenderSelect
+          value={gender}
+          onChange={setGender}
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
+        />
+
+        <PhoneNumberInput
+          label="전화번호"
           value={phone}
           onChangeText={setPhone}
-          keyboardType="phone-pad"
-          placeholder="예: 010-9876-5432"
-          placeholderTextColor="#A0A0A0"
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
         />
 
         <Text style={styles.label}>부모님과의 관계 *</Text>
@@ -113,6 +153,7 @@ export default function GuardianSignupScreen() {
               style={[styles.relationButton, relation === item && styles.selectedButton]}
               onPress={() => setRelation(item)}
               activeOpacity={0.85}
+              disabled={loading}
             >
               <Text
                 style={[styles.relationText, relation === item && styles.selectedText]}
@@ -134,7 +175,7 @@ export default function GuardianSignupScreen() {
             autoCapitalize="characters"
             maxLength={6}
           />
-          <Text style={styles.linkIcon}>🔗</Text>
+          <Ionicons name="link-outline" size={23} color={ORANGE_DARK} />
         </View>
 
         <Text style={styles.helperText}>
@@ -165,18 +206,19 @@ export default function GuardianSignupScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F1F1F1',
+    backgroundColor: BG,
   },
   container: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 36,
-    backgroundColor: '#F1F1F1',
+    backgroundColor: BG,
   },
   title: {
     fontSize: 32,
-    fontWeight: '800',
-    color: '#0F172A',
+    lineHeight: 40,
+    fontWeight: '900',
+    color: TEXT,
     marginBottom: 14,
   },
   label: {
@@ -202,34 +244,46 @@ const styles = StyleSheet.create({
   relationButton: {
     width: '31%',
     height: 70,
-    borderRadius: 14,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F8F8',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: CARD_BORDER,
     marginBottom: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
   relationText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111',
+    fontSize: 16,
+    fontWeight: '900',
+    color: TEXT,
   },
   selectedButton: {
-    backgroundColor: '#E8FFEF',
-    borderColor: '#05D34E',
+    backgroundColor: ORANGE_SOFT,
+    borderColor: ORANGE_DARK,
   },
   selectedText: {
-    color: '#059669',
+    color: ORANGE_DARK,
   },
   linkInputWrap: {
     height: 70,
-    backgroundColor: '#E9E9EC',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
   linkInput: {
     flex: 1,
@@ -238,22 +292,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
-  linkIcon: {
-    fontSize: 22,
-    marginLeft: 8,
-  },
   helperText: {
     marginTop: 8,
     fontSize: 14,
-    color: '#666',
+    color: '#64748B',
+    fontWeight: '700',
   },
   submitButton: {
     marginTop: 24,
     height: 60,
-    backgroundColor: '#05D34E',
-    borderRadius: 16,
+    backgroundColor: ORANGE_DARK,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: ORANGE_DARK,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
   },
   submitText: {
     color: '#fff',

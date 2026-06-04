@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.schemas.agent import AgentPlan
 from app.schemas.chat import CareMode, ChatPlaceItem, RequesterRole
 from app.services.emergency_room_service import EmergencyRoomServiceError, get_realtime_emergency_room_result
+from app.services.guardian_location_service import get_latest_elder_location
 from app.services.guardian_service import get_guardian_dashboard_snapshot
 from app.services.medication_service import list_medication_items
 from app.services.nearby_hospital_service import (
@@ -68,6 +69,15 @@ def build_response_policy(
             requester_role=requester_role,
         )
         return ResponsePolicyDecision(answer=answer, grounded_hint=grounded_hint, use_llm=True)
+
+    if agent_plan.action == "lookup_location":
+        answer = _build_location_lookup_answer(
+            db=db,
+            elder_user_id=elder_user_id,
+            link_code=link_code,
+            requester_role=requester_role,
+        )
+        return ResponsePolicyDecision(answer=answer)
 
     if agent_plan.intent == "health_status_lookup":
         dashboard = get_guardian_dashboard_snapshot(db, elder_user_id) if elder_user_id else None
@@ -265,6 +275,40 @@ def _build_health_status_answer(
     )
 
 
+def _build_location_lookup_answer(
+    db: Session,
+    elder_user_id: str | None,
+    link_code: str | None,
+    requester_role: RequesterRole,
+) -> str:
+    if requester_role != "guardian":
+        return "위치 조회는 보호자 연결 정보가 있을 때 사용할 수 있어요."
+
+    if not elder_user_id or not link_code:
+        return "부모님 위치를 확인할 연결 정보가 없어요."
+
+    try:
+        location = get_latest_elder_location(db, elder_user_id=elder_user_id, link_code=link_code)
+    except ValueError:
+        return "부모님 위치를 확인할 보호자 연결 정보를 찾지 못했어요."
+
+    if location["status"] != "available":
+        return "부모님 위치 기록이 아직 없어요. 필요하면 현재 위치 갱신 요청을 보내달라고 말씀해 주세요."
+
+    captured_at = location.get("captured_at")
+    captured_label = _format_location_captured_at(captured_at)
+    latitude = location.get("latitude")
+    longitude = location.get("longitude")
+
+    if latitude is None or longitude is None:
+        return "부모님 위치 기록은 있지만 좌표를 확인하지 못했어요. 위치 갱신 요청을 다시 보내는 게 좋아요."
+
+    return (
+        f"부모님 최근 위치는 {captured_label}에 갱신됐어요. "
+        f"좌표는 위도 {latitude:.5f}, 경도 {longitude:.5f}예요."
+    )
+
+
 def _build_schedule_grounded_hint(
     filtered_items: list[dict[str, str]],
     date_range: str | None,
@@ -373,6 +417,16 @@ def _format_care_reason_preview(reasons: list[str]) -> str:
     if len(reasons) == 1:
         return f"주요 반영 항목은 {reasons[0]}예요."
     return f"주요 반영 항목은 {reasons[0]}, {reasons[1]}예요."
+
+
+def _format_location_captured_at(value) -> str:
+    if isinstance(value, datetime):
+        return value.astimezone(SEOUL_TZ).strftime("%m월 %d일 %H:%M")
+
+    try:
+        return datetime.fromisoformat(str(value)).astimezone(SEOUL_TZ).strftime("%m월 %d일 %H:%M")
+    except (TypeError, ValueError):
+        return "최근"
 
 
 def _filter_schedule_items(

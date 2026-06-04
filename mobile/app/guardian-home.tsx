@@ -326,6 +326,12 @@ export default function GuardianHomeScreen() {
       iconName: 'document-text-outline',
     },
     {
+      title: '우울증 위험 분석',
+      subtitle: '기분 변화와 위험 신호를 살펴봐요',
+      iconType: 'MaterialCommunityIcons',
+      iconName: 'brain',
+    },
+    {
       title: '음성 질문',
       subtitle: '부모님 상태를 바로 물어봐요',
       iconType: 'Ionicons',
@@ -444,6 +450,17 @@ export default function GuardianHomeScreen() {
         linkCode,
       },
     });
+  }, [linkCode, parentId, parentName, router]);
+
+  const openGuardianDepressionRisk = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-depression-risk',
+      params: {
+        parentId,
+        parentName,
+        linkCode,
+      },
+    } as any);
   }, [linkCode, parentId, parentName, router]);
 
   const openGuardianSchedules = React.useCallback(() => {
@@ -596,6 +613,11 @@ export default function GuardianHomeScreen() {
   const handleMenuPress = (title: string) => {
     if (title === '대화 요약') {
       openGuardianConversations();
+      return;
+    }
+
+    if (title === '우울증 위험 분석') {
+      openGuardianDepressionRisk();
       return;
     }
 

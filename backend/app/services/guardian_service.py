@@ -1001,7 +1001,15 @@ def delete_guardian_schedule(
 
 
 def create_guardian_and_link(db: Session, payload):
-    existing_user = db.query(User).filter(User.phone == payload.phone).first()
+    normalized_phone = _normalize_phone(payload.phone)
+    existing_user = next(
+        (
+            user
+            for user in db.query(User).all()
+            if _normalize_phone(user.phone) == normalized_phone
+        ),
+        None,
+    )
     if existing_user:
         raise ValueError("이미 가입된 전화번호입니다.")
 

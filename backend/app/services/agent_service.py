@@ -12,11 +12,14 @@ from app.services.agent_slot_service import (
 ACTION_TO_INTENT: dict[str, ChatIntent] = {
     "lookup_schedule": "schedule_lookup",
     "lookup_medication": "medication_lookup",
+    "lookup_location": "location_lookup",
     "lookup_health_status": "health_status_lookup",
     "check_mode": "general_support",
     "create_schedule": "general_support",
+    "create_medication": "medication_lookup",
     "send_guardian_message": "general_support",
     "mark_medication_taken": "medication_lookup",
+    "request_location_refresh": "location_lookup",
     "change_mode": "general_support",
     "hospital_visit_support": "hospital_visit_support",
     "nearby_hospital_request": "nearby_hospital_request",
@@ -52,8 +55,10 @@ def build_agent_plan(
     missing_slots = find_missing_slots(action, slots)
     requires_confirmation = action in {
         "create_schedule",
+        "create_medication",
         "send_guardian_message",
         "mark_medication_taken",
+        "request_location_refresh",
         "change_mode",
     }
     clarification_question = build_missing_slot_question(action, missing_slots)

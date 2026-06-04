@@ -3,7 +3,6 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   Alert,
@@ -15,6 +14,14 @@ import {
   buildGuardianAuthSession,
   saveAuthSession,
 } from '@/services/authSession';
+import {
+  PhoneNumberInput,
+  isValidKoreanPhoneNumber,
+} from '@/components/common/PhoneNumberInput';
+import {
+  BirthDateInput,
+  isValidBirthDate,
+} from '@/components/common/ProfileFormInputs';
 import { guardianLogin } from '@/services/guardian';
 
 export default function GuardianLoginPage() {
@@ -26,6 +33,16 @@ export default function GuardianLoginPage() {
   const handleLogin = async () => {
     if (!phone.trim() || !birth.trim()) {
       Alert.alert('입력 확인', '전화번호와 생년월일을 입력해주세요.');
+      return;
+    }
+
+    if (!isValidBirthDate(birth)) {
+      Alert.alert('입력 확인', '생년월일을 올바르게 입력해주세요.');
+      return;
+    }
+
+    if (!isValidKoreanPhoneNumber(phone)) {
+      Alert.alert('입력 확인', '전화번호를 올바르게 입력해주세요.');
       return;
     }
 
@@ -90,23 +107,18 @@ export default function GuardianLoginPage() {
           가입할 때 입력한 전화번호와 생년월일로 로그인합니다.
         </Text>
 
-        <Text style={styles.label}>전화번호</Text>
-        <TextInput
-          style={styles.input}
+        <PhoneNumberInput
           value={phone}
           onChangeText={setPhone}
-          placeholder="예: 010-9876-5432"
-          placeholderTextColor="#94A3B8"
-          keyboardType="phone-pad"
+          accentColor="#05B547"
+          disabled={loading}
         />
 
-        <Text style={styles.label}>생년월일</Text>
-        <TextInput
-          style={styles.input}
+        <BirthDateInput
           value={birth}
           onChangeText={setBirth}
-          placeholder="예: 1978. 09. 21."
-          placeholderTextColor="#94A3B8"
+          accentColor="#05B547"
+          disabled={loading}
         />
 
         <TouchableOpacity

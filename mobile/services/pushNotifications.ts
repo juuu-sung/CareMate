@@ -111,7 +111,17 @@ export async function registerCurrentDeviceForPush(session: AuthSession) {
 
   const projectId = getExpoProjectId();
   const tokenOptions = projectId ? { projectId } : undefined;
-  const tokenResult = await Notifications.getExpoPushTokenAsync(tokenOptions);
+  const tokenResult = await Notifications.getExpoPushTokenAsync(
+    tokenOptions
+  ).catch((error) => {
+    console.log('[PushNotifications] Expo push token unavailable:', error);
+    return null;
+  });
+
+  if (!tokenResult?.data) {
+    return { registered: false, reason: 'push_token_unavailable' as const };
+  }
+
   const expoPushToken = tokenResult.data;
   const deviceId = await loadDeviceId();
 

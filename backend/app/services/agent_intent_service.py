@@ -44,7 +44,7 @@ def classify_agent_request(
             pass
 
     return IntentClassificationResult(
-        action=_classify_agent_action_rule_based(text),
+        action=_classify_agent_action_rule_based(text, requester_role=requester_role),
         slot_hints={},
     )
 
@@ -54,12 +54,14 @@ def classify_agent_action(
     current_pending_action: AgentAction | None = None,
     awaiting_confirmation: bool = False,
     last_requested_slot: str | None = None,
+    requester_role: RequesterRole = "parent",
 ) -> AgentAction:
     return _classify_agent_action_rule_based(
         text=text,
         current_pending_action=current_pending_action,
         awaiting_confirmation=awaiting_confirmation,
         last_requested_slot=last_requested_slot,
+        requester_role=requester_role,
     )
 
 
@@ -73,11 +75,14 @@ def _normalize_action(value) -> AgentAction:
     allowed_actions: set[AgentAction] = {
         "lookup_schedule",
         "lookup_medication",
+        "lookup_location",
         "lookup_health_status",
         "check_mode",
         "create_schedule",
+        "create_medication",
         "send_guardian_message",
         "mark_medication_taken",
+        "request_location_refresh",
         "change_mode",
         "hospital_visit_support",
         "nearby_hospital_request",
@@ -141,6 +146,7 @@ def _classify_agent_action_rule_based(
     current_pending_action: AgentAction | None = None,
     awaiting_confirmation: bool = False,
     last_requested_slot: str | None = None,
+    requester_role: RequesterRole = "parent",
 ) -> AgentAction:
     normalized = _normalize_text(text)
 
@@ -164,6 +170,12 @@ def _classify_agent_action_rule_based(
             return "change_mode"
         return "check_mode"
 
+    if requester_role == "guardian" and _looks_like_location_refresh_request(normalized):
+        return "request_location_refresh"
+
+    if requester_role == "guardian" and _looks_like_location_lookup_request(normalized):
+        return "lookup_location"
+
     if any(keyword in normalized for keyword in ("편지", "메시지")):
         return "send_guardian_message"
 
@@ -174,6 +186,9 @@ def _classify_agent_action_rule_based(
         keyword in normalized for keyword in ("약", "복약", "먹었", "복용")
     ):
         return "mark_medication_taken"
+
+    if _looks_like_medication_create_request(normalized):
+        return "create_medication"
 
     if _looks_like_nearby_hospital_request(normalized):
         return "nearby_hospital_request"
@@ -418,6 +433,80 @@ def _looks_like_medication_request(text: str) -> bool:
         r"\s약",
     )
     return any(re.search(pattern, text) for pattern in medication_patterns)
+
+
+def _looks_like_medication_create_request(text: str) -> bool:
+    if any(keyword in text for keyword in ("약속", "예약", "계약")):
+        sanitized = text
+        for keyword in ("약속", "예약", "계약"):
+            sanitized = sanitized.replace(keyword, " ")
+        text = sanitized
+
+    medication_keywords = (
+        "약",
+        "복약",
+        "혈압약",
+        "감기약",
+        "당뇨약",
+        "타이레놀",
+        "아스피린",
+        "인슐린",
+        "비타민",
+        "영양제",
+        "진통제",
+        "소화제",
+        "항생제",
+    )
+    create_keywords = (
+        "등록",
+        "추가",
+        "넣어",
+        "입력",
+        "저장",
+        "스케줄",
+        "일정에",
+    )
+    return any(keyword in text for keyword in medication_keywords) and any(
+        keyword in text for keyword in create_keywords
+    )
+
+
+def _looks_like_location_lookup_request(text: str) -> bool:
+    location_keywords = ("위치", "어디", "장소", "현재 위치", "최근 위치")
+    lookup_keywords = (
+        "알려",
+        "보여",
+        "확인",
+        "조회",
+        "어디",
+        "찾아",
+        "파악",
+        "봤",
+        "볼",
+    )
+    return any(keyword in text for keyword in location_keywords) and any(
+        keyword in text for keyword in lookup_keywords
+    )
+
+
+def _looks_like_location_refresh_request(text: str) -> bool:
+    location_keywords = ("위치", "어디", "장소", "현재 위치")
+    request_keywords = (
+        "요청",
+        "갱신",
+        "업데이트",
+        "새로",
+        "다시",
+        "보내",
+        "물어",
+        "확인해달",
+        "파악해달",
+        "파악해줘",
+        "찾아줘",
+    )
+    return any(keyword in text for keyword in location_keywords) and any(
+        keyword in text for keyword in request_keywords
+    )
 
 
 def _looks_like_symptom_support_request(text: str) -> bool:
