@@ -9,11 +9,14 @@ from app.schemas.chat import CareMode, ChatIntent
 AgentAction = Literal[
     "lookup_schedule",
     "lookup_medication",
+    "lookup_location",
     "lookup_health_status",
     "check_mode",
     "create_schedule",
+    "create_medication",
     "send_guardian_message",
     "mark_medication_taken",
+    "request_location_refresh",
     "change_mode",
     "hospital_visit_support",
     "nearby_hospital_request",
@@ -78,5 +81,4 @@ class AgentPlan(BaseModel):
     clarification_question: str | None = None
     pending_action: AgentAction | None = None
     executed_action: AgentAction | None = None
-
 

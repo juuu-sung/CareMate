@@ -4,10 +4,14 @@ from app.schemas.agent import AgentAction, AgentSlots
 def build_confirmation_question(action: AgentAction, slots: AgentSlots) -> str | None:
     if action == "create_schedule" and slots.date and slots.time and slots.title:
         return f"{slots.date} {slots.time}에 {slots.title}으로 추가할까요?"
+    if action == "create_medication" and slots.medication_name and slots.time:
+        return f"{slots.time}에 {slots.medication_name} 복약을 등록할까요?"
     if action == "send_guardian_message" and slots.target and slots.content:
         return f"{slots.target}에게 '{slots.content}'라고 보낼까요?"
     if action == "mark_medication_taken" and slots.medication_name and slots.time_scope:
         return f"{slots.time_scope} {slots.medication_name}을 드신 것으로 기록할까요?"
+    if action == "request_location_refresh":
+        return "부모님께 현재 위치 갱신 요청을 보낼까요?"
     if action == "change_mode" and slots.target_mode:
         mode_label = {
             "basic": "기본 모드",
@@ -33,6 +37,11 @@ def build_missing_slot_question(action: AgentAction, missing_slots: list[str]) -
             "title": "어떤 일정으로 등록할까요?",
             "date": "언제 일정으로 잡을까요?",
             "time": "몇 시로 잡을까요?",
+        }.get(first_missing)
+    if action == "create_medication":
+        return {
+            "medication_name": "어떤 약을 등록할까요?",
+            "time": "몇 시에 드실 약으로 등록할까요?",
         }.get(first_missing)
     if action == "send_guardian_message":
         return {

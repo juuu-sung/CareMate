@@ -7,6 +7,7 @@ RequesterRole = Literal["parent", "guardian"]
 ChatIntent = Literal[
     "schedule_lookup",
     "medication_lookup",
+    "location_lookup",
     "health_status_lookup",
     "hospital_visit_support",
     "nearby_hospital_request",

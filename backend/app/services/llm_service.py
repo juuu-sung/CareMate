@@ -28,6 +28,10 @@ from app.services.agent_slot_service import (
 )
 from app.services.agent_tool_service import execute_agent_action
 from app.services.chat_log_service import append_chat_log, list_chat_logs
+from app.services.caremate_whisper_service import (
+    CareMateWhisperServiceError,
+    transcribe_audio_with_caremate_whisper,
+)
 from app.services.elder_profile_service import get_elder_profile_context
 from app.services.guardian_service import validate_guardian_access
 from app.services.openai_audio_service import OpenAIAudioServiceError, transcribe_audio
@@ -65,6 +69,7 @@ def build_chat_response(payload: ChatMessageRequest, db: Session) -> ChatMessage
         mode=payload.mode,
         elder_user_id=payload.elder_user_id,
         requester_role=payload.requester_role,
+        link_code=payload.link_code,
         recent_messages=recent_messages,
         elder_profile_context=elder_profile_context,
     )
@@ -208,6 +213,7 @@ def build_speech_response(
         mode=payload.mode,
         elder_user_id=payload.elder_user_id,
         requester_role=payload.requester_role,
+        link_code=payload.link_code,
         recent_messages=recent_messages,
         elder_profile_context=elder_profile_context,
     )
@@ -426,7 +432,20 @@ def _build_transcript(
     audio_bytes: bytes | None,
     audio_content_type: str | None,
 ) -> str:
-    if _get_effective_stt_provider() == "openai" and audio_bytes:
+    stt_provider = _get_effective_stt_provider()
+
+    if stt_provider in {"caremate_whisper", "local_whisper", "whisper"} and audio_bytes:
+        try:
+            return transcribe_audio_with_caremate_whisper(
+                file_bytes=audio_bytes,
+                filename=audio_filename or "audio.m4a",
+                content_type=audio_content_type,
+            )
+        except CareMateWhisperServiceError:
+            logger.exception("CareMate Whisper transcription failed")
+            return _build_placeholder_transcript(audio_filename)
+
+    if stt_provider == "openai" and audio_bytes:
         try:
             return transcribe_audio(
                 file_bytes=audio_bytes,
@@ -494,6 +513,7 @@ def _build_effective_agent_plan(
     mode: str,
     elder_user_id: str | None,
     requester_role: RequesterRole,
+    link_code: str | None = None,
     recent_messages: list[dict[str, str]] | None = None,
     elder_profile_context: str | None = None,
 ) -> AgentPlan:
@@ -509,6 +529,7 @@ def _build_effective_agent_plan(
                     active_session.slots,
                     mode,
                     elder_user_id=elder_user_id,
+                    link_code=link_code,
                 )
                 clear_session(db, session_id)
                 return AgentPlan(
@@ -575,7 +596,7 @@ def _build_effective_agent_plan(
                 missing_slots=[],
                 requires_confirmation=True,
                 awaiting_confirmation=True,
-                clarification_question="맞으면 네, 바꿀 게 있으면 날짜나 시간을 다시 말씀해 주세요.",
+                clarification_question="맞으면 네, 바꿀 게 있으면 다시 말씀해 주세요.",
                 pending_action=active_session.pending_action,
                 executed_action=None,
             )
@@ -587,10 +608,13 @@ def _build_effective_agent_plan(
             recent_messages=recent_messages,
             elder_profile_context=elder_profile_context,
         )
-        if fresh_plan.action != active_session.pending_action and fresh_plan.action not in {
-            "general_support",
-            "needs_clarification",
-        }:
+        if (
+            fresh_plan.action != active_session.pending_action
+            and not _is_compatible_slot_followup(
+                pending_action=active_session.pending_action,
+                fresh_action=fresh_plan.action,
+            )
+        ):
             clear_session(db, session_id)
             _persist_agent_plan_session(db, session_id, mode, fresh_plan)
             return fresh_plan
@@ -614,8 +638,10 @@ def _build_effective_agent_plan(
         updated_plan.pending_action = active_session.pending_action
         updated_plan.requires_confirmation = active_session.pending_action in {
             "create_schedule",
+            "create_medication",
             "send_guardian_message",
             "mark_medication_taken",
+            "request_location_refresh",
             "change_mode",
         }
 
@@ -763,8 +789,10 @@ def _build_updated_confirmation_plan(
     missing_slots = find_missing_slots(active_session.pending_action, merged_slots)
     requires_confirmation = active_session.pending_action in {
         "create_schedule",
+        "create_medication",
         "send_guardian_message",
         "mark_medication_taken",
+        "request_location_refresh",
         "change_mode",
     }
     clarification_question = build_missing_slot_question(active_session.pending_action, missing_slots)
@@ -789,6 +817,18 @@ def _build_updated_confirmation_plan(
 
 def _has_slot_updates(slot_updates: AgentSlots) -> bool:
     return any(value for value in slot_updates.model_dump().values())
+
+
+def _is_compatible_slot_followup(pending_action: str | None, fresh_action: str) -> bool:
+    if fresh_action in {"general_support", "needs_clarification"}:
+        return True
+
+    compatible_actions = {
+        "create_schedule": {"lookup_schedule"},
+        "create_medication": {"lookup_medication"},
+        "mark_medication_taken": {"lookup_medication"},
+    }
+    return fresh_action in compatible_actions.get(pending_action or "", set())
 
 
 def _looks_like_slot_update(text: str) -> bool:

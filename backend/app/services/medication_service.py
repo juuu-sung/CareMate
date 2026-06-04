@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
+from uuid import uuid4
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -18,8 +19,19 @@ from app.schemas.medication import (
     MedicationTimeSlotAnalytics,
 )
 from app.services.guardian_alert_service import create_guardian_alert, resolve_guardian_alerts
+from app.services.schedule_service import extract_time_from_text
 
 SEOUL_TZ = timezone(timedelta(hours=9))
+BROAD_MEDICATION_TIME_DEFAULTS = {
+    "새벽": "06:00:00",
+    "아침": "08:00:00",
+    "오전": "08:00:00",
+    "점심": "12:00:00",
+    "낮": "13:00:00",
+    "오후": "13:00:00",
+    "저녁": "19:00:00",
+    "밤": "21:00:00",
+}
 
 
 def list_medication_items(db: Session, elder_user_id: str | None = None) -> list[MedicationItem]:
@@ -228,6 +240,107 @@ def record_medication_taken(
     )
 
 
+def create_medication_from_slots(
+    db: Session,
+    slots: AgentSlots,
+    elder_user_id: str | None = None,
+) -> dict[str, str | None]:
+    senior_id = elder_user_id or _get_primary_senior_id(db)
+    if not senior_id:
+        raise ValueError("elder_user_id가 없어 복약을 저장할 수 없습니다.")
+
+    medication_name = _normalize_medication_name_for_create(slots.medication_name)
+    if not medication_name:
+        raise ValueError("등록할 약 이름이 필요합니다.")
+
+    scheduled_time = _normalize_medication_schedule_time(slots.time or slots.time_scope)
+    if not scheduled_time:
+        raise ValueError("등록할 복약 시간이 필요합니다.")
+
+    dosage_note = _build_agent_dosage_note(slots.raw_text or slots.content)
+    existing = db.execute(
+        text(
+            """
+            SELECT id
+            FROM medications
+            WHERE senior_user_id = :senior_user_id
+              AND name = :name
+              AND scheduled_time = CAST(:scheduled_time AS TIME)
+            LIMIT 1
+            """
+        ),
+        {
+            "senior_user_id": senior_id,
+            "name": medication_name,
+            "scheduled_time": scheduled_time,
+        },
+    ).mappings().first()
+
+    if existing:
+        row = db.execute(
+            text(
+                """
+                UPDATE medications
+                SET
+                    dosage_note = COALESCE(:dosage_note, dosage_note),
+                    repeat_daily = TRUE,
+                    active = TRUE
+                WHERE id = :id
+                RETURNING id::text AS id, name, easy_name, dosage_note,
+                          TO_CHAR(scheduled_time, 'HH24:MI') AS scheduled_time
+                """
+            ),
+            {
+                "id": existing["id"],
+                "dosage_note": dosage_note,
+            },
+        ).mappings().one()
+    else:
+        row = db.execute(
+            text(
+                """
+                INSERT INTO medications (
+                    id,
+                    senior_user_id,
+                    name,
+                    dosage_note,
+                    scheduled_time,
+                    repeat_daily,
+                    active
+                )
+                VALUES (
+                    :id,
+                    :senior_user_id,
+                    :name,
+                    :dosage_note,
+                    CAST(:scheduled_time AS TIME),
+                    TRUE,
+                    TRUE
+                )
+                RETURNING id::text AS id, name, easy_name, dosage_note,
+                          TO_CHAR(scheduled_time, 'HH24:MI') AS scheduled_time
+                """
+            ),
+            {
+                "id": str(uuid4()),
+                "senior_user_id": senior_id,
+                "name": medication_name,
+                "dosage_note": dosage_note,
+                "scheduled_time": scheduled_time,
+            },
+        ).mappings().one()
+
+    db.commit()
+
+    return {
+        "id": row["id"],
+        "medication_name": row["name"],
+        "medication_easy_name": row["easy_name"],
+        "dosage_note": row["dosage_note"],
+        "scheduled_time": row["scheduled_time"],
+    }
+
+
 def record_medication_status(
     db: Session,
     *,
@@ -330,6 +443,42 @@ def _format_status_label(status: str) -> str:
         "taken": "복용 완료",
         "missed": "복용 누락",
     }.get(status, status)
+
+
+def _normalize_medication_name_for_create(value: str | None) -> str:
+    normalized = " ".join(str(value or "").strip().split())
+    normalized = normalized.strip(" '\".,!?~")
+    if not normalized or normalized == "약":
+        return ""
+    return normalized[:120]
+
+
+def _normalize_medication_schedule_time(value: str | None) -> str | None:
+    normalized = " ".join(str(value or "").strip().split())
+    if not normalized:
+        return None
+
+    if normalized in BROAD_MEDICATION_TIME_DEFAULTS:
+        return BROAD_MEDICATION_TIME_DEFAULTS[normalized]
+
+    parsed = extract_time_from_text(normalized)
+    if not parsed:
+        return None
+
+    if parsed in BROAD_MEDICATION_TIME_DEFAULTS:
+        return BROAD_MEDICATION_TIME_DEFAULTS[parsed]
+
+    parts = parsed.split(":")
+    if len(parts) == 2:
+        return f"{parts[0]}:{parts[1]}:00"
+    return parsed
+
+
+def _build_agent_dosage_note(raw_text: str | None) -> str | None:
+    normalized = " ".join(str(raw_text or "").strip().split())
+    if not normalized:
+        return None
+    return normalized[:120]
 
 
 def _empty_medication_analytics(

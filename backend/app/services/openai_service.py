@@ -397,7 +397,7 @@ def _build_developer_prompt(
                 "예: '머리가 아프시군요. 우선 조용한 곳에서 잠깐 쉬어보세요. 열이나 어지러움도 있나요?' 같은 길이를 기준으로 합니다.",
             ]
         )
-    elif intent in {"schedule_lookup", "medication_lookup", "health_status_lookup"} and grounded_hint:
+    elif intent in {"schedule_lookup", "medication_lookup", "location_lookup", "health_status_lookup"} and grounded_hint:
         base_rules.extend(
             [
                 "아래 조회 사실을 바탕으로만 자연스럽게 답변합니다.",
@@ -419,11 +419,14 @@ def _build_classifier_prompt(
     actions: tuple[AgentAction, ...] = (
         "lookup_schedule",
         "lookup_medication",
+        "lookup_location",
         "lookup_health_status",
         "check_mode",
         "create_schedule",
+        "create_medication",
         "send_guardian_message",
         "mark_medication_taken",
+        "request_location_refresh",
         "change_mode",
         "hospital_visit_support",
         "nearby_hospital_request",
@@ -454,8 +457,11 @@ def _build_classifier_prompt(
         "- title: create_schedule일 때는 가능한 한 구체적인 일정명을 넣습니다. 단순히 '일정'보다 '아들 약속', '병원 진료', '주민센터 방문'처럼 씁니다.",
         "- target: 보호자, 아들, 딸 등 메시지/약속 대상이 명확하면 넣습니다.",
         "- content: send_guardian_message일 때 전달할 말을 핵심만 보존해서 넣습니다.",
-        "- medication_name: mark_medication_taken일 때 약 이름이 보이면 넣습니다.",
+        "- medication_name: mark_medication_taken 또는 create_medication일 때 약 이름이 보이면 넣습니다.",
         "- time_scope: 지금, 오늘, 아침, 점심, 저녁, 오늘 아침, 오늘 저녁 중 하나",
+        "- create_medication은 새 복약 스케줄을 등록하는 요청입니다. time에는 복용 시각을 넣습니다.",
+        "- lookup_location은 보호자가 부모님 최신 위치를 조회하려는 요청입니다.",
+        "- request_location_refresh는 보호자가 부모님 기기에 현재 위치 갱신 요청을 보내려는 요청입니다.",
         "- target_mode: basic, cognitive_support, health_support 중 하나",
         "- status: taken 또는 missed",
         "- message/confirmation의 짧은 대답으로 의미가 불명확하면 needs_clarification 또는 general_support를 고릅니다.",
@@ -468,6 +474,12 @@ def _build_classifier_prompt(
         '{"action":"send_guardian_message","slot_hints":{"target":"보호자","content":"오늘은 조금 늦게 들어갈게요"}}',
         "예시 4:",
         '{"action":"mark_medication_taken","slot_hints":{"medication_name":"혈압약","time_scope":"아침","status":"taken"}}',
+        "예시 5:",
+        '{"action":"create_medication","slot_hints":{"medication_name":"혈압약","time":"오후 8시"}}',
+        "예시 6:",
+        '{"action":"lookup_location","slot_hints":{}}',
+        "예시 7:",
+        '{"action":"request_location_refresh","slot_hints":{}}',
     ]
 
     if elder_profile_context:

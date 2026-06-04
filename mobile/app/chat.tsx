@@ -59,6 +59,8 @@ type VoiceUiState =
   | 'awaiting_confirmation'
   | 'completed';
 
+type GuardianResultView = 'medications' | 'location';
+
 const DEFAULT_MODE_OPTIONS: GuardianOptions = {
   checkInIntervalMinutes: 60,
   alertRepeatCount: 3,
@@ -103,6 +105,16 @@ export default function ChatPage() {
     link_code?: string;
     requesterRole?: string;
     requester_role?: string;
+    guardianId?: string;
+    guardian_id?: string;
+    parentAge?: string;
+    parentGender?: string;
+    medications?: string;
+    diseases?: string;
+    allergies?: string;
+    hospital?: string;
+    doctorContact?: string;
+    memo?: string;
   }>();
 
   const isVoiceMode = params.input === 'voice';
@@ -147,6 +159,8 @@ export default function ChatPage() {
 
   const [voiceUiState, setVoiceUiState] = useState<VoiceUiState>('idle');
   const [showQuickConfirmation, setShowQuickConfirmation] = useState(false);
+  const [pendingGuardianResultView, setPendingGuardianResultView] =
+    useState<GuardianResultView | null>(null);
 
   const [selectedHistoryDay, setSelectedHistoryDay] = useState<string>('all');
   const [selectedCalendarMonth, setSelectedCalendarMonth] = useState(() => startOfMonth(new Date()));
@@ -167,7 +181,7 @@ export default function ChatPage() {
             role: 'assistant',
             text:
               initialRequesterRole === 'guardian'
-                ? `${initialSubjectName} 님의 일정, 복약, 건강 상태를 물어보시면 바로 확인해드릴게요.`
+                ? `${initialSubjectName} 님의 일정, 복약, 건강 상태, 위치를 물어보거나 약 등록을 요청해 주세요.`
                 : agentName
                   ? `${agentName}입니다. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.`
                   : '안녕하세요. 일정이나 약 시간을 물어보시면 바로 확인해드릴게요.',
@@ -188,6 +202,63 @@ export default function ChatPage() {
   const handleScrollContentSizeChange = useCallback(() => {
     scrollToBottom(true);
   }, [scrollToBottom]);
+
+  const openGuardianResultView = useCallback(
+    async (view: GuardianResultView) => {
+      if (!isGuardianRequester) {
+        return false;
+      }
+
+      const session = await loadAuthSession().catch(() => null);
+      const guardianSession = session?.role === 'guardian' ? session : null;
+      const parentId = guardianSession?.parentId || elderUserId;
+      const routeLinkCode = guardianSession?.linkCode || linkCode;
+      const routeParentName = guardianSession?.parentName || subjectName || '부모님';
+
+      if (!parentId || !routeLinkCode) {
+        setError('보여줄 화면을 열기 위한 보호자 연결 정보가 없습니다.');
+        return false;
+      }
+
+      const commonParams = {
+        parentId,
+        elderUserId: parentId,
+        parentName: routeParentName,
+        linkCode: routeLinkCode,
+      };
+
+      setPendingGuardianResultView(null);
+
+      if (view === 'medications') {
+        router.push({
+          pathname: '/guardian-medications',
+          params: {
+            ...commonParams,
+            parentAge: guardianSession?.parentAge || String(params.parentAge || ''),
+            parentGender: guardianSession?.parentGender || String(params.parentGender || ''),
+            medications: guardianSession?.medications || String(params.medications || ''),
+          },
+        });
+        return true;
+      }
+
+      router.push({
+        pathname: '/guardian-location',
+        params: commonParams,
+      });
+      return true;
+    },
+    [
+      elderUserId,
+      isGuardianRequester,
+      linkCode,
+      params.medications,
+      params.parentAge,
+      params.parentGender,
+      router,
+      subjectName,
+    ]
+  );
 
   useEffect(() => {
     const paramElderUserId = String(
@@ -473,6 +544,26 @@ export default function ChatPage() {
     setDraft('');
   };
 
+  const rememberGuardianResultView = useCallback(
+    (response: {
+      intent: string;
+      executed_action?: string | null;
+      confirmation_needed?: boolean;
+      awaiting_confirmation?: boolean;
+      missing_slots?: string[];
+    }) => {
+      if (!isGuardianRequester) {
+        return;
+      }
+
+      const resultView = getGuardianResultViewFromResponse(response);
+      if (resultView) {
+        setPendingGuardianResultView(resultView);
+      }
+    },
+    [isGuardianRequester]
+  );
+
   const handleStartRecording = async () => {
     if (isUploadingVoice || recorderState.isRecording) {
       return;
@@ -560,6 +651,9 @@ export default function ChatPage() {
       });
 
       setSessionId(response.session_id ?? null);
+      const requestedResultView = isGuardianRequester
+        ? resolveGuardianResultViewRequest(response.transcript, pendingGuardianResultView)
+        : null;
 
       const transcriptBubble: ChatBubble = {
         id: `voice-transcript-${Date.now()}`,
@@ -570,19 +664,30 @@ export default function ChatPage() {
 
       const assistantBubble: ChatBubble = {
         id: `voice-response-${Date.now()}`,
-        role: response.confirmation_needed ? 'system' : 'assistant',
-        text: response.confirmation_needed
+        role: requestedResultView || !response.confirmation_needed ? 'assistant' : 'system',
+        text: requestedResultView
+          ? `${getGuardianResultViewLabel(requestedResultView)} 화면을 열게요.`
+          : response.confirmation_needed
           ? response.clarification_question ?? '다시 한 번 말씀해 주세요.'
           : response.answer,
-        meta: formatResponseMeta(response),
-        places: response.places,
-        sources: response.sources,
+        meta: requestedResultView ? '화면 이동' : formatResponseMeta(response),
+        places: requestedResultView ? [] : response.places,
+        sources: requestedResultView ? [] : response.sources,
       };
 
       setMessages((prev) => [...prev, transcriptBubble, assistantBubble]);
 
-      applyVoiceResponseState(response);
+      if (requestedResultView) {
+        setVoiceUiState('completed');
+        setShowQuickConfirmation(false);
+      } else {
+        rememberGuardianResultView(response);
+        applyVoiceResponseState(response);
+      }
       await playTtsForMessage(assistantBubble.id, assistantBubble.text);
+      if (requestedResultView) {
+        await openGuardianResultView(requestedResultView);
+      }
     } catch (uploadError) {
       setError(
         uploadError instanceof Error
@@ -602,6 +707,10 @@ export default function ChatPage() {
       return;
     }
 
+    const requestedResultView = isGuardianRequester
+      ? resolveGuardianResultViewRequest(trimmedText, pendingGuardianResultView)
+      : null;
+
     const userMessage: ChatBubble = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -611,6 +720,28 @@ export default function ChatPage() {
 
     setMessages((prev) => [...prev, userMessage]);
     setError(null);
+
+    if (requestedResultView) {
+      const assistantMessage: ChatBubble = {
+        id: `assistant-result-view-${Date.now()}`,
+        role: 'assistant',
+        text: `${getGuardianResultViewLabel(requestedResultView)} 화면을 열게요.`,
+        meta: '화면 이동',
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      if (isVoiceMode) {
+        setVoiceUiState('completed');
+        setShowQuickConfirmation(false);
+        await playTtsForMessage(assistantMessage.id, assistantMessage.text);
+      }
+
+      await openGuardianResultView(requestedResultView);
+      return;
+    }
+
     setIsSending(true);
 
     if (isVoiceMode) {
@@ -654,8 +785,11 @@ export default function ChatPage() {
       setMessages((prev) => [...prev, assistantMessage]);
 
       if (isVoiceMode) {
+        rememberGuardianResultView(response);
         applyVoiceResponseState(response);
         await playTtsForMessage(assistantMessage.id, assistantMessage.text);
+      } else {
+        rememberGuardianResultView(response);
       }
     } catch (sendError) {
       setError(
@@ -894,7 +1028,7 @@ export default function ChatPage() {
         <Text style={styles.description}>
           {isGuardianRequester
             ? isVoiceMode
-              ? '보호자 질문으로 처리됩니다. 부모님 일정, 복약, 건강 상태를 바로 확인할 수 있습니다.'
+              ? '보호자 질문으로 처리됩니다. 부모님 일정, 복약, 건강 상태, 위치를 확인하고 약을 등록할 수 있습니다.'
               : '보호자 질문 기록을 날짜별로 골라 확인할 수 있습니다.'
             : isVoiceMode
               ? '편하게 말씀해주세요'
@@ -1995,8 +2129,16 @@ function formatResponseMeta(response: {
 }
 
 function formatIntentLabel(intent: string, mode: CareMode) {
-  if (intent === 'medication_lookup' || intent === 'mark_medication_taken') {
+  if (
+    intent === 'medication_lookup' ||
+    intent === 'mark_medication_taken' ||
+    intent === 'create_medication'
+  ) {
     return '복용 안내';
+  }
+
+  if (intent === 'location_lookup') {
+    return '위치 안내';
   }
 
   if (intent === 'schedule_lookup') {
@@ -2016,6 +2158,80 @@ function formatIntentLabel(intent: string, mode: CareMode) {
   }
 
   return '일반 안내';
+}
+
+function getGuardianResultViewFromResponse(response: {
+  intent: string;
+  executed_action?: string | null;
+  confirmation_needed?: boolean;
+  awaiting_confirmation?: boolean;
+  missing_slots?: string[];
+}): GuardianResultView | null {
+  const hasMissingSlots = (response.missing_slots?.length ?? 0) > 0;
+  if (response.confirmation_needed || response.awaiting_confirmation || hasMissingSlots) {
+    return null;
+  }
+
+  if (
+    response.executed_action === 'create_medication' ||
+    response.executed_action === 'mark_medication_taken'
+  ) {
+    return 'medications';
+  }
+
+  if (response.executed_action === 'request_location_refresh') {
+    return 'location';
+  }
+
+  if (response.intent === 'medication_lookup') {
+    return 'medications';
+  }
+
+  if (response.intent === 'location_lookup') {
+    return 'location';
+  }
+
+  return null;
+}
+
+function resolveGuardianResultViewRequest(
+  text: string,
+  pendingView: GuardianResultView | null
+): GuardianResultView | null {
+  const normalized = text.trim().toLowerCase();
+  const compact = normalized.replace(/\s+/g, '');
+  if (!compact) {
+    return null;
+  }
+
+  const asksToShow =
+    compact.includes('보여') ||
+    compact.includes('열어') ||
+    compact.includes('화면') ||
+    compact.includes('보러') ||
+    compact.includes('이동');
+
+  if (!asksToShow) {
+    return null;
+  }
+
+  if (/(약|복약|medication)/i.test(normalized)) {
+    return 'medications';
+  }
+
+  if (/(위치|지도|location|map)/i.test(normalized)) {
+    return 'location';
+  }
+
+  return pendingView;
+}
+
+function getGuardianResultViewLabel(view: GuardianResultView) {
+  if (view === 'medications') {
+    return '복약';
+  }
+
+  return '위치';
 }
 
 function formatSourceLabel(source: ChatSourceItem, index: number) {

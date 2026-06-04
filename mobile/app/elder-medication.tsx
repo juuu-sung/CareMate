@@ -27,6 +27,10 @@ import {
   syncMedicationRemindersIfEnabled,
 } from '@/services/medicationReminders';
 import { getElderProfileByUserId } from '@/services/elderProfile';
+import {
+  getMedicationTimeLabel,
+  getSeniorMedicationPurposeLabel,
+} from '@/utils/medicationDisplay';
 
 const BLUE = '#F97316';
 const BLUE_DARK = '#EA580C';
@@ -163,28 +167,9 @@ function getEasyMedicationName(
   easyNameMap: Record<string, string>
 ): string {
   const item = medication as MedicationItemWithEasyName;
-
-  const easyName =
-    item.easy_name ||
-    item.easyName ||
-    item.simple_name ||
-    item.simpleName ||
-    item.display_name ||
-    item.displayName ||
-    item.category_name ||
-    item.categoryName;
-
-  if (typeof easyName === 'string' && easyName.trim().length > 0) {
-    return easyName.trim();
-  }
-
   const fromSummary = findEasyNameFromSummaryMap(item.name, easyNameMap);
 
-  if (fromSummary) {
-    return fromSummary;
-  }
-
-  return item.name;
+  return getSeniorMedicationPurposeLabel(item, fromSummary);
 }
 
 function extractMedicationNamesFromProfileText(value: string): string[] {
@@ -301,25 +286,7 @@ function groupMedicationItemsByTime(items: MedicationItem[]): MedicationDoseGrou
 }
 
 function getDoseGroupLabel(timeValue: string) {
-  const hour = Number(String(timeValue).split(':')[0]);
-
-  if (!Number.isFinite(hour)) {
-    return '약';
-  }
-
-  if (hour < 11) {
-    return '아침 약';
-  }
-
-  if (hour < 15) {
-    return '점심 약';
-  }
-
-  if (hour < 21) {
-    return '저녁 약';
-  }
-
-  return '자기 전 약';
+  return getMedicationTimeLabel(timeValue);
 }
 
 function uniqueMedicationDisplayNames(
@@ -349,27 +316,9 @@ function getParentFacingMedicationName(
   easyNameMap: Record<string, string>
 ) {
   const item = medication as MedicationItemWithEasyName;
-  const easyName =
-    item.easy_name ||
-    item.easyName ||
-    item.simple_name ||
-    item.simpleName ||
-    item.display_name ||
-    item.displayName ||
-    item.category_name ||
-    item.categoryName;
-
-  if (typeof easyName === 'string' && easyName.trim().length > 0) {
-    return easyName.trim();
-  }
-
   const fromSummary = findEasyNameFromSummaryMap(item.name, easyNameMap);
 
-  if (fromSummary) {
-    return fromSummary;
-  }
-
-  return '이름 미정 약';
+  return getSeniorMedicationPurposeLabel(item, fromSummary);
 }
 
 function formatDoseGroupNames(
@@ -399,7 +348,7 @@ function formatDoseGroupTitle(
     return getDoseGroupLabel(group.time);
   }
 
-  return `${getDoseGroupLabel(group.time).replace(/\s*약$/, '')} ${names}`;
+  return `${getDoseGroupLabel(group.time)} (${names})`;
 }
 
 function getDoseGroupStatus(group: MedicationDoseGroup): MedicationItem['status'] {

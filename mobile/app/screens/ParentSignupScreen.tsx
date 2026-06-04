@@ -3,7 +3,6 @@ import {
   SafeAreaView,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -11,7 +10,25 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import {
+  PhoneNumberInput,
+  isValidKoreanPhoneNumber,
+} from '@/components/common/PhoneNumberInput';
+import {
+  AddressInput,
+  BirthDateInput,
+  GenderSelect,
+  NameInput,
+  isUsableAddress,
+  isValidBirthDate,
+  isValidPersonName,
+} from '@/components/common/ProfileFormInputs';
 import { parentSignup } from '@/services/parents';
+
+const ORANGE = '#F97316';
+const ORANGE_DARK = '#EA580C';
+const BG = '#FFFFFF';
+const TEXT = '#111827';
 
 export default function ParentSignupScreen() {
   const router = useRouter();
@@ -26,6 +43,26 @@ export default function ParentSignupScreen() {
   const handleSubmit = async () => {
     if (!name.trim() || !birth.trim() || !gender || !address.trim() || !phone.trim()) {
       Alert.alert('입력 확인', '모든 항목을 입력해주세요.');
+      return;
+    }
+
+    if (!isValidPersonName(name)) {
+      Alert.alert('입력 확인', '성명을 올바르게 입력해주세요.');
+      return;
+    }
+
+    if (!isValidBirthDate(birth)) {
+      Alert.alert('입력 확인', '생년월일을 올바르게 입력해주세요.');
+      return;
+    }
+
+    if (!isUsableAddress(address)) {
+      Alert.alert('입력 확인', '주소를 조금 더 자세히 입력해주세요.');
+      return;
+    }
+
+    if (!isValidKoreanPhoneNumber(phone)) {
+      Alert.alert('입력 확인', '전화번호를 올바르게 입력해주세요.');
       return;
     }
 
@@ -65,62 +102,45 @@ export default function ParentSignupScreen() {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>부모님 가입</Text>
 
-        <Text style={styles.label}>성명</Text>
-        <TextInput
-          style={styles.input}
+        <NameInput
           value={name}
           onChangeText={setName}
-          placeholder="예: 김영희"
-          placeholderTextColor="#A0A0A0"
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
         />
 
-        <Text style={styles.label}>생년월일 *</Text>
-        <TextInput
-          style={styles.input}
+        <BirthDateInput
           value={birth}
           onChangeText={setBirth}
-          placeholder="예: 1947. 03. 12."
-          placeholderTextColor="#A0A0A0"
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
         />
 
-        <Text style={styles.label}>성별 *</Text>
-        <View style={styles.genderRow}>
-          <TouchableOpacity
-            style={[styles.genderButton, gender === '남성' && styles.selectedButton]}
-            onPress={() => setGender('남성')}
-          >
-            <Text style={[styles.genderText, gender === '남성' && styles.selectedText]}>
-              남성
-            </Text>
-          </TouchableOpacity>
+        <GenderSelect
+          value={gender}
+          onChange={setGender}
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
+        />
 
-          <TouchableOpacity
-            style={[styles.genderButton, gender === '여성' && styles.selectedButton]}
-            onPress={() => setGender('여성')}
-          >
-            <Text style={[styles.genderText, gender === '여성' && styles.selectedText]}>
-              여성
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.label}>주소 *</Text>
-        <TextInput
-          style={styles.input}
+        <AddressInput
           value={address}
           onChangeText={setAddress}
-          placeholder="예: 경남 진주시 진주대로 501"
-          placeholderTextColor="#A0A0A0"
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
         />
 
-        <Text style={styles.label}>전화번호 *</Text>
-        <TextInput
-          style={styles.input}
+        <PhoneNumberInput
+          label="전화번호"
           value={phone}
           onChangeText={setPhone}
-          placeholder="예: 010-1234-5678"
-          placeholderTextColor="#A0A0A0"
-          keyboardType="phone-pad"
+          required
+          accentColor={ORANGE_DARK}
+          disabled={loading}
         />
 
         <TouchableOpacity
@@ -157,16 +177,19 @@ export default function ParentSignupScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F1F1F1',
+    backgroundColor: BG,
   },
   container: {
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 40,
+    backgroundColor: BG,
   },
   title: {
     fontSize: 32,
-    fontWeight: '800',
+    lineHeight: 40,
+    fontWeight: '900',
+    color: TEXT,
     marginBottom: 20,
   },
   label: {
@@ -224,8 +247,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   checkboxChecked: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+    backgroundColor: ORANGE,
+    borderColor: ORANGE,
   },
   checkmark: {
     color: '#fff',
@@ -239,10 +262,15 @@ const styles = StyleSheet.create({
   submitButton: {
     marginTop: 24,
     height: 60,
-    backgroundColor: '#3B82F6',
+    backgroundColor: ORANGE_DARK,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: 20,
+    shadowColor: ORANGE_DARK,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
   },
   submitText: {
     color: '#fff',

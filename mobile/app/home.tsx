@@ -36,6 +36,11 @@ import { getSchedules, ScheduleItem } from '@/services/schedules';
 import { getAgentProfile } from '@/services/chat';
 import { syncMedicationRemindersIfEnabled } from '@/services/medicationReminders';
 import { getElderProfileByUserId } from '@/services/elderProfile';
+import { getParentByCode } from '@/services/parents';
+import {
+  getMedicationTimeLabel,
+  getSeniorMedicationPurposeLabel,
+} from '@/utils/medicationDisplay';
 
 type LetterItem = {
   guardian_user_id: string;
@@ -47,7 +52,9 @@ type LetterItem = {
 };
 
 function getMedicationDisplayName(medication: MedicationItem) {
-  return medication.easy_name?.trim() || '이름 미정 약';
+  return `${getMedicationTimeLabel(medication.time)} (${getSeniorMedicationPurposeLabel(
+    medication
+  )})`;
 }
 
 const BLUE = '#F97316';
@@ -55,6 +62,26 @@ const BLUE_DARK = '#EA580C';
 const BLUE_LIGHT = '#FFEDD5';
 const BG = '#FFFFFF';
 const TEXT = '#111827';
+
+function normalizeParentDisplayName(value: string) {
+  const text = String(value || '').trim();
+
+  if (!text || text === '부모님' || text === '부모님님' || text === '부모님 님') {
+    return '';
+  }
+
+  return text.replace(/\s*님$/, '').trim();
+}
+
+function formatParentDisplayName(value: string) {
+  const name = normalizeParentDisplayName(value);
+
+  if (!name) {
+    return '';
+  }
+
+  return `${name}님`;
+}
 
 function extractSection(summary: string, sectionTitle: string) {
   const text = String(summary || '').trim();
@@ -132,7 +159,7 @@ export default function HomeScreen() {
     params.elderUserId || params.elder_user_id || params.parentId || ''
   ).trim();
 
-  const parentName = String(params.parentName || '');
+  const routeParentName = normalizeParentDisplayName(String(params.parentName || ''));
   const linkCode = String(params.linkCode || params.link_code || params.code || '');
   const guardianPhone = String(
     params.guardianPhone ||
@@ -147,6 +174,8 @@ export default function HomeScreen() {
 
   const [agentName, setAgentName] = useState(initialAgentName || '케어');
   const [selectedVoice, setSelectedVoice] = useState(initialSelectedVoice);
+  const [resolvedParentName, setResolvedParentName] = useState(routeParentName);
+  const parentName = resolvedParentName || routeParentName;
 
   const [latestLetter, setLatestLetter] = useState<LetterItem | null>(null);
   const [letters, setLetters] = useState<LetterItem[]>([]);
@@ -223,6 +252,28 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.log('에이전트 프로필 조회 오류:', error);
+    }
+  };
+
+  const loadParentDisplayName = async () => {
+    if (routeParentName) {
+      setResolvedParentName(routeParentName);
+      return;
+    }
+
+    if (!linkCode) {
+      return;
+    }
+
+    try {
+      const parentInfo = await getParentByCode(linkCode);
+      const fetchedName = normalizeParentDisplayName(parentInfo.parent_name);
+
+      if (fetchedName) {
+        setResolvedParentName(fetchedName);
+      }
+    } catch (error) {
+      console.log('부모님 이름 조회 오류:', error);
     }
   };
 
@@ -436,7 +487,7 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    if (!elderUserId || !linkCode) return;
+    if (!elderUserId || !linkCode || !parentName) return;
 
     void saveAuthSession(
       buildParentAuthSession({
@@ -460,6 +511,7 @@ export default function HomeScreen() {
     void syncLocation();
     void syncRequestedLocation();
     void loadAgentProfile();
+    void loadParentDisplayName();
 
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (medicationPollingRef.current) clearInterval(medicationPollingRef.current);
@@ -495,7 +547,7 @@ export default function HomeScreen() {
         locationRequestPollingRef.current = null;
       }
     };
-  }, [elderUserId, linkCode]);
+  }, [elderUserId, linkCode, routeParentName]);
 
   useFocusEffect(
     useCallback(() => {
@@ -505,14 +557,15 @@ export default function HomeScreen() {
       void syncLocation();
       void syncRequestedLocation();
       void loadAgentProfile();
+      void loadParentDisplayName();
 
       return undefined;
-    }, [elderUserId, linkCode, agentName, selectedVoice])
+    }, [elderUserId, linkCode, routeParentName, agentName, selectedVoice])
   );
 
   const firstSchedule = schedules[0];
   const firstMedication = medications[0];
-  const displayName = parentName ? `${parentName}님` : '영희님';
+  const displayName = formatParentDisplayName(parentName);
 
   const handleFirstMedicationTaken = async () => {
     if (!firstMedication) {
@@ -568,7 +621,7 @@ export default function HomeScreen() {
         </View>
 
         <Text style={styles.homeTitle}>
-          {displayName},{'\n'}오늘 컨디션은 어떠세요?
+          {displayName ? `${displayName},\n` : ''}오늘 컨디션은 어떠세요?
         </Text>
 
         <TouchableOpacity
@@ -675,7 +728,26 @@ export default function HomeScreen() {
         <View style={styles.summaryGrid}>
           <TouchableOpacity
             style={styles.summaryCard}
-            onPress={() => router.push('/calendar')}
+            onPress={() =>
+              router.push({
+                pathname: '/calendar',
+                params: {
+                  viewerRole: 'parent',
+                  elderUserId,
+                  elder_user_id: elderUserId,
+                  parentId: elderUserId,
+                  parentName,
+                  linkCode,
+                  link_code: linkCode,
+                  guardianPhone,
+                  agentName,
+                  agent_name: agentName,
+                  selectedVoice,
+                  agentVoice: selectedVoice,
+                  agent_voice: selectedVoice,
+                },
+              })
+            }
             activeOpacity={0.88}
           >
             <View style={styles.summaryIconBox}>

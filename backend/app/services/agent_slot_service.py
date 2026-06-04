@@ -131,11 +131,15 @@ def extract_agent_slots(action: AgentAction, text: str) -> AgentSlots:
     slots.time = _extract_time(normalized)
     slots.time_scope = _extract_time_scope(normalized)
     slots.target = _extract_target(lowered)
-    slots.medication_name = _extract_medication_name(normalized)
+    slots.medication_name = _extract_medication_name(normalized, action)
     slots.target_mode = _extract_target_mode(lowered)
 
     if action == "create_schedule":
         slots.title = _extract_schedule_title(normalized)
+        slots.content = normalized
+        slots.raw_text = normalized
+
+    if action == "create_medication":
         slots.content = normalized
         slots.raw_text = normalized
 
@@ -155,11 +159,14 @@ def find_missing_slots(action: AgentAction, slots: AgentSlots) -> list[str]:
     required_by_action: dict[AgentAction, list[str]] = {
         "lookup_schedule": ["date_range"],
         "lookup_medication": ["time_scope"],
+        "lookup_location": [],
         "lookup_health_status": [],
         "check_mode": [],
         "create_schedule": ["date", "time"],
+        "create_medication": ["medication_name", "time"],
         "send_guardian_message": ["target", "content"],
         "mark_medication_taken": ["medication_name", "time_scope", "status"],
+        "request_location_refresh": [],
         "change_mode": ["target_mode"],
         "hospital_visit_support": [],
         "nearby_hospital_request": [],
@@ -210,6 +217,11 @@ def normalize_agent_slots(action: AgentAction, slots: AgentSlots) -> AgentSlots:
             normalized.date = normalized.date_range
         if not normalized.title and normalized.target:
             normalized.title = f"{normalized.target} 약속"
+
+    if action == "create_medication" and not normalized.time and normalized.time_scope:
+        normalized.time = normalized.time_scope
+    if action == "create_medication" and normalized.medication_name == "약":
+        normalized.medication_name = None
 
     if action == "mark_medication_taken" and not normalized.status:
         normalized.status = "taken"
@@ -388,10 +400,33 @@ def _extract_message_content(text: str) -> str | None:
     return None
 
 
-def _extract_medication_name(text: str) -> str | None:
+def _extract_medication_name(text: str, action: AgentAction) -> str | None:
     sanitized = text.replace("약속", " ").replace("예약", " ").replace("계약", " ")
-    if "혈압약" in text:
-        return "혈압약"
+    direct_match = re.search(r"([가-힣A-Za-z0-9]+약)", sanitized)
+    if direct_match:
+        return direct_match.group(1).strip()
+
+    if action == "create_medication":
+        candidate = sanitized
+        candidate = TIME_PATTERN.sub(" ", candidate)
+        candidate = KOREAN_TIME_PATTERN.sub(" ", candidate)
+        candidate = DATE_PATTERN.sub(" ", candidate)
+        candidate = re.sub(
+            r"(부모님|어머니|아버지|엄마|아빠|복약|약|복용|먹는|드실|드시는|"
+            r"등록해줘|등록해주세요|등록|추가해줘|추가해주세요|추가|넣어줘|넣어주세요|넣어|"
+            r"입력해줘|입력|저장해줘|저장|알림|스케줄|일정|으로|로|에|때)",
+            " ",
+            candidate,
+        )
+        candidate = re.sub(r"(오전|오후|새벽|아침|점심|낮|저녁|밤|오늘|내일)", " ", candidate)
+        candidate = re.sub(r"\s+", " ", candidate).strip(" '\".,!?~")
+        candidate = re.sub(r"(을|를|은|는|이|가|도|만)$", "", candidate).strip()
+        if candidate:
+            words = [word for word in candidate.split() if len(word) > 0]
+            if words:
+                return " ".join(words[:3])
+        return None
+
     if "약" in sanitized:
         return "약"
     return None

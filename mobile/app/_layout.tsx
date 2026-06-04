@@ -563,6 +563,7 @@ export default function RootLayout() {
       <Stack.Screen name="guardian-alert-history" />
       <Stack.Screen name="guardian-medications" />
       <Stack.Screen name="guardian-conversations" />
+      <Stack.Screen name="guardian-depression-risk" />
       <Stack.Screen name="guardian-location" />
       <Stack.Screen name="guardian-letter" />
     </Stack>
