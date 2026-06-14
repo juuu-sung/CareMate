@@ -93,15 +93,36 @@ export async function apiDelete<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
-  const response = await fetch(buildApiUrl(path), {
-    method: "POST",
-    body,
+export function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", buildApiUrl(path));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as T);
+        } catch {
+          reject(new Error("Failed to parse response"));
+        }
+      } else {
+        try {
+          const data = JSON.parse(xhr.responseText) as {
+            detail?: string;
+            message?: string;
+            error?: string;
+          };
+          const message =
+            data.detail ||
+            data.message ||
+            data.error ||
+            `Request failed with status ${xhr.status}`;
+          reject(new Error(message));
+        } catch {
+          reject(new Error(`Request failed with status ${xhr.status}`));
+        }
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network request failed"));
+    xhr.send(body);
   });
-
-  if (!response.ok) {
-    throw await createApiError(response);
-  }
-
-  return response.json() as Promise<T>;
 }

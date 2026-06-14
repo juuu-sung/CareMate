@@ -1,6 +1,6 @@
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -63,6 +63,7 @@ def get_place_status(payload: ChatPlaceStatusRequest) -> ChatPlaceStatusResponse
 
 @router.post("/speech", response_model=ChatSpeechResponse)
 async def send_speech(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     audio_file: UploadFile = File(...),
     mode: str = Form("basic"),
@@ -102,6 +103,7 @@ async def send_speech(
             audio_filename=audio_file.filename,
             audio_bytes=audio_bytes,
             audio_content_type=audio_file.content_type,
+            background_tasks=background_tasks,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 
 let hasInitializedWidgets = false;
 
@@ -7,14 +8,22 @@ export function initializeWidgets() {
     return;
   }
 
-  const careQuickStartWidget = require('../widgets/CareQuickStartWidget')
-    .default as typeof import('../widgets/CareQuickStartWidget').default;
+  if (!requireOptionalNativeModule('ExpoWidgets')) {
+    return;
+  }
 
-  careQuickStartWidget.updateSnapshot({
-    title: '바로 말하기',
-    subtitle: '누르면 바로 음성 대화를 시작해요.',
-    shortLabel: '케어',
-  });
+  try {
+    const careQuickStartWidget = require('../widgets/CareQuickStartWidget')
+      .default as typeof import('../widgets/CareQuickStartWidget').default;
 
-  hasInitializedWidgets = true;
+    careQuickStartWidget.updateSnapshot({
+      title: '바로 말하기',
+      subtitle: '누르면 바로 음성 대화를 시작해요.',
+      shortLabel: '케어',
+    });
+
+    hasInitializedWidgets = true;
+  } catch (e) {
+    console.log('expo-widgets skipped');
+  }
 }

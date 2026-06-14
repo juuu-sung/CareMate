@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -45,6 +46,7 @@ from app.services.safety_zone_service import (
     list_safety_zones,
     update_safety_zone,
 )
+from app.services.openai_service import generate_health_explanation
 
 router = APIRouter(prefix="/guardians", tags=["guardians"])
 
@@ -314,3 +316,24 @@ def delete_schedule_for_guardian(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+class HealthExplainItem(BaseModel):
+    date: str
+    value: float
+
+
+class HealthExplainRequest(BaseModel):
+    metric: str
+    items: list[HealthExplainItem]
+    elder_name: str
+
+
+@router.post("/health-explain")
+def explain_health_metric(payload: HealthExplainRequest):
+    explanation = generate_health_explanation(
+        metric=payload.metric,
+        items=[item.model_dump() for item in payload.items],
+        elder_name=payload.elder_name,
+    )
+    return {"explanation": explanation}

@@ -343,13 +343,13 @@ export default function ParentAgentVoiceSetupScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#EEF4FF",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 40,
-    backgroundColor: "#EEF4FF",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     alignItems: "center",
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#F97316",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 20,
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 20,
     borderWidth: 2,
-    borderColor: "#DBEAFE",
+    borderColor: "#FFEDD5",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
@@ -403,8 +403,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   voiceCardSelected: {
-    borderColor: "#3B82F6",
-    backgroundColor: "#EFF6FF",
+    borderColor: "#F97316",
+    backgroundColor: "#FFF7ED",
   },
   avatarWrap: {
     width: 72,
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#1D4ED8",
+    color: "#EA580C",
   },
   voiceInfo: {
     flex: 1,
@@ -453,12 +453,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: "#E0ECFF",
+    backgroundColor: "#FFEDD5",
   },
   toneChipText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#2563EB",
+    color: "#EA580C",
   },
   voiceDesc: {
     fontSize: 16,
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   playingText: {
     marginTop: 8,
     fontSize: 15,
-    color: "#2563EB",
+    color: "#EA580C",
     fontWeight: "700",
   },
   previewHint: {
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#F97316",
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 12,
@@ -505,12 +505,12 @@ const styles = StyleSheet.create({
   nextButton: {
     height: 68,
     borderRadius: 20,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#F97316",
     justifyContent: "center",
     alignItems: "center",
   },
   nextButtonDisabled: {
-    backgroundColor: "#93C5FD",
+    backgroundColor: "#FDBA74",
   },
   nextButtonLoadingRow: {
     flexDirection: "row",

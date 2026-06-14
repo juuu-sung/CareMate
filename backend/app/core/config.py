@@ -35,6 +35,19 @@ class Settings(BaseSettings):
     AGENT_SESSION_TTL_MINUTES: int = 15
     ALERT_SWEEP_TOKEN: str | None = None
 
+    # ----- AI 모델 설정 -----
+    AI_MODEL_DEVICE: str = "cpu"
+
+    COGNITIVE_WAV_THRESHOLD: float = 0.5
+    DEPRESSION_WAV_THRESHOLD: float = 0.5
+    INSOMNIA_WAV_THRESHOLD: float = 0.5
+
+    COGNITIVE_WAV_DAILY_WEIGHT: float = 0.5
+    COGNITIVE_TEXT_DAILY_WEIGHT: float = 0.5
+
+    AUDIO_SAMPLE_RATE: int = 16000
+    AUDIO_MAX_SECONDS: int = 10
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -158,6 +171,30 @@ class Settings(BaseSettings):
     @property
     def alert_sweep_token(self) -> str:
         return self.ALERT_SWEEP_TOKEN or ""
+
+    @property
+    def ai_model_device(self) -> str:
+        return self.AI_MODEL_DEVICE
+
+    @property
+    def cognitive_wav_threshold(self) -> float:
+        return self.COGNITIVE_WAV_THRESHOLD
+
+    @property
+    def depression_wav_threshold(self) -> float:
+        return self.DEPRESSION_WAV_THRESHOLD
+
+    @property
+    def insomnia_wav_threshold(self) -> float:
+        return self.INSOMNIA_WAV_THRESHOLD
+
+    @property
+    def cognitive_wav_daily_weight(self) -> float:
+        return self.COGNITIVE_WAV_DAILY_WEIGHT
+
+    @property
+    def cognitive_text_daily_weight(self) -> float:
+        return self.COGNITIVE_TEXT_DAILY_WEIGHT
 
 
 settings = Settings()

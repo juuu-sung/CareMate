@@ -95,6 +95,25 @@ type GuardianSafetyZoneDeleteResponse = {
   success: boolean;
 };
 
+export type DailyHealthItem = {
+  date: string;
+  cognitive_score: number | null;
+  cognitive_wav_score: number | null;
+  cognitive_text_score: number | null;
+  depression_score: number | null;
+  insomnia_score: number | null;
+  utterance_count: number;
+  text_analysis_count: number;
+  has_data: boolean;
+};
+
+export type DailyHealthAnalysisResponse = {
+  elder_user_id: string;
+  start_date: string;
+  end_date: string;
+  items: DailyHealthItem[];
+};
+
 function buildGuardianQuery(elderUserId: string, linkCode: string) {
   return new URLSearchParams({
     elder_user_id: elderUserId,
@@ -323,4 +342,62 @@ export function guardianSignup(payload: GuardianSignupPayload) {
 
 export function guardianLogin(payload: GuardianLoginPayload) {
   return apiPost<GuardianLoginResponse>("/guardians/login", payload);
+}
+
+export type UtteranceHealthItem = {
+  id: string;
+  recorded_at: string | null;
+  session_id: string | null;
+  depression_score: number | null;
+  insomnia_score: number | null;
+  cognitive_score: number | null;
+  cognitive_text_score: number | null;
+  transcript_preview: string | null;
+};
+
+export type UtteranceHealthAnalysisResponse = {
+  elder_user_id: string;
+  items: UtteranceHealthItem[];
+};
+
+export function getUtteranceHealthAnalysis(
+  elderUserId: string,
+  linkCode: string,
+  limit = 40,
+) {
+  const searchParams = new URLSearchParams({
+    link_code: linkCode,
+    limit: String(limit),
+  });
+  return apiGet<UtteranceHealthAnalysisResponse>(
+    `/guardians/elders/${elderUserId}/health-analysis/utterances?${searchParams.toString()}`
+  );
+}
+
+export function getHealthExplanation(params: {
+  metric: 'depression' | 'insomnia' | 'cognitive';
+  items: Array<{ date: string; value: number }>;
+  elderName: string;
+}) {
+  return apiPost<{ explanation: string }>('/guardians/health-explain', {
+    metric: params.metric,
+    items: params.items,
+    elder_name: params.elderName,
+  });
+}
+
+export function getDailyHealthAnalysis(
+  elderUserId: string,
+  linkCode: string,
+  startDate: string,
+  endDate: string,
+) {
+  const searchParams = new URLSearchParams({
+    link_code: linkCode,
+    start_date: startDate,
+    end_date: endDate,
+  });
+  return apiGet<DailyHealthAnalysisResponse>(
+    `/guardians/elders/${elderUserId}/health-analysis/daily?${searchParams.toString()}`
+  );
 }

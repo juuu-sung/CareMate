@@ -566,6 +566,73 @@ def _extract_output_text(body: dict) -> str:
     return ""
 
 
+def generate_health_explanation(
+    metric: str,
+    items: list[dict],
+    elder_name: str,
+) -> str:
+    if not settings.openai_api_key:
+        return "AI 설명 서비스를 사용할 수 없습니다."
+
+    metric_meta = {
+        "depression": {
+            "name": "우울 지수",
+            "desc": "대화에서 감지된 우울·불안·감정 저하·슬픔 관련 신호를 수치화한 지표",
+        },
+        "insomnia": {
+            "name": "불면 지수",
+            "desc": "대화에서 감지된 수면 문제·불면·수면의 질 저하 관련 신호를 수치화한 지표",
+        },
+        "cognitive": {
+            "name": "인지기능 지수",
+            "desc": "대화에서 감지된 기억력·집중력·언어 능력 등 인지기능 저하 신호를 수치화한 지표",
+        },
+    }
+
+    info = metric_meta.get(metric, {"name": metric, "desc": "건강 지표"})
+
+    valid_items = [i for i in items if i.get("value") is not None]
+    if valid_items:
+        avg = sum(i["value"] for i in valid_items) / len(valid_items)
+        trend = ", ".join(
+            f"{i.get('date', '')}: {i['value'] * 100:.0f}%"
+            for i in valid_items[-7:]
+        )
+    else:
+        avg = 0.0
+        trend = "데이터 없음"
+
+    system_prompt = (
+        "당신은 노인 돌봄 AI 건강 분석 보조입니다. "
+        "보호자에게 AI 건강 지표를 쉽고 친절하게 설명해주세요. "
+        "0~1 범위(0%~100%) 점수는 높을수록 해당 문제의 신호가 강합니다. "
+        "의학적 진단이 아님을 명확히 하고, 보호자가 실제로 취할 수 있는 행동을 제안해주세요. "
+        "2~3 문단, 400자 이내로 간결하게 답변해주세요."
+    )
+
+    user_message = (
+        f"{elder_name} 님의 '{info['name']}' 분석 결과입니다.\n\n"
+        f"지표 의미: {info['desc']}\n"
+        f"최근 평균: {avg * 100:.0f}%\n"
+        f"최근 7일 추이: {trend}\n\n"
+        "이 수치가 무엇을 의미하는지, 보호자가 어떻게 해석하고 대응해야 하는지 설명해주세요."
+    )
+
+    try:
+        model = settings.llm_model or DEFAULT_OPENAI_MODEL
+        payload = {
+            "model": model,
+            "input": [
+                {"role": "developer", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        }
+        body = _post_responses_api(payload, failure_prefix="Health explanation failed")
+        return _extract_output_text(body) or "설명을 생성하지 못했어요."
+    except OpenAIServiceError:
+        return "AI 설명을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요."
+
+
 def _extract_json_object(text: str) -> dict:
     normalized = text.strip()
     if normalized.startswith("```"):

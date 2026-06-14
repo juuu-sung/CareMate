@@ -135,6 +135,7 @@ def build_speech_response(
     audio_filename: str | None = None,
     audio_bytes: bytes | None = None,
     audio_content_type: str | None = None,
+    background_tasks=None,
 ) -> ChatSpeechResponse:
     started_at = perf_counter()
     clear_expired_sessions(db)
@@ -185,6 +186,16 @@ def build_speech_response(
             mode=payload.mode,
             senior_user_id=payload.elder_user_id,
             requester_role=payload.requester_role,
+        )
+        _enqueue_wav_inference(
+            background_tasks=background_tasks,
+            elder_user_id=payload.elder_user_id,
+            transcript=transcript,
+            audio_bytes=audio_bytes,
+            audio_filename=audio_filename,
+            audio_duration_ms=payload.audio_duration_ms,
+            audio_format=payload.audio_format,
+            session_id=session_id,
         )
         return ChatSpeechResponse(
             transcript=transcript,
@@ -253,6 +264,18 @@ def build_speech_response(
         mode=payload.mode,
         senior_user_id=payload.elder_user_id,
         requester_role=payload.requester_role,
+    )
+
+    # WAV 추론을 BackgroundTask로 등록 (STT/챗봇 응답 지연 없음)
+    _enqueue_wav_inference(
+        background_tasks=background_tasks,
+        elder_user_id=payload.elder_user_id,
+        transcript=transcript,
+        audio_bytes=audio_bytes,
+        audio_filename=audio_filename,
+        audio_duration_ms=payload.audio_duration_ms,
+        audio_format=payload.audio_format,
+        session_id=session_id,
     )
 
     return ChatSpeechResponse(
@@ -934,3 +957,76 @@ def _persist_agent_plan_session(db: Session, session_id: str, mode: str, agent_p
         return
 
     clear_session(db, session_id)
+
+
+def _enqueue_wav_inference(
+    *,
+    background_tasks,
+    elder_user_id: str | None,
+    transcript: str | None,
+    audio_bytes: bytes | None,
+    audio_filename: str | None,
+    audio_duration_ms: int | None,
+    audio_format: str | None,
+    session_id: str | None,
+) -> None:
+    if background_tasks is None:
+        return
+    if not elder_user_id:
+        return
+    if not audio_bytes:
+        return
+
+    try:
+        from app.ai_models.model_registry import model_registry
+        if not model_registry.is_available:
+            return
+    except Exception:
+        return
+
+    audio_duration_sec = (audio_duration_ms / 1000.0) if audio_duration_ms else None
+
+    background_tasks.add_task(
+        _run_wav_inference_task,
+        elder_user_id=elder_user_id,
+        transcript=transcript,
+        audio_bytes=audio_bytes,
+        audio_filename=audio_filename or "audio.m4a",
+        audio_duration_sec=audio_duration_sec,
+        audio_format=audio_format,
+        session_id=session_id,
+    )
+
+
+def _run_wav_inference_task(
+    *,
+    elder_user_id: str,
+    transcript: str | None,
+    audio_bytes: bytes,
+    audio_filename: str,
+    audio_duration_sec: float | None,
+    audio_format: str | None,
+    session_id: str | None,
+) -> None:
+    try:
+        from app.services.audio_preprocessing_service import load_waveform_from_bytes
+        from app.services.wav_inference_service import run_wav_inference, run_text_inference
+        from app.services.voice_utterance_service import save_utterance_and_analysis
+
+        waveform = load_waveform_from_bytes(audio_bytes, filename=audio_filename)
+        wav_result = run_wav_inference(waveform)
+        text_result = run_text_inference(transcript or "") if transcript else None
+
+        save_utterance_and_analysis(
+            elder_user_id=elder_user_id,
+            transcript=transcript,
+            audio_duration_sec=audio_duration_sec,
+            audio_format=audio_format,
+            session_id=session_id,
+            wav_result=wav_result,
+            text_result=text_result,
+        )
+    except Exception:
+        logger.exception(
+            "WAV inference background task 실패 elder_user_id=%s", elder_user_id
+        )

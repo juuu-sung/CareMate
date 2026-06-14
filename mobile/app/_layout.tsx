@@ -37,8 +37,6 @@ import {
   stopWakeWordListening,
 } from '../services/wakeWord';
 
-import { initializeWidgets } from '../services/widgets';
-
 const PUBLIC_ENTRY_PATHS = new Set([
   '/',
   '/index',
@@ -241,8 +239,6 @@ export default function RootLayout() {
   }, [router]);
 
   useEffect(() => {
-    initializeWidgets();
-
     const subscription = AppState.addEventListener('change', (nextState) => {
       setAppState(nextState);
     });

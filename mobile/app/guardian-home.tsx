@@ -10,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import MapView, { Circle, Marker } from 'react-native-maps';
 import {
   Ionicons,
   MaterialCommunityIcons,
@@ -33,19 +32,6 @@ import { GuardianDashboard } from '@/types/guardian';
 import {
   getGuardianCareStatus,
 } from '@/utils/guardianCare';
-import {
-  GuardianLatestLocationResponse,
-  getGuardianLatestLocation,
-} from '@/services/guardianLocation';
-import { requestGuardianLocationRefresh } from '@/services/locations';
-
-type StatItem = {
-  label: string;
-  value: string;
-  iconType: 'Ionicons' | 'MaterialCommunityIcons' | 'Feather' | 'FontAwesome6';
-  iconName: string;
-  action?: 'health' | 'medication' | 'schedules' | 'location';
-};
 
 type MenuItem = {
   title: string;
@@ -222,28 +208,10 @@ export default function GuardianHomeScreen() {
   const [alerts, setAlerts] = React.useState<GuardianAlertItem[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = React.useState(true);
   const [dashboardError, setDashboardError] = React.useState<string | null>(null);
-  const [latestLocation, setLatestLocation] =
-    React.useState<GuardianLatestLocationResponse | null>(null);
   const [safetyZones, setSafetyZones] = React.useState<GuardianSafetyZoneItem[]>([]);
-  const [isRequestingLocation, setIsRequestingLocation] = React.useState(false);
+  const [isInfoExpanded, setIsInfoExpanded] = React.useState(false);
 
   const careStatus = getGuardianCareStatus(dashboard, !!dashboardError);
-  const latestLocationRegion = React.useMemo(() => {
-    if (
-      latestLocation?.status !== 'available' ||
-      latestLocation.latitude == null ||
-      latestLocation.longitude == null
-    ) {
-      return null;
-    }
-
-    return {
-      latitude: latestLocation.latitude,
-      longitude: latestLocation.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    };
-  }, [latestLocation]);
   const safetyZoneSummary = React.useMemo(
     () => summarizeSafetyZones(safetyZones),
     [safetyZones]
@@ -287,50 +255,7 @@ export default function GuardianHomeScreen() {
     parentName,
   ]);
 
-  const quickStats: StatItem[] = [
-    {
-      label: '건강 상황판',
-      value: dashboard ? careStatus.label : '-',
-      iconType: 'MaterialCommunityIcons',
-      iconName: 'clipboard-pulse-outline',
-      action: 'health',
-    },
-    {
-      label: '위치 확인',
-      value: dashboard ? dashboard.latest_location_label : '-',
-      iconType: 'Feather',
-      iconName: 'map-pin',
-      action: 'location',
-    },
-    {
-      label: '오늘 일정',
-      value: dashboard ? `${dashboard.today_schedule_count}건` : '-',
-      iconType: 'Ionicons',
-      iconName: 'calendar-outline',
-      action: 'schedules',
-    },
-    {
-      label: '복약 완료율',
-      value: dashboard ? `${dashboard.today_medication_completion_rate ?? 0}%` : '-',
-      iconType: 'MaterialCommunityIcons',
-      iconName: 'heart-pulse',
-      action: 'medication',
-    },
-  ];
-
   const menuItems: MenuItem[] = [
-    {
-      title: '대화 요약',
-      subtitle: '오늘 나눈 대화를 확인해요',
-      iconType: 'Ionicons',
-      iconName: 'document-text-outline',
-    },
-    {
-      title: '우울증 위험 분석',
-      subtitle: '기분 변화와 위험 신호를 살펴봐요',
-      iconType: 'MaterialCommunityIcons',
-      iconName: 'brain',
-    },
     {
       title: '음성 질문',
       subtitle: '부모님 상태를 바로 물어봐요',
@@ -380,26 +305,18 @@ export default function GuardianHomeScreen() {
         getGuardianDashboard(parentId, linkCode),
         getGuardianAlerts(parentId, linkCode),
       ]);
-      const [latestLocationResponse, safetyZoneResponse] = await Promise.all([
-        getGuardianLatestLocation(parentId, linkCode).catch((locationError) => {
-          console.log('보호자 홈 위치 조회 오류:', locationError);
-          return null;
-        }),
-        getGuardianSafetyZones(parentId, linkCode).catch((zoneError) => {
-          console.log('보호자 홈 안전구역 조회 오류:', zoneError);
-          return null;
-        }),
-      ]);
+      const safetyZoneResponse = await getGuardianSafetyZones(parentId, linkCode).catch((zoneError) => {
+        console.log('보호자 홈 안전구역 조회 오류:', zoneError);
+        return null;
+      });
 
       setDashboard(dashboardResponse);
       setAlerts(alertsResponse.items);
-      setLatestLocation(latestLocationResponse);
       setSafetyZones(safetyZoneResponse?.items ?? []);
     } catch (error) {
       console.log('보호자 홈 조회 오류:', error);
       setDashboard(null);
       setAlerts([]);
-      setLatestLocation(null);
       setSafetyZones([]);
       setDashboardError('보호자 홈 정보를 불러오지 못했어요.');
     } finally {
@@ -476,13 +393,33 @@ export default function GuardianHomeScreen() {
 
   const openParentCalendar = React.useCallback(() => {
     router.push({
-      pathname: '/calendar',
+      pathname: '/guardian-calendar',
       params: {
         parentId,
-        viewerRole: 'guardian',
+        parentName,
+        linkCode,
       },
-    });
-  }, [parentId, router]);
+    } as any);
+  }, [linkCode, parentId, parentName, router]);
+
+  const openGuardianSafetyDashboard = React.useCallback(() => {
+    router.push({
+      pathname: '/guardian-safety-dashboard',
+      params: {
+        parentId,
+        parentName,
+        parentAge,
+        parentGender,
+        linkCode,
+        medications,
+        diseases,
+        allergies,
+        hospital,
+        doctorContact,
+        memo,
+      },
+    } as any);
+  }, [allergies, diseases, doctorContact, hospital, linkCode, medications, memo, parentAge, parentGender, parentId, parentName, router]);
 
   const openGuardianLocation = React.useCallback(() => {
     router.push({
@@ -560,63 +497,13 @@ export default function GuardianHomeScreen() {
     router,
   ]);
 
-  const handleQuickStatPress = React.useCallback(
-    (item: StatItem) => {
-      if (item.action === 'health') {
-        openGuardianHealth();
-        return;
-      }
-
-      if (item.action === 'schedules') {
-        openParentCalendar();
-        return;
-      }
-
-      if (item.action === 'location') {
-        openGuardianLocation();
-        return;
-      }
-
-      if (item.action === 'medication') {
-        openGuardianMedications();
-      }
-    },
-    [openGuardianHealth, openGuardianLocation, openGuardianMedications, openParentCalendar]
-  );
-
-  const handleRequestLocationRefresh = React.useCallback(async () => {
-    if (!parentId || !linkCode) {
-      Alert.alert('위치 요청 실패', '연동 정보가 없어 위치를 요청할 수 없어요.');
-      return;
-    }
-
-    try {
-      setIsRequestingLocation(true);
-      await requestGuardianLocationRefresh(parentId, linkCode);
-      Alert.alert(
-        '위치 요청 전달됨',
-        '부모님 앱이 반응하면 잠시 후 지도에 최신 위치가 반영됩니다.'
-      );
-      setTimeout(() => {
-        void loadGuardianData();
-      }, 12000);
-    } catch (error) {
-      Alert.alert(
-        '위치 요청 실패',
-        error instanceof Error ? error.message : '현재 위치 요청에 실패했습니다.'
-      );
-    } finally {
-      setIsRequestingLocation(false);
-    }
-  }, [linkCode, loadGuardianData, parentId]);
-
   const handleMenuPress = (title: string) => {
     if (title === '대화 요약') {
       openGuardianConversations();
       return;
     }
 
-    if (title === '우울증 위험 분석') {
+    if (title === '음성 기반 위험도 분석') {
       openGuardianDepressionRisk();
       return;
     }
@@ -756,130 +643,66 @@ export default function GuardianHomeScreen() {
           </View>
         </View>
 
-        <View style={styles.statsGrid}>
-          {quickStats.map((item) => (
-            <TouchableOpacity
-              key={item.label}
-              style={[
-                styles.statCard,
-                item.action ? styles.statCardInteractive : null,
-              ]}
-              activeOpacity={item.action ? 0.85 : 1}
-              onPress={() => handleQuickStatPress(item)}
-              disabled={!item.action}
-              accessibilityRole={item.action ? 'button' : undefined}
-            >
-              <View style={styles.statIconWrap}>
-                <AppIcon
-                  type={item.iconType}
-                  name={item.iconName}
-                  size={22}
-                  color="#05B547"
-                />
-              </View>
-              <Text style={styles.statLabel}>{item.label}</Text>
-              <Text style={styles.statValue}>{item.value}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.sectionTitle}>실시간 위치</Text>
-        <View style={styles.locationCard}>
-          <View style={styles.locationHeader}>
-            <View style={styles.locationTitleRow}>
-              <View style={styles.locationIconWrap}>
-                <Feather name="map-pin" size={18} color="#05B547" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.locationTitle}>{parentName} 님 위치</Text>
-                <Text style={styles.locationMeta}>
-                  {dashboard?.latest_location_captured_at
-                    ? `최근 업데이트 ${formatRelativeTime(dashboard.latest_location_captured_at)}`
-                    : latestLocation?.label || '위치 기록을 확인하고 있습니다'}
-                </Text>
-                <Text
-                  style={[
-                    styles.locationZoneStatus,
-                    { color: safetyZoneSummary.color },
-                  ]}
-                >
-                  {safetyZoneSummary.label}
-                </Text>
-              </View>
+        {/* 오늘 일정 · 대화 요약 · 우울증 위험 분석 · 안전 대시보드 */}
+        <View style={styles.menuGrid}>
+          <TouchableOpacity
+            style={styles.menuCard}
+            activeOpacity={0.85}
+            onPress={openParentCalendar}
+          >
+            <View style={styles.menuIconWrap}>
+              <Ionicons name="calendar-outline" size={24} color="#05B547" />
             </View>
-          </View>
+            <Text style={styles.menuTitle}>오늘 일정</Text>
+            <Text style={styles.menuSubtitle}>
+              {isLoadingDashboard
+                ? '확인 중...'
+                : dashboard
+                  ? `${dashboard.today_schedule_count}건의 일정`
+                  : '일정 없음'}
+            </Text>
+          </TouchableOpacity>
 
-          {latestLocationRegion ? (
-            <TouchableOpacity
-              style={styles.locationMapWrap}
-              activeOpacity={0.9}
-              onPress={openGuardianLocation}
-            >
-              <MapView
-                style={styles.locationMap}
-                region={latestLocationRegion}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                pitchEnabled={false}
-                rotateEnabled={false}
-                pointerEvents="none"
-              >
-                {safetyZones.map((zone) => (
-                  <Circle
-                    key={zone.id}
-                    center={{
-                      latitude: zone.center_latitude,
-                      longitude: zone.center_longitude,
-                    }}
-                    radius={zone.radius_meters}
-                    strokeWidth={2}
-                    strokeColor={getSafetyZoneMapColor(zone)}
-                    fillColor={`${getSafetyZoneMapColor(zone)}22`}
-                  />
-                ))}
-                <Marker
-                  coordinate={{
-                    latitude: latestLocationRegion.latitude,
-                    longitude: latestLocationRegion.longitude,
-                  }}
-                  title={`${parentName} 최근 위치`}
-                />
-              </MapView>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.locationEmptyBox}>
-              <Ionicons name="location-outline" size={28} color="#64748B" />
-              <Text style={styles.locationEmptyTitle}>
-                {latestLocation?.label || '아직 표시할 위치가 없습니다'}
-              </Text>
-              <Text style={styles.locationEmptyText}>
-                부모님 기기에서 위치 권한을 허용하면 지도에 표시됩니다.
-              </Text>
+          <TouchableOpacity
+            style={styles.menuCard}
+            activeOpacity={0.85}
+            onPress={openGuardianConversations}
+          >
+            <View style={styles.menuIconWrap}>
+              <Ionicons name="document-text-outline" size={24} color="#05B547" />
             </View>
-          )}
+            <Text style={styles.menuTitle}>대화 요약</Text>
+            <Text style={styles.menuSubtitle}>오늘 나눈 대화를 확인해요</Text>
+          </TouchableOpacity>
 
-          <View style={styles.locationActionRow}>
-            <TouchableOpacity
-              style={styles.locationSecondaryButton}
-              activeOpacity={0.85}
-              onPress={openGuardianLocation}
-            >
-              <Text style={styles.locationSecondaryButtonText}>크게 보기</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.locationPrimaryButton,
-                isRequestingLocation && styles.locationButtonDisabled,
-              ]}
-              activeOpacity={0.85}
-              onPress={() => void handleRequestLocationRefresh()}
-              disabled={isRequestingLocation}
-            >
-              <Text style={styles.locationPrimaryButtonText}>
-                {isRequestingLocation ? '요청 중' : '현재 위치 요청'}
+          <TouchableOpacity
+            style={styles.menuCard}
+            activeOpacity={0.85}
+            onPress={openGuardianDepressionRisk}
+          >
+            <View style={styles.menuIconWrap}>
+              <MaterialCommunityIcons name="brain" size={24} color="#05B547" />
+            </View>
+            <Text style={styles.menuTitle}>음성기반 위험도 분석</Text>
+            <Text style={styles.menuSubtitle}>기분 변화와 위험 신호를 살펴봐요</Text>
+          </TouchableOpacity>
+
+          {/* 안전 대시보드 - 건강상황판·위치·복약 내용 통합 */}
+          <TouchableOpacity style={styles.menuCard} activeOpacity={0.85} onPress={openGuardianSafetyDashboard}>
+            <View style={styles.menuIconWrap}>
+              <MaterialCommunityIcons name="shield-check-outline" size={24} color="#05B547" />
+            </View>
+            <Text style={styles.menuTitle}>안전 대시보드</Text>
+            {isLoadingDashboard ? (
+              <ActivityIndicator size="small" color="#05B547" style={{ marginTop: 8 }} />
+            ) : (
+              <Text style={styles.menuSubtitle}>
+                {dashboardError
+                  ? '데이터 없음'
+                  : `건강 ${careStatus.label}\n위치 ${dashboard?.latest_location_label || '-'}\n복약 ${dashboard?.today_medication_completion_rate ?? 0}%`}
               </Text>
-            </TouchableOpacity>
-          </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>부모님 기본 정보</Text>
@@ -890,53 +713,77 @@ export default function GuardianHomeScreen() {
             value={linkCode || '-'}
           />
           <Divider />
-
-          <ExpandableInfoRow
-            icon={<MaterialCommunityIcons name="pill" size={16} color="#05B547" />}
-            label="복용 중인 약"
-            value={medicationDisplayText}
+          <InfoRow
+            icon={<Ionicons name="person-outline" size={16} color="#05B547" />}
+            label="이름"
+            value={parentName || '-'}
           />
           <Divider />
-
-          <ExpandableInfoRow
-            icon={<FontAwesome6 name="virus" size={14} color="#05B547" />}
-            label="보유 질환"
-            value={diseases || '-'}
+          <InfoRow
+            icon={<FontAwesome6 name="cake-candles" size={14} color="#05B547" />}
+            label="나이"
+            value={parentAge ? `${parentAge}세` : '-'}
           />
-          <Divider />
 
-          <ExpandableInfoRow
-            icon={
-              <MaterialCommunityIcons
-                name="alert-circle-outline"
-                size={16}
-                color="#05B547"
+          {isInfoExpanded && (
+            <>
+              <Divider />
+              <ExpandableInfoRow
+                icon={<MaterialCommunityIcons name="pill" size={16} color="#05B547" />}
+                label="복용 중인 약"
+                value={medicationDisplayText}
               />
-            }
-            label="알레르기"
-            value={allergies || '-'}
-          />
-          <Divider />
+              <Divider />
+              <ExpandableInfoRow
+                icon={<FontAwesome6 name="virus" size={14} color="#05B547" />}
+                label="보유 질환"
+                value={diseases || '-'}
+              />
+              <Divider />
+              <ExpandableInfoRow
+                icon={
+                  <MaterialCommunityIcons
+                    name="alert-circle-outline"
+                    size={16}
+                    color="#05B547"
+                  />
+                }
+                label="알레르기"
+                value={allergies || '-'}
+              />
+              <Divider />
+              <InfoRow
+                icon={<Ionicons name="medical-outline" size={16} color="#05B547" />}
+                label="주치의 / 병원"
+                value={hospital || '-'}
+                multiline
+              />
+              <Divider />
+              <InfoRow
+                icon={<Ionicons name="call-outline" size={16} color="#05B547" />}
+                label="비상 연락처"
+                value={doctorContact || '-'}
+              />
+              <Divider />
+              <InfoRow
+                icon={<Feather name="edit-3" size={16} color="#05B547" />}
+                label="추가 메모"
+                value={memo || '-'}
+                multiline
+              />
+            </>
+          )}
 
-          <InfoRow
-            icon={<Ionicons name="medical-outline" size={16} color="#05B547" />}
-            label="주치의 / 병원"
-            value={hospital || '-'}
-            multiline
-          />
-          <Divider />
-          <InfoRow
-            icon={<Ionicons name="call-outline" size={16} color="#05B547" />}
-            label="비상 연락처"
-            value={doctorContact || '-'}
-          />
-          <Divider />
-          <InfoRow
-            icon={<Feather name="edit-3" size={16} color="#05B547" />}
-            label="추가 메모"
-            value={memo || '-'}
-            multiline
-          />
+          <TouchableOpacity
+            style={styles.infoExpandToggle}
+            activeOpacity={0.8}
+            onPress={() => setIsInfoExpanded((prev) => !prev)}
+          >
+            <Ionicons name={isInfoExpanded ? 'remove' : 'add'} size={18} color="#05B547" />
+            <Text style={styles.infoExpandToggleText}>
+              {isInfoExpanded ? '접기' : '더 보기'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>주요 기능</Text>
@@ -1155,19 +1002,6 @@ function summarizeSafetyZones(zones: GuardianSafetyZoneItem[]) {
   };
 }
 
-function getSafetyZoneMapColor(zone: GuardianSafetyZoneItem) {
-  if (!zone.enabled) {
-    return '#94A3B8';
-  }
-  if (zone.last_status === 'outside') {
-    return '#EF4444';
-  }
-  if (zone.last_status === 'inside') {
-    return '#05B547';
-  }
-  return '#2563EB';
-}
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -1253,156 +1087,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '700',
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  statCardInteractive: {
-    shadowColor: '#111827',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 1,
-  },
-  statIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#EEFDF3',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '600',
-  },
-  statValue: {
-    marginTop: 6,
-    fontSize: 20,
-    color: '#111827',
-    fontWeight: '800',
-  },
-  locationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 20,
-  },
-  locationHeader: {
-    marginBottom: 12,
-  },
-  locationTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  locationIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: '#EEFDF3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  locationMeta: {
-    marginTop: 3,
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
-  locationZoneStatus: {
-    marginTop: 3,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  locationMapWrap: {
-    height: 210,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#E5E7EB',
-  },
-  locationMap: {
-    flex: 1,
-  },
-  locationEmptyBox: {
-    minHeight: 150,
-    borderRadius: 16,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  locationEmptyTitle: {
-    marginTop: 8,
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#334155',
-    textAlign: 'center',
-  },
-  locationEmptyText: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '600',
-    color: '#64748B',
-    textAlign: 'center',
-  },
-  locationActionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-  },
-  locationPrimaryButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    backgroundColor: '#05B547',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationSecondaryButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    backgroundColor: '#EEFDF3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationPrimaryButtonText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  locationSecondaryButtonText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#047B35',
-  },
-  locationButtonDisabled: {
-    opacity: 0.55,
-  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -1418,6 +1102,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     marginBottom: 20,
+  },
+  infoExpandToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 4,
+  },
+  infoExpandToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#05B547',
   },
   infoRow: {
     paddingVertical: 14,
