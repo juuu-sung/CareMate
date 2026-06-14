@@ -680,7 +680,7 @@ export default function ParentAgentNameSetupScreen() {
                 value={directName}
                 onChangeText={setDirectName}
                 placeholder="예: 케어, 하루, 봄이"
-                placeholderTextColor="#8EA4E8"
+                placeholderTextColor="#FDBA74"
                 maxLength={12}
                 autoCorrect={false}
                 autoCapitalize="none"
@@ -783,7 +783,7 @@ function sanitizeAgentName(name: string) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#EEF4FF",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
@@ -817,10 +817,10 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: "#4F7CFF",
+    backgroundColor: "#F97316",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#4F7CFF",
+    shadowColor: "#F97316",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 18,
@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
     minWidth: 220,
     height: 64,
     borderRadius: 18,
-    backgroundColor: "#EF4444",
+    backgroundColor: "#EA580C",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,
@@ -887,20 +887,20 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#DCE7FF",
+    borderColor: "#FFEDD5",
   },
   directNameLabel: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#1F3E8A",
+    color: "#EA580C",
     marginBottom: 10,
   },
   directNameInput: {
     minHeight: 54,
     borderRadius: 16,
-    backgroundColor: "#F6F8FF",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C7D7FE",
+    borderColor: "#FED7AA",
     paddingHorizontal: 16,
     fontSize: 20,
     fontWeight: "800",
@@ -910,7 +910,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     height: 52,
     borderRadius: 16,
-    backgroundColor: "#2F5FEA",
+    backgroundColor: "#F97316",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -921,7 +921,7 @@ const styles = StyleSheet.create({
   },
   homeButton: {
     marginTop: 28,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#F97316",
     paddingHorizontal: 28,
     paddingVertical: 16,
     borderRadius: 16,

@@ -10,6 +10,9 @@ from app.models.user import User
 from app.models.elder_profile import ElderProfile
 from app.models.guardian_link import GuardianLink
 from app.models.letter import Letter
+from app.models.voice_utterance import VoiceUtterance  # noqa: F401
+from app.models.voice_health_analysis import VoiceHealthAnalysis  # noqa: F401
+from app.models.daily_health_analysis import DailyHealthAnalysis  # noqa: F401
 
 
 config = context.config

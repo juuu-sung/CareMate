@@ -2,6 +2,7 @@
   "dependencies": {
     "@react-native-voice/voice": "^3.2.4",
     "expo": "^55.0.17",
+    "expo-calendar": "^55.0.14",
     "expo-image-picker": "^55.0.19",
     "react": "19.2.0",
     "react-native": "0.83.6",

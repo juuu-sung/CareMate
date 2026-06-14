@@ -64,16 +64,16 @@ export default function ParentCompleteScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#E8EEF5',
+    backgroundColor: '#FFF7ED',
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 18,
-    backgroundColor: '#E8EEF5',
+    backgroundColor: '#FFF7ED',
   },
   card: {
-    backgroundColor: '#F4F4F4',
+    backgroundColor: '#FFFFFF',
     borderRadius: 42,
     paddingHorizontal: 24,
     paddingVertical: 32,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   codeBox: {
-    backgroundColor: '#E4EAF2',
+    backgroundColor: '#FFEDD5',
     borderRadius: 30,
     paddingVertical: 30,
     alignItems: 'center',
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   codeText: {
     fontSize: 54,
     fontWeight: '900',
-    color: '#2563EB',
+    color: '#EA580C',
     letterSpacing: 2,
   },
   infoBox: {
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   },
   startButton: {
     height: 74,
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#F97316',
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',

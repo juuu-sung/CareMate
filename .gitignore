@@ -31,3 +31,13 @@ mobile/ios/CareMate/Images.xcassets/SplashScreenLegacy.imageset/
 
 # macOS duplicate files
 * 2.*
+
+# AI model weights (upload to Google Drive separately)
+backend/app/ai_models/checkpoints/
+backend/app/ai_models/pretrained_models/
+backend/app/ai_models/__pycache__/
+
+# Build logs and duplicate folders
+mobile/ios-build.log
+mobile/ios/build 2/
+mobile/ios/CareMate 2/

@@ -138,11 +138,6 @@ async function ensureNotificationPermission() {
 }
 
 async function ensureCalendarPermission(calendar: CalendarModule) {
-  const available = await calendar.isAvailableAsync();
-  if (!available) {
-    return false;
-  }
-
   const current = await calendar.getCalendarPermissionsAsync();
   if (current.granted) {
     return true;

@@ -42,10 +42,6 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>ExpoWidgetsAppGroupIdentifier</key>
-	<string>group.com.kimjaeho.caremate</string>
-	<key>ExpoWidgets_EnablePushNotifications</key>
-	<false/>
 	<key>INAlternativeAppNames</key>
 	<array>
 		<dict>
@@ -70,14 +66,12 @@
 	<array>
 		<string>_expo._tcp</string>
 	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your camera</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>CareMate가 병원 일정과 보호자 등록 일정을 휴대폰 캘린더에 추가하려면 캘린더 접근이 필요합니다.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>CareMate가 병원 일정과 보호자 등록 일정을 휴대폰 캘린더에 추가하려면 캘린더 접근이 필요합니다.</string>
-	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
-	<string>CareMate가 병원 일정과 보호자 등록 일정을 휴대폰 캘린더에 추가하려면 캘린더 접근이 필요합니다.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow $(PRODUCT_NAME) to access your camera</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Expo Dev Launcher uses the local network to discover and connect to development servers running on your computer.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -88,14 +82,16 @@
 	<string>CareMate가 가까운 병원을 찾고 보호자에게 현재 위치를 공유하려면 위치 접근이 필요합니다.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>CareMate가 음성 대화와 웨이크워드를 위해 마이크 접근이 필요합니다.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Allow $(PRODUCT_NAME) to detect your current motion activity</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your photos</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Allow $(PRODUCT_NAME) to access your reminders</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Allow $(PRODUCT_NAME) to access your reminders</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>CareMate가 '케어'를 인식해 바로 대화를 시작하려면 음성 인식 접근이 필요합니다.</string>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
-	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
-	<false/>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
@@ -104,8 +100,9 @@
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>audio</string>
+		<string>fetch</string>
 		<string>location</string>
+		<string>audio</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>

@@ -3,9 +3,9 @@
     "name": "CareMate",
     "slug": "caremate",
     "scheme": "caremate",
+    "jsEngine": "jsc",
     "ios": {
       "bundleIdentifier": "com.kimjaeho.caremate",
-      "jsEngine": "jsc",
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "CareMate가 '케어'를 인식해 바로 대화를 시작하려면 음성 인식 접근이 필요합니다.",
         "NSMicrophoneUsageDescription": "CareMate가 음성 대화와 웨이크워드를 위해 마이크 접근이 필요합니다."
@@ -13,7 +13,7 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
+      
       [
         "expo-calendar",
         {
@@ -25,36 +25,6 @@
         {
           "appSynonym": "케어",
           "spokenName": "케어"
-        }
-      ],
-      [
-        "expo-widgets",
-        {
-          "widgets": [
-            {
-              "name": "CareQuickStartWidget",
-              "displayName": "케어 대화",
-              "description": "한 번 눌러 바로 음성 대화를 시작합니다.",
-              "supportedFamilies": [
-                "systemSmall",
-                "accessoryCircular",
-                "accessoryRectangular"
-              ],
-              "contentMarginsDisabled": false
-            }
-          ]
-        }
-      ],
-      "./plugins/withCareWidgetsPodsFix",
-      [
-        "./plugins/withCareWidgetUrls",
-        {
-          "widgets": [
-            {
-              "name": "CareQuickStartWidget",
-              "url": "caremate:///chat?input=voice&autostart=1&source=widget"
-            }
-          ]
         }
       ],
       [
@@ -80,7 +50,10 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      
+      "expo-font",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
@@ -104,23 +77,6 @@
     "extra": {
       "router": {},
       "eas": {
-        "build": {
-          "experimental": {
-            "ios": {
-              "appExtensions": [
-                {
-                  "targetName": "ExpoWidgetsTarget",
-                  "bundleIdentifier": "com.kimjaeho.caremate.ExpoWidgetsTarget",
-                  "entitlements": {
-                    "com.apple.security.application-groups": [
-                      "group.com.kimjaeho.caremate"
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        },
         "projectId": "6ad32f64-4124-4c71-b054-1dd1700edca0"
       }
     },
