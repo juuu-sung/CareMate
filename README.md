@@ -1,15 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/readme/caremate-hero.png" alt="CareMate AI 돌봄 플랫폼" width="100%" />
-
-<br />
-
-# CareMate
-
-### 말로 생활을 관리하고, 근거로 돌봄을 연결하다.
-
-시니어에게는 쉬운 **음성 생활지원**을,<br />
-보호자에게는 **상태·복약·일정·위치·알림**을 한눈에 제공하는 양면형 AI 돌봄 플랫폼입니다.
+<img src="docs/assets/readme/caremate-hero-v2.png" alt="시니어와 보호자를 잇는 CareMate AI 생활·안전 돌봄 플랫폼" width="100%" />
 
 <br />
 
