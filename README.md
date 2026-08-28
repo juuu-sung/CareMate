@@ -1,426 +1,245 @@
+<div align="center">
+
+<img src="docs/assets/readme/caremate-hero.png" alt="CareMate AI 돌봄 플랫폼" width="100%" />
+
+<br />
+
 # CareMate
 
-고령층의 일상 자립과 안전한 생활을 지원하는 모바일 중심 AI 돌봄 플랫폼입니다.  
-대화형 AI, 복약 및 일정 관리, 규칙 기반 이상 징후 확인, 보호자 연계, 위치 기반 대응 기능을 하나의 서비스로 통합하는 것을 목표로 합니다.
+### 말로 생활을 관리하고, 근거로 돌봄을 연결하다.
 
-## Overview
+시니어에게는 쉬운 **음성 생활지원**을,<br />
+보호자에게는 **상태·복약·일정·위치·알림**을 한눈에 제공하는 양면형 AI 돌봄 플랫폼입니다.
 
-CareMate는 단순 알림 앱이 아니라, 노인 사용자와 보호자가 함께 사용하는 통합형 돌봄 서비스입니다.
+<br />
 
-핵심 방향:
+<img src="https://img.shields.io/badge/Expo-56-000020?style=flat-square&logo=expo&logoColor=white" alt="Expo 56" />
+<img src="https://img.shields.io/badge/React_Native-0.85-61DAFB?style=flat-square&logo=react&logoColor=111827" alt="React Native 0.85" />
+<img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI 0.115" />
+<img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL 16" />
+<img src="https://img.shields.io/badge/License-MIT-F97316?style=flat-square" alt="MIT License" />
+<img src="https://img.shields.io/badge/Status-In_Development-F59E0B?style=flat-square" alt="In Development" />
 
-- 모바일 앱 우선
-- 고령층 친화 UI/UX
-- 버튼 기반 턴형 음성 대화
-- 규칙 기반 안전 판단
-- 보호자 앱 중심의 모드 및 옵션 제어
-- 상시 위치 추적 기반의 안전 대응
+<br /><br />
 
-## Problem
+[핵심 기능](#features) · [AI 안전 설계](#safety) · [아키텍처](#architecture) · [빠른 시작](#quick-start) · [문서](#documentation)
 
-고령층은 복약, 일정, 긴급 대응, 디지털 기기 사용, 공공서비스 접근에서 여러 어려움을 동시에 겪는 경우가 많습니다.  
-기존 서비스는 말동무, 생활 지원, 안전 확인, 보호자 연계 기능이 분절되어 있어 실제 생활 흐름을 끊김 없이 지원하기 어렵습니다.
+</div>
 
-CareMate는 다음 문제를 우선 해결합니다.
+---
 
-- 돌봄 공백 시간의 불안정성
-- 복약 및 일정 누락
-- 체크인 미응답과 장시간 활동 없음의 조기 감지
-- 보호자 대응 지연
-- 디지털 취약계층의 앱 사용 부담
+## 🎯 Why CareMate
 
-## Core Features
+복약, 병원 일정, 위치 확인, 긴급 연락은 서로 따로 떨어진 기능이 아닙니다. 하나의 생활 흐름입니다.
 
-| 영역 | 설명 |
+CareMate는 단순히 대화하는 챗봇에서 멈추지 않고, 시니어의 일상 데이터와 보호자의 대응 흐름을 하나로 연결합니다. AI는 대화와 쉬운 설명을 담당하고, 실제 데이터 변경과 안전 판단은 재확인·서비스 계층·명시적 규칙으로 나누어 처리합니다.
+
+| 시니어에게 | 보호자에게 |
 | --- | --- |
-| 대화형 AI | 말동무, 생활 질의응답, 일정 확인, 쉬운 설명 제공 |
-| 복약 및 일정 관리 | 복약 시간, 병원 일정, 생활 일정 조회 및 알림 |
-| 이상 징후 확인 | 체크인 미응답, 반복 미확인, 활동 없음, SOS를 규칙 기반으로 판단 |
-| 보호자 연계 | 대시보드, 알림 이력, 위치 확인, 돌봄 모드 설정 |
-| 위치 기반 대응 | 상시 위치 수집, 최신 위치 조회, SOS 시 위치 강조 |
+| 🎙️ 말로 일정·복약 확인 | 📊 오늘의 돌봄 상태 요약 |
+| 💊 복약 알림과 복용 기록 | 🔔 미복약·SOS·이상 징후 알림 |
+| 📅 일정·병원 예약 관리 | 📍 최신 위치와 안전구역 확인 |
+| 🆘 큰 버튼의 긴급 도움 요청 | 💬 대화 요약과 안부 편지 |
+| 📱 Siri·위젯으로 빠른 진입 | ⚙️ 인지·건강 지원 모드 설정 |
 
-## Care Modes
+<a id="features"></a>
 
-### Basic Mode
+## ✨ Features
 
-- 일반 대화
-- 기본 복약 및 일정 알림
-- 기본 체크인
-- 기본 이상 징후 확인
+### 🎙️ Voice-first Care Agent
 
-### Cognitive Support Mode
-
-- 반복 알림 강화
-- 단순 문장 중심 응답
-- 큰 버튼 중심 UI
-- 자주 묻는 질문 빠른 응답
-- 위치 확인 기능 강화
-
-### Health Support Mode
-
-- 복약 알림 강화
-- 병원 및 검사 일정 강조
-- 혈압, 혈당, 체중 등 건강 수치 기록
-- 건강 관련 쉬운 설명
-
-주의:
-건강 지원 기능은 진단이나 판정을 수행하지 않습니다.  
-기록, 리마인드, 쉬운 설명, 보호자 공유 보조를 목표로 합니다.
-
-## Voice Interaction
-
-CareMate는 상시 스트리밍이 아니라 버튼 기반 턴형 음성 대화를 사용합니다.
+- 버튼 기반 한국어 음성 입력과 TTS 응답
+- 일정·복약·메시지·위치 요청의 의도와 필수 정보 분석
+- 누락된 정보는 다시 묻고, 실수 비용이 큰 동작은 실행 전 재확인
+- 범용 STT와 도메인 적응형 CareMate Whisper 경로 지원
 
 ```text
-말하기 버튼 누름
--> STT 변환
--> 사투리/구어체 보정
--> 의도 분류 및 응답 생성
--> 텍스트 + TTS 응답
+Voice → STT → Intent & Slots → Clarify / Confirm → Service Tool → TTS
 ```
 
-이 방식은 구현 안정성이 높고, 오인식 시 재확인 질문을 넣기 쉽습니다.
+### 👴 Senior Experience
 
-## Safety Rules
+- 큰 터치 영역, 짧은 문장, 역할별 고정 내비게이션
+- 오늘의 일정·복약·보호자 편지를 모은 홈
+- 복약 확인, 일정 조회, SOS, 음성 대화
+- iOS 홈·잠금 화면 위젯과 Siri Shortcut
 
-안전 판단은 LLM이 아니라 규칙 기반 엔진이 담당합니다.
+### 🧑‍🦰 Guardian Experience
 
-초기 MVP 판단 조건:
+- 복약·일정·알림·최근 활동을 요약한 보호자 대시보드
+- 최신 위치 요청, 안전구역 설정, 이탈 상태 확인
+- 일정·복약 원격 관리와 푸시 알림
+- 대화 기록·안부 편지·건강 신호 보조 지표
 
-- 체크인 미응답
-- 복약 알림 반복 미확인
-- 일정 알림 반복 미응답
-- SOS 요청
-- 장시간 활동 없음
+### 🧠 Adaptive Care Modes
 
-기본 흐름:
+| 모드 | 설계 방향 |
+| --- | --- |
+| **Basic** | 일반 대화, 기본 복약·일정 알림, 생활 체크인 |
+| **Cognitive Support** | 더 짧은 문장, 반복 알림, 위치 확인, 재확인 강화 |
+| **Health Support** | 복약·병원 일정 우선, 건강 기록, 보호자 공유 보조 |
 
-```text
-이상 징후 감지
--> 사용자 확인 요청
--> 일정 시간 내 응답 확인
--> 미응답 시 보호자 알림
--> 보호자 대시보드 및 알림 이력 반영
+<a id="safety"></a>
+
+## 🛡️ Safety by Design
+
+CareMate의 핵심은 “AI가 많은 일을 하는 것”이 아니라 **“잘못된 실행을 줄이는 것”**입니다.
+
+| 원칙 | 적용 방식 |
+| --- | --- |
+| **Grounded response** | 일정·복약·위치는 LLM의 기억이 아닌 실제 서비스 데이터로 답변합니다. |
+| **Human confirmation** | 일정 등록, 복약 기록, 보호자 메시지 등 변경 동작은 사용자 확인 후 실행합니다. |
+| **Deterministic safety** | SOS, 반복 미응답, 장시간 활동 없음은 LLM과 분리된 규칙 엔진에서 판단합니다. |
+| **Failure isolation** | AI·지도·기기 권한 오류가 복약·일정 등 핵심 기능 전체로 퍼지지 않게 나눅니다. |
+
+> [!IMPORTANT]
+> CareMate의 건강·음성 분석 기능은 진단이 아닌 **비진단 보조 지표**입니다. 전문 의료인의 진단과 치료를 대체하지 않습니다.
+
+<a id="architecture"></a>
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    Senior["시니어 앱<br/>음성 · 복약 · 일정 · SOS"]
+    Guardian["보호자 앱<br/>대시보드 · 위치 · 알림"]
+    API["FastAPI<br/>52 REST endpoints"]
+    Agent["Care Agent<br/>STT → Confirm → Tool → TTS"]
+    Rules["Safety Rules<br/>SOS · 미응답 · 이상 징후"]
+    DB[(PostgreSQL)]
+    AI["OpenAI · Gemini<br/>CareMate Whisper"]
+    Device["iOS Integrations<br/>Siri · Widget · Health · Location"]
+
+    Senior --> API
+    Guardian --> API
+    API --> Agent
+    API --> Rules
+    API <--> DB
+    Agent --> AI
+    Senior --- Device
+
+    classDef client fill:#FFF7ED,stroke:#F97316,color:#7C2D12;
+    classDef server fill:#EFF6FF,stroke:#3B82F6,color:#1E3A8A;
+    classDef safety fill:#ECFDF5,stroke:#10B981,color:#064E3B;
+    class Senior,Guardian,Device client;
+    class API,Agent,DB,AI server;
+    class Rules safety;
 ```
 
-## Location Policy
-
-이번 버전은 상시 위치 추적을 포함합니다.
-
-원칙:
-
-- 사용자 동의와 보호자 설정 기반 활성화
-- 안전 확인과 보호자 대응 보조 목적에 한정
-- 보호자 앱에서 위치 공유 여부와 범위 제어
-- 긴급 상황 시 최신 위치 우선 표시
-- 향후 보관 주기와 보존 기간 세부 설정 확장
-
-MVP 위치 기능:
-
-- 최신 위치 수집 및 조회
-- 보호자 앱 위치 화면
-- SOS 발생 시 위치 강조 표시
-- 인지 지원 모드에서 위치 확인 강화
-
-## MVP Scope
-
-### User App
-
-- 대화형 AI 말동무
-- 버튼 기반 음성 입력
-- 텍스트 기반 생활 질의응답
-- 복약 및 일정 조회
-- 체크인 응답
-- SOS 요청
-- 큰 버튼 중심 홈 화면
-
-### Guardian App
-
-- 상태 요약 대시보드
-- 이상 징후 알림 이력
-- 상시 위치 확인 화면
-- 돌봄 모드 설정
-- 알림 반복 횟수, 체크인 빈도, 위치 공유 옵션 설정
-
-### Backend
-
-- 사용자와 보호자 연결 관리
-- 복약 및 일정 관리
-- 체크인 및 알림 스케줄링
-- 규칙 기반 이상 징후 판단
-- 위치 수집 및 최신 위치 조회
-- 대화 API 및 외부 LLM 연동
-
-## Tech Stack
-
-### Frontend
-
-- React Native
-- Expo
-- Expo Router
-
-### Backend
-
-- FastAPI
-- Python
-
-### Database
-
-- PostgreSQL
-
-### AI / Voice
-
-- GPT or Gemini API
-- STT API
-- TTS API
-
-### External Services
-
-- Map / location API
-- Push notification service
-
-## Repository Structure
+### Repository
 
 ```text
 CareMate/
-├── README.md
-├── .gitignore
-├── docs/
-│   ├── api-spec/
-│   ├── architecture/
-│   ├── proposal/
-│   └── test-scenarios/
-├── mobile/
-│   ├── app/
-│   │   ├── (user)/
-│   │   └── (guardian)/
-│   ├── components/
-│   ├── services/
-│   └── types/
-└── backend/
-    ├── app/
-    │   ├── api/
-    │   ├── core/
-    │   ├── rules/
-    │   ├── schemas/
-    │   └── services/
-    ├── requirements.txt
-    └── .env.example
+├── mobile/                  # React Native + Expo 앱
+│   ├── app/                 # 시니어·보호자 화면과 라우팅
+│   ├── components/common/   # 공통 UI
+│   ├── services/            # API·알림·위치·기기 연동
+│   └── ios/                 # Siri·위젯 포함 iOS 네이티브 구성
+├── backend/                 # FastAPI 백엔드
+│   ├── app/api/             # 14개 도메인 라우터
+│   ├── app/services/        # 에이전트·돌봄 비즈니스 로직
+│   ├── app/rules/           # 규칙 기반 안전 판단
+│   ├── app/ai_models/       # 음성·텍스트 보조 분석 모델
+│   └── alembic/             # DB 마이그레이션
+├── docs/                    # API·아키텍처·테스트 문서
+└── docker-compose.yml       # PostgreSQL·백엔드 로컬 환경
 ```
 
-## Feature Map
+## 🧰 Tech Stack
 
-- 사용자 앱 구조: [docs/architecture/feature-structure.md](docs/architecture/feature-structure.md)
-- API 명세: [docs/api-spec/README.md](docs/api-spec/README.md)
-- DB 스키마 초안: [docs/architecture/database-schema.md](docs/architecture/database-schema.md)
-- 개발 체크리스트: [docs/project-management/development-checklist.md](docs/project-management/development-checklist.md)
-- 테스트 시나리오: [docs/test-scenarios/README.md](docs/test-scenarios/README.md)
-
-## Verified Install Versions
-
-아래 버전은 현재 로컬에서 실제로 설치되어 동작을 확인한 기준입니다.
-팀원은 이 기준으로 설치하면 됩니다.
-
-### Runtime
-
-- Node.js `20.19.5`
-- npm `11.7.0`
-- Python `3.11.9`
-
-### Mobile
-
-모바일은 `mobile/package-lock.json` 기준으로 고정 설치합니다.
-반드시 `npm install` 대신 `npm ci`를 사용합니다.
-
-| 패키지 | 설치 버전 |
+| Layer | Technologies |
 | --- | --- |
-| expo | `55.0.0` |
-| expo-router | `55.0.12` |
-| expo-audio | `55.0.13` |
-| expo-constants | `55.0.14` |
-| expo-dev-client | `55.0.27` |
-| expo-linking | `55.0.13` |
-| expo-location | `55.1.8` |
-| expo-speech-recognition | `3.1.2` |
-| expo-widgets | `55.0.13` |
-| react | `19.2.0` |
-| react-native | `0.83.4` |
-| react-native-maps | `1.27.2` |
-| react-native-safe-area-context | `5.6.0` |
-| react-native-screens | `4.23.0` |
-| @expo/vector-icons | `15.1.1` |
-| @expo/ui | `55.0.11` |
-| @types/react | `19.2.10` |
-| typescript | `5.9.3` |
+| **Mobile** | React Native 0.85, Expo 56, Expo Router, TypeScript, React Native Maps |
+| **Native / Device** | Siri App Intents, Home·Lock Screen Widget, Apple Health, Location, Push Notifications |
+| **Backend** | Python 3.11, FastAPI, SQLAlchemy 2, Alembic, Pydantic |
+| **Data** | PostgreSQL 16, Docker Compose |
+| **AI / Voice** | OpenAI, Gemini, Whisper, KoELECTRA, XLS-R, STT·TTS |
 
-### Backend
+<a id="quick-start"></a>
 
-백엔드는 `backend/requirements.txt` 기준으로 고정 설치합니다.
+## 🚀 Quick Start
 
-| 패키지 | 설치 버전 |
-| --- | --- |
-| fastapi | `0.115.0` |
-| uvicorn[standard] | `0.30.6` |
-| pydantic-settings | `2.5.2` |
-| sqlalchemy | `2.0.36` |
-| alembic | `1.14.0` |
-| psycopg[binary] | `3.2.3` |
-| python-multipart | `0.0.24` |
+### Prerequisites
 
-## Team Setup
+- Node.js `20.19+`
+- npm `11+`
+- Python `3.11`
+- Docker & Docker Compose
+- iOS 실행 시 Xcode, CocoaPods, 개발자 서명
 
-`origin/main` 대비 현재 작업본은 모바일이 `Expo 55 + development build + widgets + speech recognition` 기준으로 바뀌었습니다.
-팀원이 새로 맞춰야 하는 핵심은 아래 4가지입니다.
+> [!NOTE]
+> 모바일 앱은 네이티브 기능을 사용하므로 Expo Go가 아닌 **Expo development build**로 실행합니다.
 
-- 모바일은 `Expo Go`로 실행할 수 없습니다. `expo-dev-client` 기반 development build가 필요합니다.
-- 모바일 의존성이 크게 바뀌어서 `mobile`에서는 `npm install` 대신 `npm ci`를 다시 해야 합니다.
-- iOS는 네이티브 구성이 바뀌었기 때문에 `mobile/ios`에서 `pod install`이 필요합니다.
-- 백엔드는 새 DB 컬럼이 들어갔으므로 `alembic upgrade head`를 반드시 다시 실행해야 합니다.
-
-### Team Checklist
+### 1. Database & Backend
 
 ```bash
-git pull
+docker compose up -d db
 
-cd mobile
-cp .env.example .env
-npm ci
-cd ios
-pod install
-cd ..
-
-cd ../backend
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cd ..
-docker compose up -d db
-cd backend
-DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
-DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate \
+  alembic upgrade head
+
+DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate \
+  python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-### iOS Notes
+서버가 실행되면 `http://localhost:8001/docs`에서 API 문서를 확인할 수 있습니다.
 
-- 실기기 실행은 `CareMate`와 `ExpoWidgetsTarget` 둘 다 Xcode Signing 설정이 필요합니다.
-- 개인 Apple 계정으로 설치할 때는 `Developer Mode`, 개발자 인증서 신뢰, 로컬 네트워크 권한 허용이 필요합니다.
-- 공유 Apple Team이 없으면 로컬에서만 `bundleIdentifier`를 별도로 바꿔야 할 수 있습니다.
-- 앱 설치 후 JS만 다시 붙일 때는 `npx expo start --dev-client --host lan`을 사용합니다.
-
-## Quick Start
-
-### Frontend
+### 2. Mobile
 
 ```bash
 cd mobile
 cp .env.example .env
 npm ci
+
 cd ios
 pod install
 cd ..
+
 npx expo run:ios
 ```
 
-실기기 설치:
-
-```bash
-cd mobile
-npx expo run:ios --device
-```
-
-이후 development build에 다시 붙기:
-
-```bash
-cd mobile
-npx expo start --dev-client --host lan
-```
-
-### Backend
-
-```bash
-docker compose up -d db
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate alembic upgrade head
-DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
-```
-
-## Environment Variables
+실기기에서는 `mobile/.env`의 API 주소를 백엔드가 실행 중인 Mac의 LAN IP로 설정해야 합니다.
 
 ```env
-APP_NAME=CareMate
-API_PREFIX=/api/v1
-DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-5.4-mini
-LLM_TIMEOUT_SECONDS=20
-STT_PROVIDER=openai
-STT_MODEL=gpt-4o-mini-transcribe
-STT_TIMEOUT_SECONDS=30
-STT_LANGUAGE=ko
-TTS_PROVIDER=openai
-TTS_MODEL=gpt-4o-mini-tts
-TTS_TIMEOUT_SECONDS=30
-TTS_VOICE=alloy
-TTS_RESPONSE_FORMAT=mp3
-OPENAI_API_KEY=your_openai_key
-GEMINI_API_KEY=your_gemini_key
-STT_API_KEY=your_stt_key
-TTS_API_KEY=your_tts_key
-MAP_API_KEY=your_kakao_rest_api_key
-PUBLIC_DATA_API_KEY=your_data_go_kr_service_key
-LOCATION_RETENTION_DAYS=30
+EXPO_PUBLIC_API_BASE_URL=http://<YOUR_MAC_IP>:8001/api/v1
 ```
 
-비고:
+자세한 설정과 실기기 주의사항은 [`mobile/README.md`](mobile/README.md)와 [`backend/README.md`](backend/README.md)를 확인해 주세요.
 
-- `OPENAI_API_KEY`만 설정되어 있어도 현재 백엔드는 OpenAI를 우선 사용합니다.
-- `LLM_PROVIDER`를 명시하면 해당 provider를 우선 사용합니다.
-- `STT_PROVIDER=openai`이면 `/chat/speech`가 OpenAI `gpt-4o-mini-transcribe`를 사용합니다.
-- `TTS_PROVIDER=openai`이면 `/chat/tts`가 OpenAI `gpt-4o-mini-tts`를 사용합니다.
-- `MAP_API_KEY`는 주변 병원 검색용 Kakao Local REST API 키 기준입니다.
-- `PUBLIC_DATA_API_KEY`는 응급실 실시간 가용병상 조회용 공공데이터포털 서비스키 기준입니다.
-- `MAP_API_KEY`가 없거나 Kakao 호출이 실패하면, 개발용 fallback으로 OpenStreetMap Overpass 검색을 시도합니다.
+<a id="documentation"></a>
 
-## Collaboration
+## 📚 Documentation
 
-- 개발 체크리스트: [docs/project-management/development-checklist.md](docs/project-management/development-checklist.md)
-- 기여 가이드: [CONTRIBUTING.md](CONTRIBUTING.md)
-- 라이선스: [LICENSE](LICENSE)
+| 문서 | 내용 |
+| --- | --- |
+| [API Specification](docs/api-spec/README.md) | 주요 요청·응답 계약 |
+| [Architecture](docs/architecture/README.md) | 서버 계층, 데이터 흐름, 외부 연동 |
+| [Database Schema](docs/architecture/database-schema.md) | PostgreSQL 스키마와 관계 |
+| [Voice Agent E2E](docs/test-scenarios/voice-agent-e2e.md) | 음성 에이전트 핵심 테스트 시나리오 |
+| [Development Checklist](docs/project-management/development-checklist.md) | 팀 개발·검증 체크리스트 |
+| [Contributing Guide](CONTRIBUTING.md) | 로컬 개발 환경과 협업 규칙 |
 
-## Roadmap
+## 🧭 Roadmap
 
-### Phase 1
+- [x] 시니어·보호자 역할별 모바일 흐름
+- [x] 음성 에이전트의 재확인·도구 실행 구조
+- [x] 복약·일정·편지·위치·안전구역 연결
+- [x] 푸시 알림·Siri Shortcut·홈/잠금 화면 위젯
+- [ ] 핵심 음성·복약·위치 시나리오 실기기 E2E 자동화
+- [ ] 개인정보 동의·보존·삭제·접근 기록 정책 고도화
+- [ ] 건강 신호 모델의 외부 검증과 편향 분석
 
-- 대화형 AI
-- 복약 및 일정 알림
-- 체크인
-- 기본 이상 징후 확인
-- 보호자 알림
-- 상시 위치 수집 및 최신 위치 확인
-- 기본 모드, 인지 지원 모드, 건강 지원 모드
+## 📜 License
 
-### Phase 2
+이 프로젝트는 [MIT License](LICENSE)로 배포됩니다.
 
-- 사투리 보정 강화
-- 공공문서 쉬운말 설명
-- 건강 수치 공유 고도화
-- 안전 반경 알림
+<div align="center">
 
-### Phase 3
+<sub>Built with care for seniors and the people who care for them.</sub>
 
-- 센서 연동
-- 웨어러블 연동
-- 공공 복지 서비스 연계
-- 스마트홈 연계
-
-## Expected Impact
-
-- 노인의 정서적 고립 완화
-- 복약 및 일정 관리 지원
-- 돌봄 공백 최소화
-- 보호자 대응 시간 단축
-- 디지털 취약계층 접근성 향상
-- 통합형 스마트 돌봄 플랫폼 기반 마련
+</div>
