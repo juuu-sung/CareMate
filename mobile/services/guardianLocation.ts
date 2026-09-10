@@ -3,7 +3,6 @@ import { apiGet } from "@/services/api";
 export type GuardianLatestLocationResponse = {
   status: "available" | "unavailable";
   elder_user_id: string;
-  link_code: string;
   latitude: number | null;
   longitude: number | null;
   source: string | null;
@@ -11,11 +10,6 @@ export type GuardianLatestLocationResponse = {
   label: string;
 };
 
-export function getGuardianLatestLocation(elderUserId: string, linkCode: string) {
-  const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
-
-  return apiGet<GuardianLatestLocationResponse>(`/guardian-link/latest-location?${searchParams.toString()}`);
+export function getGuardianLatestLocation(_elderUserId: string, _linkId: string) {
+  return apiGet<GuardianLatestLocationResponse>('/guardian-link/latest-location');
 }

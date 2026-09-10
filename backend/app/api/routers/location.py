@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.api.deps import get_current_guardian
 from app.schemas.location import (
     LocationRequestPayload,
     LocationRequestStatusResponse,
@@ -13,6 +14,7 @@ from app.services.location_service import (
     record_location,
     request_location_refresh,
 )
+from app.services.guardian_auth_service import GuardianPrincipal
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -26,9 +28,18 @@ def create_location(payload: LocationSyncRequest, db: Session = Depends(get_db))
 
 
 @router.post("/request", response_model=LocationRequestStatusResponse)
-def create_location_request(payload: LocationRequestPayload, db: Session = Depends(get_db)):
+def create_location_request(
+    principal: GuardianPrincipal = Depends(get_current_guardian),
+    db: Session = Depends(get_db),
+):
     try:
-        return request_location_refresh(db, payload)
+        return request_location_refresh(
+            db,
+            LocationRequestPayload(
+                elder_user_id=principal.elder_user_id,
+                link_code=principal.link_code,
+            ),
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

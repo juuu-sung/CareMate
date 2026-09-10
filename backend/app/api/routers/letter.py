@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.api.deps import get_current_guardian, get_optional_guardian
 from app.models.guardian_link import GuardianLink
 from app.models.letter import Letter
 from app.schemas.letter import (
@@ -12,23 +13,25 @@ from app.schemas.letter import (
     LetterListResponse,
     LetterItem,
 )
+from app.services.guardian_auth_service import GuardianPrincipal
 
 router = APIRouter(prefix="/letters", tags=["letters"])
 
 
 @router.post("/send", response_model=SendLetterResponse)
-def send_letter(request: SendLetterRequest, db: Session = Depends(get_db)):
+def send_letter(
+    request: SendLetterRequest,
+    principal: GuardianPrincipal = Depends(get_current_guardian),
+    db: Session = Depends(get_db),
+):
     link = (
         db.query(GuardianLink)
-        .filter(GuardianLink.link_code == request.link_code)
+        .filter(GuardianLink.id == principal.guardian_link_id)
         .first()
     )
 
     if not link:
         raise HTTPException(status_code=404, detail="유효한 link_code가 없습니다.")
-
-    if str(link.elder_user_id) != str(request.elder_user_id):
-        raise HTTPException(status_code=400, detail="elder_user_id가 link_code와 일치하지 않습니다.")
 
     now = datetime.now(timezone.utc)
 
@@ -50,7 +53,6 @@ def send_letter(request: SendLetterRequest, db: Session = Depends(get_db)):
         message="편지가 저장되었습니다.",
         guardian_user_id=new_letter.guardian_user_id,
         elder_user_id=new_letter.elder_user_id,
-        link_code=new_letter.link_code,
         sender_role=new_letter.sender_role,
         created_at=new_letter.created_at,
     )
@@ -59,13 +61,23 @@ def send_letter(request: SendLetterRequest, db: Session = Depends(get_db)):
 @router.get("/elder/{elder_user_id}", response_model=LetterListResponse)
 def get_letters_for_elder(
     elder_user_id: str,
-    link_code: str = Query(...),
+    link_code: str | None = Query(default=None),
+    principal: GuardianPrincipal | None = Depends(get_optional_guardian),
     db: Session = Depends(get_db),
 ):
+    if principal is not None:
+        if elder_user_id != principal.elder_user_id:
+            raise HTTPException(status_code=403, detail="다른 사용자의 편지에는 접근할 수 없습니다.")
+        effective_link_code = principal.link_code
+    elif link_code:
+        effective_link_code = link_code
+    else:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
     link = (
         db.query(GuardianLink)
         .filter(
-            GuardianLink.link_code == link_code,
+            GuardianLink.link_code == effective_link_code,
             GuardianLink.elder_user_id == elder_user_id,
         )
         .first()
@@ -78,7 +90,7 @@ def get_letters_for_elder(
         db.query(Letter)
         .filter(
             Letter.elder_user_id == elder_user_id,
-            Letter.link_code == link_code,
+            Letter.link_code == effective_link_code,
         )
         .order_by(Letter.created_at.desc())
         .all()
@@ -92,7 +104,6 @@ def get_letters_for_elder(
                 elder_user_id=letter.elder_user_id,
                 content=letter.content,
                 created_at=letter.created_at,
-                link_code=letter.link_code,
                 sender_role=letter.sender_role,
             )
             for letter in letters

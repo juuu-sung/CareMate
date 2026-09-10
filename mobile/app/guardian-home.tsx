@@ -25,6 +25,7 @@ import {
   getGuardianAlerts,
   getGuardianDashboard,
   getGuardianSafetyZones,
+  guardianLogout,
   GuardianAlertItem,
   GuardianSafetyZoneItem,
 } from '@/services/guardian';
@@ -229,7 +230,7 @@ export default function GuardianHomeScreen() {
         parentName,
         parentAge,
         parentGender,
-        linkCode,
+        linkId: linkCode,
         medications,
         diseases,
         allergies,
@@ -587,7 +588,11 @@ export default function GuardianHomeScreen() {
         onPress: () => {
           void (async () => {
             try {
-              await clearAuthSession();
+              try {
+                await guardianLogout();
+              } finally {
+                await clearAuthSession();
+              }
               router.replace('/');
             } catch (error) {
               console.log('보호자 로그아웃 오류:', error);
@@ -709,8 +714,8 @@ export default function GuardianHomeScreen() {
         <View style={styles.infoCard}>
           <InfoRow
             icon={<Feather name="link" size={16} color="#05B547" />}
-            label="연동 코드"
-            value={linkCode || '-'}
+            label="연결 상태"
+            value={linkCode ? '보호자 연결됨' : '연결 정보 없음'}
           />
           <Divider />
           <InfoRow

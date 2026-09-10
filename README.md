@@ -86,6 +86,9 @@ CareMate의 핵심은 “AI가 많은 일을 하는 것”이 아니라 **“잘
 > [!IMPORTANT]
 > CareMate의 건강·음성 분석 기능은 진단이 아닌 **비진단 보조 지표**입니다. 전문 의료인의 진단과 치료를 대체하지 않습니다.
 
+> [!CAUTION]
+> 공개 저장소에는 실제 환자·사용자의 의료 이미지, 음성, 위치, 연락처를 올리지 마세요. 예시는 합성·비식별 데이터만 사용하고, 보안 문제는 공개 이슈 대신 [`SECURITY.md`](SECURITY.md)의 비공개 신고 절차를 이용해 주세요.
+
 <a id="architecture"></a>
 
 ## 🏗️ Architecture
@@ -214,6 +217,7 @@ EXPO_PUBLIC_API_BASE_URL=http://<YOUR_MAC_IP>:8001/api/v1
 | [Voice Agent E2E](docs/test-scenarios/voice-agent-e2e.md) | 음성 에이전트 핵심 테스트 시나리오 |
 | [Development Checklist](docs/project-management/development-checklist.md) | 팀 개발·검증 체크리스트 |
 | [Contributing Guide](CONTRIBUTING.md) | 로컬 개발 환경과 협업 규칙 |
+| [Security Policy](SECURITY.md) | 민감정보 취급과 취약점 비공개 신고 절차 |
 
 ## 🧭 Roadmap
 

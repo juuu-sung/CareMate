@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import * as SecureStore from 'expo-secure-store';
 
 export type ParentAuthSession = {
   role: 'parent';
@@ -18,7 +19,10 @@ export type GuardianAuthSession = {
   parentName: string;
   parentAge: string;
   parentGender: string;
+  linkId: string;
+  /** @deprecated 화면 전환 호환용 비밀값이 아닌 연결 ID */
   linkCode: string;
+  accessToken: string;
   medications: string;
   diseases: string;
   allergies: string;
@@ -29,7 +33,8 @@ export type GuardianAuthSession = {
 
 export type AuthSession = ParentAuthSession | GuardianAuthSession;
 
-const SESSION_FILE_URI = FileSystem.documentDirectory
+const SESSION_STORAGE_KEY = 'caremate-auth-session-v2';
+const LEGACY_SESSION_FILE_URI = FileSystem.documentDirectory
   ? `${FileSystem.documentDirectory}caremate-auth-session.json`
   : null;
 
@@ -99,9 +104,10 @@ function parseAuthSession(value: unknown): AuthSession | null {
       normalizeString(value.guardianId) || normalizeString(value.guardian_id);
     const parentId = normalizeString(value.parentId);
     const parentName = normalizeString(value.parentName);
-    const linkCode = normalizeString(value.linkCode);
+    const linkId = normalizeString(value.linkId) || normalizeString(value.linkCode);
+    const accessToken = normalizeString(value.accessToken);
 
-    if (!parentId || !parentName || !linkCode) {
+    if (!guardianId || !parentId || !parentName || !linkId || !accessToken) {
       return null;
     }
 
@@ -112,7 +118,9 @@ function parseAuthSession(value: unknown): AuthSession | null {
       parentName,
       parentAge: normalizeString(value.parentAge),
       parentGender: normalizeString(value.parentGender),
-      linkCode,
+      linkId,
+      linkCode: linkId,
+      accessToken,
       medications: normalizeString(value.medications),
       diseases: normalizeString(value.diseases),
       allergies: normalizeString(value.allergies),
@@ -152,7 +160,8 @@ export function buildGuardianAuthSession(input: {
   parentName: string;
   parentAge?: string;
   parentGender?: string;
-  linkCode: string;
+  linkId: string;
+  accessToken?: string;
   medications?: string;
   diseases?: string;
   allergies?: string;
@@ -167,7 +176,9 @@ export function buildGuardianAuthSession(input: {
     parentName: input.parentName,
     parentAge: input.parentAge || '',
     parentGender: input.parentGender || '',
-    linkCode: input.linkCode,
+    linkId: input.linkId,
+    linkCode: input.linkId,
+    accessToken: input.accessToken || '',
     medications: input.medications || '',
     diseases: input.diseases || '',
     allergies: input.allergies || '',
@@ -215,50 +226,85 @@ export function getAuthSessionHomeRoute(session: AuthSession) {
 }
 
 export async function saveAuthSession(session: AuthSession) {
-  if (!SESSION_FILE_URI) {
-    emitAuthSessionChange(session);
-    return;
+  let sessionToSave = session;
+  if (session.role === 'guardian' && !session.accessToken) {
+    const existingSession = await loadAuthSession();
+    if (existingSession?.role === 'guardian') {
+      sessionToSave = {
+        ...session,
+        accessToken: existingSession.accessToken,
+      };
+    }
   }
 
-  await FileSystem.writeAsStringAsync(
-    SESSION_FILE_URI,
-    JSON.stringify(session)
-  );
-  emitAuthSessionChange(session);
+  const persistedSession = sessionToSave.role === 'guardian'
+    ? {
+        ...sessionToSave,
+        medications: '',
+        diseases: '',
+        allergies: '',
+        hospital: '',
+        doctorContact: '',
+        memo: '',
+      }
+    : sessionToSave;
+
+  await SecureStore.setItemAsync(SESSION_STORAGE_KEY, JSON.stringify(persistedSession));
+  await deleteLegacySessionFile();
+  emitAuthSessionChange(sessionToSave);
 }
 
 export async function loadAuthSession() {
-  if (!SESSION_FILE_URI) {
-    return null;
-  }
-
   try {
-    const fileInfo = await FileSystem.getInfoAsync(SESSION_FILE_URI);
+    const contents = await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
+    if (contents) {
+      await deleteLegacySessionFile();
+      return parseAuthSession(JSON.parse(contents));
+    }
 
-    if (!fileInfo.exists) {
+    if (!LEGACY_SESSION_FILE_URI) {
       return null;
     }
 
-    const contents = await FileSystem.readAsStringAsync(SESSION_FILE_URI);
-    return parseAuthSession(JSON.parse(contents));
+    const legacyInfo = await FileSystem.getInfoAsync(LEGACY_SESSION_FILE_URI);
+    if (!legacyInfo.exists) {
+      return null;
+    }
+
+    const legacyContents = await FileSystem.readAsStringAsync(LEGACY_SESSION_FILE_URI);
+    const legacySession = parseAuthSession(JSON.parse(legacyContents));
+    if (legacySession?.role === 'parent') {
+      await SecureStore.setItemAsync(SESSION_STORAGE_KEY, JSON.stringify(legacySession));
+    }
+    await deleteLegacySessionFile();
+    return legacySession;
   } catch {
     return null;
   }
 }
 
 export async function clearAuthSession() {
-  if (!SESSION_FILE_URI) {
-    emitAuthSessionChange(null);
-    return;
-  }
-
-  const fileInfo = await FileSystem.getInfoAsync(SESSION_FILE_URI);
-
-  if (!fileInfo.exists) {
-    emitAuthSessionChange(null);
-    return;
-  }
-
-  await FileSystem.deleteAsync(SESSION_FILE_URI);
+  await SecureStore.deleteItemAsync(SESSION_STORAGE_KEY);
+  await deleteLegacySessionFile();
   emitAuthSessionChange(null);
+}
+
+async function deleteLegacySessionFile() {
+  if (!LEGACY_SESSION_FILE_URI) {
+    return;
+  }
+
+  try {
+    const info = await FileSystem.getInfoAsync(LEGACY_SESSION_FILE_URI);
+    if (info.exists) {
+      await FileSystem.deleteAsync(LEGACY_SESSION_FILE_URI, { idempotent: true });
+    }
+  } catch {
+    // SecureStore remains authoritative even if best-effort legacy cleanup fails.
+  }
+}
+
+export async function getGuardianAccessToken() {
+  const session = await loadAuthSession();
+  return session?.role === 'guardian' ? session.accessToken : '';
 }

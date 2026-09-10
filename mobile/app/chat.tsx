@@ -763,7 +763,6 @@ export default function ChatPage() {
         session_id: sessionId ?? undefined,
         elder_user_id: elderUserId,
         requester_role: requesterRole,
-        link_code: isGuardianRequester ? linkCode || undefined : undefined,
         ...(coordinates ?? {}),
       });
 

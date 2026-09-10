@@ -189,29 +189,6 @@ def login_parent(db: Session, payload: ParentLoginRequest):
     }
 
 
-def get_parent_by_code(db: Session, link_code: str):
-    link = db.query(GuardianLink).filter(GuardianLink.link_code == link_code).first()
-
-    if not link:
-        raise ValueError("유효하지 않은 연동 코드입니다.")
-
-    elder_user = db.query(User).filter(User.id == link.elder_user_id).first()
-
-    if not elder_user:
-        raise ValueError("부모님 정보를 찾을 수 없습니다.")
-
-    parent_age = calculate_age_from_birth(elder_user.birth)
-
-    return {
-        "parent_id": elder_user.id,
-        "parent_name": elder_user.name,
-        "parent_age": parent_age,
-        "parent_gender": elder_user.gender or "",
-        "link_code": link.link_code,
-        "is_used": link.is_used,
-    }
-
-
 def update_parent_care_info(
     db: Session,
     parent_user_id: str,
@@ -1111,8 +1088,7 @@ async def _save_and_summarize_document(
         if not summary or not str(summary).strip():
             summary = f"{summary_title} 이미지에서 내용을 인식하지 못했습니다."
 
-    except Exception as e:
-        print("summarize_medical_image error:", repr(e))
+    except Exception:
         summary = f"{summary_title} 이미지가 저장되었습니다. 요약은 나중에 다시 생성해야 합니다."
 
     db.add(
@@ -1305,7 +1281,6 @@ async def update_parent_care_info_with_images(
             "memo": profile.memo or "",
         }
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        print("update_parent_care_info_with_images error:", repr(e))
         raise

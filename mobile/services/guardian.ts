@@ -114,26 +114,12 @@ export type DailyHealthAnalysisResponse = {
   items: DailyHealthItem[];
 };
 
-function buildGuardianQuery(elderUserId: string, linkCode: string) {
-  return new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
+export function getGuardianDashboard(_elderUserId: string, _linkId: string) {
+  return apiGet<GuardianDashboard>('/guardians/dashboard');
 }
 
-export function getGuardianDashboard(elderUserId: string, linkCode: string) {
+export function getGuardianAlerts(_elderUserId: string, _linkId: string, limit = 3) {
   const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
-
-  return apiGet<GuardianDashboard>(`/guardians/dashboard?${searchParams.toString()}`);
-}
-
-export function getGuardianAlerts(elderUserId: string, linkCode: string, limit = 3) {
-  const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
     limit: String(limit),
   });
 
@@ -141,13 +127,11 @@ export function getGuardianAlerts(elderUserId: string, linkCode: string, limit =
 }
 
 export function getGuardianAlertHistory(
-  elderUserId: string,
-  linkCode: string,
+  _elderUserId: string,
+  _linkId: string,
   limit = 120
 ) {
   const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
     limit: String(limit),
   });
 
@@ -157,19 +141,14 @@ export function getGuardianAlertHistory(
 }
 
 export function updateGuardianAlertStatus(
-  elderUserId: string,
-  linkCode: string,
+  _elderUserId: string,
+  _linkId: string,
   alertId: string | undefined,
   alert: Pick<GuardianAlertItem, "type" | "message" | "created_at">,
   status: "acknowledged" | "resolved"
 ) {
-  const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
-
   return apiPatch<GuardianAlertItem>(
-    `/guardians/alerts/${alertId || "undefined"}?${searchParams.toString()}`,
+    `/guardians/alerts/${alertId || "undefined"}`,
     {
       status,
       type: alert.type,
@@ -179,10 +158,8 @@ export function updateGuardianAlertStatus(
   );
 }
 
-export function getGuardianConversations(elderUserId: string, linkCode: string, limit = 30) {
+export function getGuardianConversations(_elderUserId: string, _linkId: string, limit = 30) {
   const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
     limit: String(limit),
   });
 
@@ -191,114 +168,75 @@ export function getGuardianConversations(elderUserId: string, linkCode: string, 
   );
 }
 
-export function getGuardianSchedules(elderUserId: string, linkCode: string) {
-  const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
-
-  return apiGet<GuardianSchedulesResponse>(`/guardians/schedules?${searchParams.toString()}`);
+export function getGuardianSchedules(_elderUserId: string, _linkId: string) {
+  return apiGet<GuardianSchedulesResponse>('/guardians/schedules');
 }
 
 export function createGuardianSchedule(
-  elderUserId: string,
-  linkCode: string,
+  _elderUserId: string,
+  _linkId: string,
   payload: GuardianSchedulePayload
 ) {
-  const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
-
-  return apiPost<GuardianScheduleItem>(
-    `/guardians/schedules?${searchParams.toString()}`,
-    payload
-  );
+  return apiPost<GuardianScheduleItem>('/guardians/schedules', payload);
 }
 
 export function updateGuardianSchedule(
-  elderUserId: string,
-  linkCode: string,
+  _elderUserId: string,
+  _linkId: string,
   scheduleId: string,
   payload: Partial<GuardianSchedulePayload>
 ) {
-  const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
-
   return apiPatch<GuardianScheduleItem>(
-    `/guardians/schedules/${scheduleId}?${searchParams.toString()}`,
+    `/guardians/schedules/${scheduleId}`,
     payload
   );
 }
 
 export function deleteGuardianSchedule(
-  elderUserId: string,
-  linkCode: string,
+  _elderUserId: string,
+  _linkId: string,
   scheduleId: string
 ) {
-  const searchParams = new URLSearchParams({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
-
-  return apiDelete<GuardianScheduleDeleteResponse>(
-    `/guardians/schedules/${scheduleId}?${searchParams.toString()}`
-  );
+  return apiDelete<GuardianScheduleDeleteResponse>(`/guardians/schedules/${scheduleId}`);
 }
 
-export function getGuardianSafetyZones(elderUserId: string, linkCode: string) {
-  const searchParams = buildGuardianQuery(elderUserId, linkCode);
-
-  return apiGet<GuardianSafetyZonesResponse>(
-    `/guardians/safety-zones?${searchParams.toString()}`
-  );
+export function getGuardianSafetyZones(_elderUserId: string, _linkId: string) {
+  return apiGet<GuardianSafetyZonesResponse>('/guardians/safety-zones');
 }
 
 export function createGuardianSafetyZone(
-  elderUserId: string,
-  linkCode: string,
+  _elderUserId: string,
+  _linkId: string,
   payload: GuardianSafetyZonePayload
 ) {
-  const searchParams = buildGuardianQuery(elderUserId, linkCode);
-
-  return apiPost<GuardianSafetyZoneItem>(
-    `/guardians/safety-zones?${searchParams.toString()}`,
-    payload
-  );
+  return apiPost<GuardianSafetyZoneItem>('/guardians/safety-zones', payload);
 }
 
 export function updateGuardianSafetyZone(
-  elderUserId: string,
-  linkCode: string,
+  _elderUserId: string,
+  _linkId: string,
   zoneId: string,
   payload: Partial<GuardianSafetyZonePayload>
 ) {
-  const searchParams = buildGuardianQuery(elderUserId, linkCode);
-
   return apiPatch<GuardianSafetyZoneItem>(
-    `/guardians/safety-zones/${zoneId}?${searchParams.toString()}`,
+    `/guardians/safety-zones/${zoneId}`,
     payload
   );
 }
 
 export function deleteGuardianSafetyZone(
-  elderUserId: string,
-  linkCode: string,
+  _elderUserId: string,
+  _linkId: string,
   zoneId: string
 ) {
-  const searchParams = buildGuardianQuery(elderUserId, linkCode);
-
-  return apiDelete<GuardianSafetyZoneDeleteResponse>(
-    `/guardians/safety-zones/${zoneId}?${searchParams.toString()}`
-  );
+  return apiDelete<GuardianSafetyZoneDeleteResponse>(`/guardians/safety-zones/${zoneId}`);
 }
 
 export type GuardianSignupPayload = {
   name: string;
   birth: string;
   phone: string;
+  password: string;
   link_code: string;
   relation?: string;
   gender?: string;
@@ -307,15 +245,21 @@ export type GuardianSignupPayload = {
 export type GuardianLoginPayload = {
   phone: string;
   birth: string;
+  password: string;
+  link_code?: string;
 };
 
 export type GuardianSignupResponse = {
-  guardian_id?: string;
-  elder_id?: string;
-  elder_name?: string;
-  parent_id?: string;
-  parent_name?: string;
-  link_code?: string;
+  guardian_id: string;
+  guardian_name: string;
+  parent_id: string;
+  parent_name: string;
+  parent_age?: number | null;
+  parent_gender?: string | null;
+  link_id: string;
+  access_token: string;
+  token_type: 'bearer';
+  expires_at: string;
   message?: string;
 };
 
@@ -326,7 +270,10 @@ export type GuardianLoginResponse = {
   parent_name: string;
   parent_age?: number | null;
   parent_gender?: string | null;
-  link_code: string;
+  link_id: string;
+  access_token: string;
+  token_type: 'bearer';
+  expires_at: string;
   medications: string;
   diseases: string;
   allergies: string;
@@ -342,6 +289,10 @@ export function guardianSignup(payload: GuardianSignupPayload) {
 
 export function guardianLogin(payload: GuardianLoginPayload) {
   return apiPost<GuardianLoginResponse>("/guardians/login", payload);
+}
+
+export function guardianLogout() {
+  return apiPost<void>("/guardians/logout", {});
 }
 
 export type UtteranceHealthItem = {
@@ -362,11 +313,10 @@ export type UtteranceHealthAnalysisResponse = {
 
 export function getUtteranceHealthAnalysis(
   elderUserId: string,
-  linkCode: string,
+  _linkId: string,
   limit = 40,
 ) {
   const searchParams = new URLSearchParams({
-    link_code: linkCode,
     limit: String(limit),
   });
   return apiGet<UtteranceHealthAnalysisResponse>(
@@ -388,12 +338,11 @@ export function getHealthExplanation(params: {
 
 export function getDailyHealthAnalysis(
   elderUserId: string,
-  linkCode: string,
+  _linkId: string,
   startDate: string,
   endDate: string,
 ) {
   const searchParams = new URLSearchParams({
-    link_code: linkCode,
     start_date: startDate,
     end_date: endDate,
   });

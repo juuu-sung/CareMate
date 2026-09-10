@@ -12,12 +12,12 @@
 
 관련 파일:
 
-- [`mobile/app/(user)/home.tsx`](mobile/app/(user)/home.tsx)
-- [`mobile/app/(user)/chat.tsx`](mobile/app/(user)/chat.tsx)
-- [`mobile/app/(user)/medication.tsx`](mobile/app/(user)/medication.tsx)
-- [`mobile/app/(user)/schedule.tsx`](mobile/app/(user)/schedule.tsx)
-- [`mobile/app/(user)/sos.tsx`](mobile/app/(user)/sos.tsx)
-- [`mobile/app/(user)/settings.tsx`](mobile/app/(user)/settings.tsx)
+- [`mobile/app/(user)/home.tsx`](../../mobile/app/(user)/home.tsx)
+- [`mobile/app/(user)/chat.tsx`](../../mobile/app/(user)/chat.tsx)
+- [`mobile/app/(user)/medication.tsx`](../../mobile/app/(user)/medication.tsx)
+- [`mobile/app/(user)/schedule.tsx`](../../mobile/app/(user)/schedule.tsx)
+- [`mobile/app/(user)/sos.tsx`](../../mobile/app/(user)/sos.tsx)
+- [`mobile/app/(user)/settings.tsx`](../../mobile/app/(user)/settings.tsx)
 
 세부 기능:
 
@@ -37,11 +37,11 @@
 
 관련 파일:
 
-- [`mobile/app/(guardian)/dashboard.tsx`](mobile/app/(guardian)/dashboard.tsx)
-- [`mobile/app/(guardian)/alerts.tsx`](mobile/app/(guardian)/alerts.tsx)
-- [`mobile/app/(guardian)/location.tsx`](mobile/app/(guardian)/location.tsx)
-- [`mobile/app/(guardian)/modes.tsx`](mobile/app/(guardian)/modes.tsx)
-- [`mobile/app/(guardian)/profile.tsx`](mobile/app/(guardian)/profile.tsx)
+- [`mobile/app/(guardian)/dashboard.tsx`](../../mobile/app/(guardian)/dashboard.tsx)
+- [`mobile/app/(guardian)/alerts.tsx`](../../mobile/app/(guardian)/alerts.tsx)
+- [`mobile/app/(guardian)/location.tsx`](../../mobile/app/(guardian)/location.tsx)
+- [`mobile/app/(guardian)/modes.tsx`](../../mobile/app/(guardian)/modes.tsx)
+- [`mobile/app/(guardian)/profile.tsx`](../../mobile/app/(guardian)/profile.tsx)
 
 세부 기능:
 
@@ -59,10 +59,10 @@
 
 관련 파일:
 
-- [`mobile/app/_layout.tsx`](mobile/app/_layout.tsx)
-- [`mobile/app/index.tsx`](mobile/app/index.tsx)
-- [`mobile/components/common/SeniorScreen.tsx`](mobile/components/common/SeniorScreen.tsx)
-- [`mobile/components/common/SectionCard.tsx`](mobile/components/common/SectionCard.tsx)
+- [`mobile/app/_layout.tsx`](../../mobile/app/_layout.tsx)
+- [`mobile/app/index.tsx`](../../mobile/app/index.tsx)
+- [`mobile/components/common/SeniorScreen.tsx`](../../mobile/components/common/SeniorScreen.tsx)
+- [`mobile/components/common/SectionCard.tsx`](../../mobile/components/common/SectionCard.tsx)
 
 역할:
 
@@ -78,11 +78,11 @@
 
 관련 파일:
 
-- [`mobile/services/api.ts`](mobile/services/api.ts)
-- [`mobile/services/chat.ts`](mobile/services/chat.ts)
-- [`mobile/services/guardian.ts`](mobile/services/guardian.ts)
-- [`mobile/types/care.ts`](mobile/types/care.ts)
-- [`mobile/types/guardian.ts`](mobile/types/guardian.ts)
+- [`mobile/services/api.ts`](../../mobile/services/api.ts)
+- [`mobile/services/chat.ts`](../../mobile/services/chat.ts)
+- [`mobile/services/guardian.ts`](../../mobile/services/guardian.ts)
+- [`mobile/types/care.ts`](../../mobile/types/care.ts)
+- [`mobile/types/guardian.ts`](../../mobile/types/guardian.ts)
 
 역할:
 
@@ -99,16 +99,16 @@
 
 관련 파일:
 
-- [`backend/app/main.py`](backend/app/main.py)
-- [`backend/app/api/router.py`](backend/app/api/router.py)
-- [`backend/app/api/routers/health.py`](backend/app/api/routers/health.py)
-- [`backend/app/api/routers/chat.py`](backend/app/api/routers/chat.py)
-- [`backend/app/api/routers/medication.py`](backend/app/api/routers/medication.py)
-- [`backend/app/api/routers/schedule.py`](backend/app/api/routers/schedule.py)
-- [`backend/app/api/routers/alerts.py`](backend/app/api/routers/alerts.py)
-- [`backend/app/api/routers/location.py`](backend/app/api/routers/location.py)
-- [`backend/app/api/routers/modes.py`](backend/app/api/routers/modes.py)
-- [`backend/app/api/routers/guardians.py`](backend/app/api/routers/guardians.py)
+- [`backend/app/main.py`](../../backend/app/main.py)
+- [`backend/app/api/router.py`](../../backend/app/api/router.py)
+- [`backend/app/api/routers/health.py`](../../backend/app/api/routers/health.py)
+- [`backend/app/api/routers/chat.py`](../../backend/app/api/routers/chat.py)
+- [`backend/app/api/routers/medication.py`](../../backend/app/api/routers/medication.py)
+- [`backend/app/api/routers/schedule.py`](../../backend/app/api/routers/schedule.py)
+- [`backend/app/api/routers/alerts.py`](../../backend/app/api/routers/alerts.py)
+- [`backend/app/api/routers/location.py`](../../backend/app/api/routers/location.py)
+- [`backend/app/api/routers/modes.py`](../../backend/app/api/routers/modes.py)
+- [`backend/app/api/routers/guardians.py`](../../backend/app/api/routers/guardians.py)
 
 기능별 분류:
 
@@ -129,11 +129,11 @@
 
 관련 파일:
 
-- [`backend/app/services/llm_service.py`](backend/app/services/llm_service.py)
-- [`backend/app/services/alert_service.py`](backend/app/services/alert_service.py)
-- [`backend/app/services/location_service.py`](backend/app/services/location_service.py)
-- [`backend/app/services/mode_service.py`](backend/app/services/mode_service.py)
-- [`backend/app/services/guardian_service.py`](backend/app/services/guardian_service.py)
+- [`backend/app/services/llm_service.py`](../../backend/app/services/llm_service.py)
+- [`backend/app/services/alert_service.py`](../../backend/app/services/alert_service.py)
+- [`backend/app/services/location_service.py`](../../backend/app/services/location_service.py)
+- [`backend/app/services/mode_service.py`](../../backend/app/services/mode_service.py)
+- [`backend/app/services/guardian_service.py`](../../backend/app/services/guardian_service.py)
 
 기능별 역할:
 
@@ -151,7 +151,7 @@
 
 관련 파일:
 
-- [`backend/app/rules/anomaly_rules.py`](backend/app/rules/anomaly_rules.py)
+- [`backend/app/rules/anomaly_rules.py`](../../backend/app/rules/anomaly_rules.py)
 
 현재 규칙 입력:
 
@@ -175,11 +175,11 @@
 
 관련 파일:
 
-- [`backend/app/schemas/chat.py`](backend/app/schemas/chat.py)
-- [`backend/app/schemas/alerts.py`](backend/app/schemas/alerts.py)
-- [`backend/app/schemas/location.py`](backend/app/schemas/location.py)
-- [`backend/app/schemas/modes.py`](backend/app/schemas/modes.py)
-- [`backend/app/schemas/guardians.py`](backend/app/schemas/guardians.py)
+- [`backend/app/schemas/chat.py`](../../backend/app/schemas/chat.py)
+- [`backend/app/schemas/alerts.py`](../../backend/app/schemas/alerts.py)
+- [`backend/app/schemas/location.py`](../../backend/app/schemas/location.py)
+- [`backend/app/schemas/modes.py`](../../backend/app/schemas/modes.py)
+- [`backend/app/schemas/guardians.py`](../../backend/app/schemas/guardians.py)
 
 역할:
 
@@ -195,22 +195,22 @@
 
 관련 파일:
 
-- [`backend/app/core/config.py`](backend/app/core/config.py)
-- [`backend/app/core/database.py`](backend/app/core/database.py)
-- [`backend/.env.example`](backend/.env.example)
-- [`backend/requirements.txt`](backend/requirements.txt)
-- [`mobile/package.json`](mobile/package.json)
-- [`mobile/tsconfig.json`](mobile/tsconfig.json)
+- [`backend/app/core/config.py`](../../backend/app/core/config.py)
+- [`backend/app/core/database.py`](../../backend/app/core/database.py)
+- [`backend/.env.example`](../../backend/.env.example)
+- [`backend/requirements.txt`](../../backend/requirements.txt)
+- [`mobile/package.json`](../../mobile/package.json)
+- [`mobile/tsconfig.json`](../../mobile/tsconfig.json)
 
 ## 10. 문서 기능별 분류
 
 기획 및 명세 문서:
 
-- [`README.md`](README.md): 전체 프로젝트 개요와 MVP 범위
-- [`docs/proposal/README.md`](docs/proposal/README.md): 제안서 정리 공간
-- [`docs/api-spec/README.md`](docs/api-spec/README.md): API 계약
-- [`docs/architecture/database-schema.md`](docs/architecture/database-schema.md): DB 스키마 초안
-- [`docs/test-scenarios/README.md`](docs/test-scenarios/README.md): 테스트 시나리오
+- [`README.md`](../../README.md): 전체 프로젝트 개요와 MVP 범위
+- [`docs/proposal/README.md`](../../docs/proposal/README.md): 제안서 정리 공간
+- [`docs/api-spec/README.md`](../../docs/api-spec/README.md): API 계약
+- [`docs/architecture/database-schema.md`](../../docs/architecture/database-schema.md): DB 스키마 초안
+- [`docs/test-scenarios/README.md`](../../docs/test-scenarios/README.md): 테스트 시나리오
 
 ## 11. 지금 기준으로 가장 중요한 흐름
 

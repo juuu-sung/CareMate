@@ -88,7 +88,6 @@ export default function CalendarPage() {
 
       if (!scheduleOwnerId) {
         const session = await loadAuthSession();
-        console.log("[CalendarPage] session =", session);
 
         if (session?.role === "parent") {
           scheduleOwnerId = session.elderUserId || session.parentId || "";
@@ -101,7 +100,6 @@ export default function CalendarPage() {
 
       setViewerRole(resolvedViewerRole);
       setScheduleOwnerId(scheduleOwnerId);
-      console.log("[CalendarPage] final scheduleOwnerId =", scheduleOwnerId);
 
       if (!scheduleOwnerId) {
         setSchedules([]);
@@ -110,7 +108,6 @@ export default function CalendarPage() {
       }
 
       const items = await getSchedules(scheduleOwnerId);
-      console.log("[CalendarPage] schedules response =", items);
 
       setSchedules(sortSchedulesByTime(items));
       setError(null);

@@ -23,10 +23,7 @@ export async function getSchedules(elderUserId?: string): Promise<ScheduleItem[]
     ? `?${new URLSearchParams({ senior_user_id: elderUserId }).toString()}`
     : "";
 
-  console.log("[getSchedules] request =", `/schedules${searchParams}`);
-
   const response = await apiGet<ScheduleListResponse>(`/schedules${searchParams}`);
-  console.log("[getSchedules] response =", response);
 
   return response.items ?? [];
 }

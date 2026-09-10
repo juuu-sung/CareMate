@@ -3,6 +3,7 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   Alert,
@@ -28,11 +29,13 @@ export default function GuardianLoginPage() {
   const router = useRouter();
   const [phone, setPhone] = useState('');
   const [birth, setBirth] = useState('');
+  const [password, setPassword] = useState('');
+  const [linkCode, setLinkCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!phone.trim() || !birth.trim()) {
-      Alert.alert('입력 확인', '전화번호와 생년월일을 입력해주세요.');
+    if (!phone.trim() || !birth.trim() || !password) {
+      Alert.alert('입력 확인', '전화번호, 생년월일, 비밀번호를 입력해주세요.');
       return;
     }
 
@@ -46,12 +49,19 @@ export default function GuardianLoginPage() {
       return;
     }
 
+    if (password.length < 8) {
+      Alert.alert('입력 확인', '비밀번호는 8자 이상 입력해주세요.');
+      return;
+    }
+
     try {
       setLoading(true);
 
       const result = await guardianLogin({
         phone: phone.trim(),
         birth: birth.trim(),
+        password,
+        ...(linkCode.trim() ? { link_code: linkCode.trim().toUpperCase() } : {}),
       });
 
       try {
@@ -62,7 +72,8 @@ export default function GuardianLoginPage() {
             parentName: result.parent_name,
             parentAge: String(result.parent_age ?? ''),
             parentGender: result.parent_gender ?? '',
-            linkCode: result.link_code,
+            linkId: result.link_id,
+            accessToken: result.access_token,
             medications: result.medications,
             diseases: result.diseases,
             allergies: result.allergies,
@@ -83,7 +94,7 @@ export default function GuardianLoginPage() {
           parentName: result.parent_name,
           parentAge: String(result.parent_age ?? ''),
           parentGender: result.parent_gender ?? '',
-          linkCode: result.link_code,
+          linkCode: result.link_id,
           medications: result.medications,
           diseases: result.diseases,
           allergies: result.allergies,
@@ -104,7 +115,7 @@ export default function GuardianLoginPage() {
       <View style={styles.container}>
         <Text style={styles.title}>보호자 로그인</Text>
         <Text style={styles.description}>
-          가입할 때 입력한 전화번호와 생년월일로 로그인합니다.
+          가입할 때 입력한 전화번호, 생년월일, 비밀번호로 로그인합니다.
         </Text>
 
         <PhoneNumberInput
@@ -119,6 +130,35 @@ export default function GuardianLoginPage() {
           onChangeText={setBirth}
           accentColor="#05B547"
           disabled={loading}
+        />
+
+        <Text style={styles.label}>비밀번호</Text>
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="비밀번호 입력"
+          placeholderTextColor="#94A3B8"
+          secureTextEntry
+          textContentType="password"
+          autoComplete="current-password"
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={128}
+          editable={!loading}
+        />
+
+        <Text style={styles.label}>기존 계정 연동 코드</Text>
+        <TextInput
+          style={styles.input}
+          value={linkCode}
+          onChangeText={setLinkCode}
+          placeholder="기존 가입자만 6~8자리 입력"
+          placeholderTextColor="#94A3B8"
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={8}
+          editable={!loading}
         />
 
         <TouchableOpacity

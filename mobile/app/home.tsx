@@ -36,7 +36,6 @@ import { getSchedules, ScheduleItem } from '@/services/schedules';
 import { getAgentProfile } from '@/services/chat';
 import { syncMedicationRemindersIfEnabled } from '@/services/medicationReminders';
 import { getElderProfileByUserId } from '@/services/elderProfile';
-import { getParentByCode } from '@/services/parents';
 import {
   getMedicationTimeLabel,
   getSeniorMedicationPurposeLabel,
@@ -47,7 +46,6 @@ type LetterItem = {
   elder_user_id: string;
   content: string;
   created_at: string;
-  link_code: string;
   sender_role: string;
 };
 
@@ -258,22 +256,6 @@ export default function HomeScreen() {
   const loadParentDisplayName = async () => {
     if (routeParentName) {
       setResolvedParentName(routeParentName);
-      return;
-    }
-
-    if (!linkCode) {
-      return;
-    }
-
-    try {
-      const parentInfo = await getParentByCode(linkCode);
-      const fetchedName = normalizeParentDisplayName(parentInfo.parent_name);
-
-      if (fetchedName) {
-        setResolvedParentName(fetchedName);
-      }
-    } catch (error) {
-      console.log('부모님 이름 조회 오류:', error);
     }
   };
 

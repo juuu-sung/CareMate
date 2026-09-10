@@ -13,6 +13,7 @@ class User(Base):
     birth = Column(String, nullable=True)
     gender = Column(String, nullable=True)
     role = Column(String, nullable=False)  # elder / guardian
+    password_hash = Column(String, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(

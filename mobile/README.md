@@ -207,7 +207,7 @@ npm ci
 `.env`:
 
 ```env
-EXPO_PUBLIC_API_BASE_URL=http://<PRIVATE_IP>:8001/api/v1
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8001/api/v1
 ```
 
 백엔드는 다음처럼 외부 접근 가능하게 실행합니다.

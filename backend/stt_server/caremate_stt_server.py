@@ -13,10 +13,15 @@ from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
 
 BASE_MODEL = os.getenv("STT_BASE_MODEL", "openai/whisper-medium")
-ADAPTER_DIR = os.getenv(
-    "STT_ADAPTER_DIR",
-    "caremate_whisper_medium_r32_ckpt60000",
-)
+ADAPTER_DIR = os.getenv("STT_ADAPTER_DIR", "").strip()
+STT_CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "STT_CORS_ORIGINS",
+        "http://localhost:8081,http://localhost:19006",
+    ).split(",")
+    if origin.strip()
+]
 SAMPLE_RATE = int(os.getenv("STT_SAMPLE_RATE", "16000"))
 MAX_SECONDS = float(os.getenv("STT_MAX_SECONDS", "30"))
 MAX_NEW_TOKENS = int(os.getenv("STT_MAX_NEW_TOKENS", "80"))
@@ -26,7 +31,7 @@ MODEL_LABEL = os.getenv("STT_MODEL_LABEL", "whisper-medium-lora-r32-ckpt60000")
 app = FastAPI(title="CareMate Fine-tuned Whisper STT")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=STT_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -115,6 +120,9 @@ def detect_repetition_issue(text: str, duration_sec: float) -> tuple[bool, list[
 def load_model() -> None:
     global device, torch_dtype, processor, model
 
+    if not ADAPTER_DIR:
+        raise RuntimeError("STT_ADAPTER_DIR must point to the local LoRA adapter directory.")
+
     adapter_path = Path(ADAPTER_DIR).expanduser()
     if not adapter_path.exists():
         raise FileNotFoundError(f"LoRA adapter directory does not exist: {adapter_path}")
@@ -127,7 +135,7 @@ def load_model() -> None:
     print("=" * 80)
     print(f"device      : {device}")
     print(f"base_model  : {BASE_MODEL}")
-    print(f"adapter_dir : {adapter_path}")
+    print("adapter     : configured")
 
     loaded_processor = WhisperProcessor.from_pretrained(
         BASE_MODEL,
@@ -154,7 +162,7 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "device": str(device),
         "base_model": BASE_MODEL,
-        "adapter_dir": ADAPTER_DIR,
+        "adapter_configured": bool(ADAPTER_DIR),
         "model": MODEL_LABEL,
         "max_new_tokens": MAX_NEW_TOKENS,
         "num_beams": NUM_BEAMS,

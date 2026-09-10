@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -10,6 +11,7 @@ class GuardianSignupRequest(BaseModel):
     name: str
     birth: str
     phone: str
+    password: str = Field(..., min_length=8, max_length=128)
     link_code: str
 
     relation: Optional[str] = None
@@ -23,11 +25,17 @@ class GuardianSignupResponse(BaseModel):
     parent_name: str
     parent_age: Optional[int] = None
     parent_gender: Optional[str] = None
+    link_id: str
+    access_token: str
+    token_type: str = "bearer"
+    expires_at: datetime
 
 
 class GuardianLoginRequest(BaseModel):
     phone: str
     birth: str
+    password: str = Field(..., min_length=8, max_length=128)
+    link_code: Optional[str] = Field(default=None, min_length=6, max_length=8)
 
 
 class GuardianLoginResponse(BaseModel):
@@ -37,7 +45,10 @@ class GuardianLoginResponse(BaseModel):
     parent_name: str
     parent_age: Optional[int] = None
     parent_gender: Optional[str] = None
-    link_code: str
+    link_id: str
+    access_token: str
+    token_type: str = "bearer"
+    expires_at: datetime
     medications: str = ""
     diseases: str = ""
     allergies: str = ""
@@ -45,13 +56,6 @@ class GuardianLoginResponse(BaseModel):
     doctor_contact: str = ""
     memo: str = ""
     message: str = "보호자 로그인이 완료되었습니다."
-
-
-class ParentInfoByCodeResponse(BaseModel):
-    parent_id: str
-    parent_name: str
-    parent_age: Optional[int] = None
-    parent_gender: Optional[str] = None
 
 
 class GuardianCarePenaltyResponse(BaseModel):

@@ -125,21 +125,17 @@ export async function registerCurrentDeviceForPush(session: AuthSession) {
   const expoPushToken = tokenResult.data;
   const deviceId = await loadDeviceId();
 
-  const elderUserId =
-    session.role === 'parent'
-      ? session.elderUserId || session.parentId
-      : session.parentId;
-  const linkCode = session.linkCode;
-  const userId =
-    session.role === 'parent'
-      ? session.parentId
-      : session.guardianId || undefined;
+  const identity = session.role === 'parent'
+    ? {
+        user_id: session.parentId,
+        elder_user_id: session.elderUserId || session.parentId,
+        link_code: session.linkCode,
+      }
+    : {};
 
   await apiPost('/push-tokens/register', {
-    user_id: userId,
+    ...identity,
     user_role: session.role === 'parent' ? 'elder' : 'guardian',
-    elder_user_id: elderUserId,
-    link_code: linkCode,
     expo_push_token: expoPushToken,
     device_id: deviceId,
     platform: Platform.OS,

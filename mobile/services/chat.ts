@@ -264,10 +264,6 @@ export function sendChatSpeech(payload: ChatSpeechRequest) {
     formData.append("requester_role", payload.requesterRole);
   }
 
-  if (payload.linkCode) {
-    formData.append("link_code", payload.linkCode);
-  }
-
   formData.append("transcript_visibility", payload.transcriptVisibility);
 
   if (payload.latitude !== undefined) {

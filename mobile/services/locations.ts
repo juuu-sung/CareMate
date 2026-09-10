@@ -24,10 +24,9 @@ export function syncElderLocation(payload: LocationSyncPayload) {
 }
 
 export function requestGuardianLocationRefresh(elderUserId: string, linkCode: string) {
-  return apiPost<LocationRequestStatus>("/locations/request", {
-    elder_user_id: elderUserId,
-    link_code: linkCode,
-  });
+  void elderUserId;
+  void linkCode;
+  return apiPost<LocationRequestStatus>("/locations/request", {});
 }
 
 export function getPendingLocationRequest(elderUserId: string, linkCode: string) {

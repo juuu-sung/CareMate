@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     TTS_INSTRUCTIONS: str | None = None
     AGENT_SESSION_TTL_MINUTES: int = 15
     ALERT_SWEEP_TOKEN: str | None = None
+    GUARDIAN_SESSION_TTL_MINUTES: int = 1440
+    CORS_ORIGINS: str = "http://localhost:8081,http://localhost:19006"
 
     # ----- AI 모델 설정 -----
     AI_MODEL_DEVICE: str = "cpu"
@@ -171,6 +173,14 @@ class Settings(BaseSettings):
     @property
     def alert_sweep_token(self) -> str:
         return self.ALERT_SWEEP_TOKEN or ""
+
+    @property
+    def guardian_session_ttl_minutes(self) -> int:
+        return max(15, min(self.GUARDIAN_SESSION_TTL_MINUTES, 10080))
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
     @property
     def ai_model_device(self) -> str:

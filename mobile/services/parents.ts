@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut } from '@/services/api';
+import { apiPost, apiPut, buildAuthHeaders } from '@/services/api';
 
 export type ParentSignupPayload = {
   name: string;
@@ -26,15 +26,6 @@ export type ParentLoginResponse = {
   link_code: string;
   guardian_phone: string;
   message?: string;
-};
-
-export type ParentByCodeResponse = {
-  parent_id: string;
-  parent_name: string;
-  parent_age?: number;
-  parent_gender?: string;
-  link_code: string;
-  is_used: boolean;
 };
 
 export type ParentCareInfoPayload = {
@@ -82,10 +73,6 @@ export function parentLogin(payload: ParentLoginPayload) {
   return apiPost<ParentLoginResponse>('/parents/login', payload);
 }
 
-export function getParentByCode(linkCode: string) {
-  return apiGet<ParentByCodeResponse>(`/parents/by-code/${linkCode}`);
-}
-
 export function updateParentCareInfo(
   parentId: string,
   payload: ParentCareInfoPayload
@@ -107,6 +94,7 @@ export async function updateParentCareInfoWithImages(
     `${BASE_URL}/parents/${parentId}/care-info-with-images`,
     {
       method: 'PUT',
+      headers: await buildAuthHeaders(),
       body: formData,
     }
   );
@@ -143,6 +131,7 @@ export async function analyzeParentMedicationImages(
     `${BASE_URL}/parents/${parentId}/medication-image-analysis`,
     {
       method: 'POST',
+      headers: await buildAuthHeaders(),
       body: formData,
     }
   );

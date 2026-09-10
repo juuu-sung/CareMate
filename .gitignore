@@ -7,9 +7,17 @@ __pycache__/
 .pytest_cache/
 .venv/
 .env
+.env.*
+!.env.example
+!**/.env.example
 *.pyc
 .DS_Store
 **/.DS_Store
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.mobileprovision
 backend/uploads/
 backend/test.mp3
 xcuserdata/
@@ -31,6 +39,13 @@ mobile/ios/CareMate/Images.xcassets/SplashScreenLegacy.imageset/
 
 # macOS duplicate files
 * 2.*
+* 3.*
+
+# Local reports and generated workspaces
+/output/
+/evidence/
+/tmp/
+/portfolio-site/
 
 # AI model weights (upload to Google Drive separately)
 backend/app/ai_models/checkpoints/

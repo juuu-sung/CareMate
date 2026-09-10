@@ -1,9 +1,19 @@
-const FALLBACK_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+import { getGuardianAccessToken } from '@/services/authSession';
+
+const FALLBACK_API_BASE_URL = 'http://127.0.0.1:8001/api/v1';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? FALLBACK_API_BASE_URL;
 
 export function buildApiUrl(path: string) {
   return `${API_BASE_URL}${path}`;
+}
+
+export async function buildAuthHeaders(extraHeaders: Record<string, string> = {}) {
+  const accessToken = await getGuardianAccessToken();
+  return {
+    ...extraHeaders,
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
 }
 
 async function createApiError(response: Response) {
@@ -24,7 +34,9 @@ async function createApiError(response: Response) {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(buildApiUrl(path));
+  const response = await fetch(buildApiUrl(path), {
+    headers: await buildAuthHeaders(),
+  });
 
   if (!response.ok) {
     throw await createApiError(response);
@@ -36,14 +48,18 @@ export async function apiGet<T>(path: string): Promise<T> {
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     method: "POST",
-    headers: {
+    headers: await buildAuthHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     throw await createApiError(response);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;
@@ -52,9 +68,9 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     method: "PATCH",
-    headers: {
+    headers: await buildAuthHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(body),
   });
 
@@ -68,9 +84,9 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     method: "PUT",
-    headers: {
+    headers: await buildAuthHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(body),
   });
 
@@ -84,19 +100,28 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
 export async function apiDelete<T>(path: string): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     method: "DELETE",
+    headers: await buildAuthHeaders(),
   });
 
   if (!response.ok) {
     throw await createApiError(response);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
-export function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+  const accessToken = await getGuardianAccessToken();
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", buildApiUrl(path));
+    if (accessToken) {
+      xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    }
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {

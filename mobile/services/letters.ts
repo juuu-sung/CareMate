@@ -11,7 +11,6 @@ export type LetterItem = {
   elder_user_id: string;
   content: string;
   created_at: string;
-  link_code: string;
   sender_role: string;
 };
 
@@ -22,8 +21,6 @@ type LetterListResponse = {
 
 export function sendLetterFromGuardian(payload: SendLetterPayload) {
   return apiPost("/letters/send", {
-    elder_user_id: payload.elderUserId,
-    link_code: payload.linkCode,
     content: payload.content,
   });
 }
@@ -32,4 +29,8 @@ export function fetchLettersForElder(elderUserId: string, linkCode: string) {
   return apiGet<LetterListResponse>(
     `/letters/elder/${elderUserId}?link_code=${encodeURIComponent(linkCode)}`
   );
+}
+
+export function fetchLettersForGuardian(elderUserId: string) {
+  return apiGet<LetterListResponse>(`/letters/elder/${elderUserId}`);
 }

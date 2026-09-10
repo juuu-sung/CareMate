@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.api.deps import get_current_guardian
 from app.schemas.health_analysis import DailyHealthAnalysisResponse, UtteranceHealthAnalysisResponse
+from app.services.guardian_auth_service import GuardianPrincipal
 
 router = APIRouter(prefix="/guardians", tags=["health-analysis"])
 
@@ -15,11 +17,13 @@ router = APIRouter(prefix="/guardians", tags=["health-analysis"])
 )
 def get_elder_daily_health(
     elder_user_id: str,
-    link_code: str = Query(...),
     start_date: date = Query(default=None),
     end_date: date = Query(default=None),
+    principal: GuardianPrincipal = Depends(get_current_guardian),
     db: Session = Depends(get_db),
 ) -> DailyHealthAnalysisResponse:
+    if elder_user_id != principal.elder_user_id:
+        raise HTTPException(status_code=403, detail="다른 사용자의 건강정보에는 접근할 수 없습니다.")
     today = date.today()
     if end_date is None:
         end_date = today
@@ -31,7 +35,7 @@ def get_elder_daily_health(
         data = get_daily_health_analysis(
             db,
             elder_user_id=elder_user_id,
-            link_code=link_code,
+            link_code=principal.link_code,
             start_date=start_date,
             end_date=end_date,
         )
@@ -46,16 +50,18 @@ def get_elder_daily_health(
 )
 def get_elder_utterance_health(
     elder_user_id: str,
-    link_code: str = Query(...),
     limit: int = Query(default=40, le=100),
+    principal: GuardianPrincipal = Depends(get_current_guardian),
     db: Session = Depends(get_db),
 ) -> UtteranceHealthAnalysisResponse:
+    if elder_user_id != principal.elder_user_id:
+        raise HTTPException(status_code=403, detail="다른 사용자의 건강정보에는 접근할 수 없습니다.")
     try:
         from app.services.guardian_health_service import get_utterance_health_analysis
         data = get_utterance_health_analysis(
             db,
             elder_user_id=elder_user_id,
-            link_code=link_code,
+            link_code=principal.link_code,
             limit=limit,
         )
         return UtteranceHealthAnalysisResponse(**data)

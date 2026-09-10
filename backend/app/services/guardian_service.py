@@ -21,6 +21,11 @@ from app.services.openai_service import (
     summarize_guardian_conversation_days,
 )
 from app.services.push_notification_service import dispatch_elder_schedule_sync_push
+from app.services.guardian_auth_service import (
+    hash_guardian_password,
+    issue_guardian_session,
+    verify_guardian_password,
+)
 
 SEOUL_TZ = ZoneInfo("Asia/Seoul")
 VALID_SCHEDULE_STATUSES = {"scheduled", "completed", "cancelled"}
@@ -167,45 +172,6 @@ def _get_guardian_schedule_row(db: Session, elder_user_id: str, schedule_id: str
         raise ValueError("일정을 찾을 수 없습니다.")
 
     return row
-
-
-def get_parent_by_code(db: Session, link_code: str):
-    link = (
-        db.query(GuardianLink)
-        .filter(GuardianLink.link_code == link_code)
-        .first()
-    )
-    if not link:
-        raise ValueError("유효하지 않은 연동 코드입니다.")
-
-    parent_user = db.query(User).filter(User.id == link.elder_user_id).first()
-    if not parent_user:
-        raise ValueError("부모님 정보를 찾을 수 없습니다.")
-
-    elder_profile = (
-        db.query(ElderProfile)
-        .filter(ElderProfile.user_id == parent_user.id)
-        .first()
-    )
-
-    age = calculate_age_from_birth(parent_user.birth)
-
-    return {
-        "parent_id": parent_user.id,
-        "parent_name": parent_user.name,
-        "age": age,
-        "phone": parent_user.phone,
-        "birth": parent_user.birth,
-        "gender": parent_user.gender,
-        "link_code": link.link_code,
-        "address": elder_profile.address if elder_profile else "",
-        "medications": elder_profile.medications if elder_profile else "",
-        "diseases": elder_profile.diseases if elder_profile else "",
-        "allergies": elder_profile.allergies if elder_profile else "",
-        "hospital": elder_profile.hospital if elder_profile else "",
-        "doctor_contact": elder_profile.doctor_contact if elder_profile else "",
-        "memo": elder_profile.memo if elder_profile else "",
-    }
 
 
 def get_guardian_dashboard(db: Session, elder_user_id: str, link_code: str):
@@ -1037,6 +1003,7 @@ def create_guardian_and_link(db: Session, payload):
         birth=payload.birth,
         gender=payload.gender,
         role="guardian",
+        password_hash=hash_guardian_password(payload.password),
     )
     db.add(new_user)
     db.flush()
@@ -1050,6 +1017,8 @@ def create_guardian_and_link(db: Session, payload):
     db.commit()
     db.refresh(new_user)
 
+    issued_session = issue_guardian_session(db, link)
+
     return {
         "message": "보호자 회원가입이 완료되었습니다.",
         "guardian_id": guardian_user_id,
@@ -1058,13 +1027,16 @@ def create_guardian_and_link(db: Session, payload):
         "parent_name": parent_user.name,
         "parent_age": calculate_age_from_birth(parent_user.birth),
         "parent_gender": parent_user.gender,
+        "link_id": issued_session.link_id,
+        "access_token": issued_session.access_token,
+        "expires_at": issued_session.expires_at,
     }
 
 
 def login_guardian(db: Session, payload: GuardianLoginRequest):
     guardian_user = _find_guardian_user(db, payload)
     if not guardian_user:
-        raise ValueError("전화번호 또는 생년월일이 올바르지 않습니다.")
+        raise ValueError("로그인 정보가 올바르지 않습니다.")
 
     link = (
         db.query(GuardianLink)
@@ -1074,6 +1046,16 @@ def login_guardian(db: Session, payload: GuardianLoginRequest):
     )
     if not link:
         raise ValueError("연동된 부모님 정보를 찾을 수 없습니다.")
+
+    if guardian_user.password_hash:
+        if not verify_guardian_password(payload.password, guardian_user.password_hash):
+            raise ValueError("로그인 정보가 올바르지 않습니다.")
+    else:
+        migration_code = (payload.link_code or "").strip().upper()
+        if not migration_code or migration_code != str(link.link_code).strip().upper():
+            raise ValueError("기존 계정 보안 전환을 위해 부모님 연동 코드를 입력해 주세요.")
+        guardian_user.password_hash = hash_guardian_password(payload.password)
+        db.commit()
 
     parent_user = db.query(User).filter(User.id == link.elder_user_id).first()
     if not parent_user:
@@ -1085,6 +1067,8 @@ def login_guardian(db: Session, payload: GuardianLoginRequest):
         .first()
     )
 
+    issued_session = issue_guardian_session(db, link)
+
     return {
         "message": "보호자 로그인이 완료되었습니다.",
         "guardian_id": guardian_user.id,
@@ -1093,7 +1077,9 @@ def login_guardian(db: Session, payload: GuardianLoginRequest):
         "parent_name": parent_user.name,
         "parent_age": calculate_age_from_birth(parent_user.birth),
         "parent_gender": parent_user.gender,
-        "link_code": link.link_code,
+        "link_id": issued_session.link_id,
+        "access_token": issued_session.access_token,
+        "expires_at": issued_session.expires_at,
         "medications": elder_profile.medications if elder_profile else "",
         "diseases": elder_profile.diseases if elder_profile else "",
         "allergies": elder_profile.allergies if elder_profile else "",

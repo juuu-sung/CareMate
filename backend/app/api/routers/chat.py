@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.api.deps import get_optional_guardian
 from app.schemas.chat import (
     ChatHistoryResponse,
     ChatMessageRequest,
@@ -17,12 +18,27 @@ from app.services.llm_service import build_chat_response, build_speech_response
 from app.services.chat_log_service import list_chat_logs
 from app.services.openai_service import OpenAIServiceError, generate_place_status_summary
 from app.services.openai_tts_service import OpenAITTSServiceError, synthesize_speech
+from app.services.guardian_auth_service import GuardianPrincipal
 
 router = APIRouter()
 
 
 @router.post("/message", response_model=ChatMessageResponse)
-def send_message(payload: ChatMessageRequest, db: Session = Depends(get_db)) -> ChatMessageResponse:
+def send_message(
+    payload: ChatMessageRequest,
+    principal: GuardianPrincipal | None = Depends(get_optional_guardian),
+    db: Session = Depends(get_db),
+) -> ChatMessageResponse:
+    if principal is not None:
+        payload = payload.model_copy(
+            update={
+                "elder_user_id": principal.elder_user_id,
+                "link_code": principal.link_code,
+                "requester_role": "guardian",
+            }
+        )
+    elif payload.requester_role == "guardian":
+        raise HTTPException(status_code=401, detail="보호자 로그인이 필요합니다.")
     try:
         return build_chat_response(payload, db)
     except ValueError as exc:
@@ -34,8 +50,14 @@ def get_history(
     limit: int = Query(50, ge=1, le=100),
     elder_user_id: str | None = Query(default=None),
     requester_role: str | None = Query(default=None),
+    principal: GuardianPrincipal | None = Depends(get_optional_guardian),
     db: Session = Depends(get_db),
 ) -> ChatHistoryResponse:
+    if principal is not None:
+        elder_user_id = principal.elder_user_id
+        requester_role = "guardian"
+    elif requester_role == "guardian":
+        raise HTTPException(status_code=401, detail="보호자 로그인이 필요합니다.")
     return ChatHistoryResponse(
         items=list_chat_logs(
             db,
@@ -64,6 +86,7 @@ def get_place_status(payload: ChatPlaceStatusRequest) -> ChatPlaceStatusResponse
 @router.post("/speech", response_model=ChatSpeechResponse)
 async def send_speech(
     background_tasks: BackgroundTasks,
+    principal: GuardianPrincipal | None = Depends(get_optional_guardian),
     db: Session = Depends(get_db),
     audio_file: UploadFile = File(...),
     mode: str = Form("basic"),
@@ -80,6 +103,13 @@ async def send_speech(
 ) -> ChatSpeechResponse:
     audio_bytes = await audio_file.read()
 
+    if principal is not None:
+        elder_user_id = principal.elder_user_id
+        link_code = principal.link_code
+        requester_role = "guardian"
+    elif requester_role == "guardian":
+        raise HTTPException(status_code=401, detail="보호자 로그인이 필요합니다.")
+
     payload = ChatSpeechRequest(
         mode=mode,
         audio_format=audio_format,
@@ -93,8 +123,6 @@ async def send_speech(
         latitude=latitude,
         longitude=longitude,
     )
-
-    print("DEBUG /speech payload:", payload.model_dump())
 
     try:
         return build_speech_response(

@@ -15,7 +15,11 @@ import {
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { fetchLettersForElder, LetterItem, sendLetterFromGuardian } from '@/services/letters';
+import {
+  fetchLettersForGuardian,
+  LetterItem,
+  sendLetterFromGuardian,
+} from '@/services/letters';
 
 function formatLetterDateTitle(timestamp: string) {
   const date = new Date(timestamp);
@@ -170,7 +174,7 @@ export default function GuardianLetterScreen() {
 
     try {
       setHistoryLoading(true);
-      const response = await fetchLettersForElder(elderUserId, linkCode);
+      const response = await fetchLettersForGuardian(elderUserId);
       setSentLetters(
         response.letters.filter((item) => item.sender_role === 'guardian')
       );

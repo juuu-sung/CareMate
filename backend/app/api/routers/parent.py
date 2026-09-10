@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.api.deps import get_current_guardian
 from app.schemas.parent import (
     ParentCareInfoUpdateRequest,
     ParentLoginRequest,
@@ -13,11 +14,11 @@ from app.schemas.parent import (
 from app.services.parent_service import (
     analyze_parent_medication_images,
     create_parent,
-    get_parent_by_code,
     login_parent,
     update_parent_care_info,
     update_parent_care_info_with_images,
 )
+from app.services.guardian_auth_service import GuardianPrincipal
 
 router = APIRouter(prefix="/parents", tags=["parents"])
 
@@ -43,20 +44,15 @@ def parent_login(payload: ParentLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/by-code/{link_code}")
-def parent_by_code(link_code: str, db: Session = Depends(get_db)):
-    try:
-        return get_parent_by_code(db, link_code)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
 @router.put("/{parent_user_id}/care-info")
 def parent_care_info_update(
     parent_user_id: str,
     payload: ParentCareInfoUpdateRequest,
+    principal: GuardianPrincipal = Depends(get_current_guardian),
     db: Session = Depends(get_db),
 ):
+    if parent_user_id != principal.elder_user_id:
+        raise HTTPException(status_code=403, detail="다른 사용자의 건강정보는 수정할 수 없습니다.")
     try:
         return update_parent_care_info(db, parent_user_id, payload)
     except ValueError as e:
@@ -68,8 +64,11 @@ async def parent_medication_image_analysis(
     parent_user_id: str,
     document_type: str = Form("medication_bag"),
     images: Optional[List[UploadFile]] = File(None),
+    principal: GuardianPrincipal = Depends(get_current_guardian),
     db: Session = Depends(get_db),
 ):
+    if parent_user_id != principal.elder_user_id:
+        raise HTTPException(status_code=403, detail="다른 사용자의 건강정보는 분석할 수 없습니다.")
     try:
         return await analyze_parent_medication_images(
             db=db,
@@ -79,11 +78,10 @@ async def parent_medication_image_analysis(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        print("medication-image-analysis error:", repr(e))
+    except Exception:
         raise HTTPException(
             status_code=500,
-            detail=f"약 사진 분석 서버 오류: {str(e)}",
+            detail="약 사진 분석 중 서버 오류가 발생했습니다.",
         )
 
 
@@ -101,8 +99,11 @@ async def parent_care_info_update_with_images(
     medication_bag_images: Optional[List[UploadFile]] = File(None),
     disease_document_images: Optional[List[UploadFile]] = File(None),
     allergy_document_images: Optional[List[UploadFile]] = File(None),
+    principal: GuardianPrincipal = Depends(get_current_guardian),
     db: Session = Depends(get_db),
 ):
+    if parent_user_id != principal.elder_user_id:
+        raise HTTPException(status_code=403, detail="다른 사용자의 건강정보는 수정할 수 없습니다.")
     try:
         return await update_parent_care_info_with_images(
             db=db,
@@ -123,9 +124,8 @@ async def parent_care_info_update_with_images(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    except Exception as e:
-        print("care-info-with-images error:", repr(e))
+    except Exception:
         raise HTTPException(
             status_code=500,
-            detail=f"care-info-with-images 서버 오류: {str(e)}",
+            detail="건강정보 저장 중 서버 오류가 발생했습니다.",
         )

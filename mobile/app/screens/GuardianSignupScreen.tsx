@@ -24,7 +24,7 @@ import {
   isValidPersonName,
 } from '@/components/common/ProfileFormInputs';
 import { guardianSignup } from '@/services/guardian';
-import { getParentByCode } from '@/services/parents';
+import { buildGuardianAuthSession, saveAuthSession } from '@/services/authSession';
 
 const relationOptions = ['아들', '딸', '며느리', '사위', '손주', '기타'];
 const ORANGE = '#F97316';
@@ -41,12 +41,23 @@ export default function GuardianSignupScreen() {
   const [birth, setBirth] = useState('');
   const [gender, setGender] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [relation, setRelation] = useState('');
   const [linkCode, setLinkCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!name.trim() || !birth.trim() || !gender || !phone.trim() || !relation || !linkCode.trim()) {
+    if (
+      !name.trim() ||
+      !birth.trim() ||
+      !gender ||
+      !phone.trim() ||
+      !password ||
+      !passwordConfirm ||
+      !relation ||
+      !linkCode.trim()
+    ) {
       Alert.alert('입력 확인', '모든 항목을 입력해주세요.');
       return;
     }
@@ -66,21 +77,42 @@ export default function GuardianSignupScreen() {
       return;
     }
 
+    if (password.length < 8) {
+      Alert.alert('입력 확인', '비밀번호는 8자 이상 입력해주세요.');
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      Alert.alert('입력 확인', '비밀번호가 서로 일치하지 않습니다.');
+      return;
+    }
+
     const normalizedCode = linkCode.trim().toUpperCase();
 
     try {
       setLoading(true);
 
-      const parentInfo = await getParentByCode(normalizedCode);
-
       const signupResult = await guardianSignup({
         name: name.trim(),
         birth: birth.trim(),
         phone: phone.trim(),
+        password,
         gender,
         relation,
         link_code: normalizedCode,
       });
+
+      await saveAuthSession(
+        buildGuardianAuthSession({
+          guardianId: signupResult.guardian_id,
+          parentId: signupResult.parent_id,
+          parentName: signupResult.parent_name,
+          parentAge: String(signupResult.parent_age ?? ''),
+          parentGender: signupResult.parent_gender ?? '',
+          linkId: signupResult.link_id,
+          accessToken: signupResult.access_token,
+        })
+      );
 
       router.push({
         pathname: '/guardian-parent-info',
@@ -89,12 +121,12 @@ export default function GuardianSignupScreen() {
           guardianBirth: birth.trim(),
           guardianPhone: phone.trim(),
           guardianRelation: relation,
-          guardianId: signupResult.guardian_id ?? '',
-          linkCode: normalizedCode,
-          parentId: parentInfo.parent_id,
-          parentName: parentInfo.parent_name,
-          parentAge: String(parentInfo.parent_age ?? ''),
-          parentGender: parentInfo.parent_gender ?? '',
+          guardianId: signupResult.guardian_id,
+          linkCode: signupResult.link_id,
+          parentId: signupResult.parent_id,
+          parentName: signupResult.parent_name,
+          parentAge: String(signupResult.parent_age ?? ''),
+          parentGender: signupResult.parent_gender ?? '',
         },
       });
     } catch (error: any) {
@@ -145,6 +177,38 @@ export default function GuardianSignupScreen() {
           disabled={loading}
         />
 
+        <Text style={styles.label}>비밀번호 *</Text>
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="8자 이상 입력"
+          placeholderTextColor="#A0A0A0"
+          secureTextEntry
+          textContentType="newPassword"
+          autoComplete="new-password"
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={128}
+          editable={!loading}
+        />
+
+        <Text style={styles.label}>비밀번호 확인 *</Text>
+        <TextInput
+          style={styles.input}
+          value={passwordConfirm}
+          onChangeText={setPasswordConfirm}
+          placeholder="비밀번호 다시 입력"
+          placeholderTextColor="#A0A0A0"
+          secureTextEntry
+          textContentType="newPassword"
+          autoComplete="new-password"
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={128}
+          editable={!loading}
+        />
+
         <Text style={styles.label}>부모님과의 관계 *</Text>
         <View style={styles.relationGrid}>
           {relationOptions.map((item) => (
@@ -170,16 +234,16 @@ export default function GuardianSignupScreen() {
             style={styles.linkInput}
             value={linkCode}
             onChangeText={setLinkCode}
-            placeholder="예: PC0YEH"
+            placeholder="예: PC0Y7EH2"
             placeholderTextColor="#A0A0A0"
             autoCapitalize="characters"
-            maxLength={6}
+            maxLength={8}
           />
           <Ionicons name="link-outline" size={23} color={ORANGE_DARK} />
         </View>
 
         <Text style={styles.helperText}>
-          부모님 가입 완료 화면에 표시된 6자리 연동 코드를 입력해주세요.
+          부모님 가입 완료 화면에 표시된 8자리 일회용 연동 코드를 입력해주세요.
         </Text>
 
         <TouchableOpacity

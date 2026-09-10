@@ -34,7 +34,6 @@ def get_latest_elder_location(db: Session, elder_user_id: str, link_code: str) -
         return {
             "status": "unavailable",
             "elder_user_id": elder_user_id,
-            "link_code": link_code,
             "latitude": None,
             "longitude": None,
             "source": None,
@@ -45,7 +44,6 @@ def get_latest_elder_location(db: Session, elder_user_id: str, link_code: str) -
     return {
         "status": "available",
         "elder_user_id": elder_user_id,
-        "link_code": link_code,
         "latitude": float(row["latitude"]),
         "longitude": float(row["longitude"]),
         "source": row["source"],
