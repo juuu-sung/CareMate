@@ -30,6 +30,7 @@ import {
   stopBackgroundLocationSync,
 } from '@/services/locationTask';
 import { CHAT_TTS_VOICE_OPTIONS } from '@/services/chat';
+import { parentLogout } from '@/services/parents';
 
 type PermissionStatusLabel =
   | '백그라운드 허용됨'
@@ -228,6 +229,11 @@ export default function SettingsPage() {
           void (async () => {
             try {
               await stopBackgroundLocationSync();
+              try {
+                await parentLogout();
+              } catch (serverLogoutError) {
+                console.log('부모님 서버 로그아웃 오류:', serverLogoutError);
+              }
               await clearAuthSession();
               router.replace('/');
             } catch (logoutError) {

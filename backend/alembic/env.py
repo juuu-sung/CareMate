@@ -14,6 +14,7 @@ from app.models.voice_utterance import VoiceUtterance  # noqa: F401
 from app.models.voice_health_analysis import VoiceHealthAnalysis  # noqa: F401
 from app.models.daily_health_analysis import DailyHealthAnalysis  # noqa: F401
 from app.models.guardian_session import GuardianSession  # noqa: F401
+from app.models.elder_session import ElderSession  # noqa: F401
 
 
 config = context.config

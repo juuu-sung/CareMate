@@ -1,4 +1,4 @@
-import { getGuardianAccessToken } from '@/services/authSession';
+import { getAccessToken } from '@/services/authSession';
 
 const FALLBACK_API_BASE_URL = 'http://127.0.0.1:8001/api/v1';
 
@@ -9,7 +9,7 @@ export function buildApiUrl(path: string) {
 }
 
 export async function buildAuthHeaders(extraHeaders: Record<string, string> = {}) {
-  const accessToken = await getGuardianAccessToken();
+  const accessToken = await getAccessToken();
   return {
     ...extraHeaders,
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
@@ -115,7 +115,7 @@ export async function apiDelete<T>(path: string): Promise<T> {
 }
 
 export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
-  const accessToken = await getGuardianAccessToken();
+  const accessToken = await getAccessToken();
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", buildApiUrl(path));

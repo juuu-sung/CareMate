@@ -1,3 +1,5 @@
+import { buildAuthHeaders } from '@/services/api';
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 export type ElderAgentProfile = {
@@ -16,7 +18,8 @@ export async function fetchElderAgentProfile(
   }
 
   const response = await fetch(
-    `${API_BASE_URL}/elder-profiles/${elderUserId}/agent`
+    `${API_BASE_URL}/elder-profiles/${elderUserId}/agent`,
+    { headers: await buildAuthHeaders() }
   );
 
   if (!response.ok) {
@@ -39,9 +42,9 @@ export async function updateElderAgentProfile({
     `${API_BASE_URL}/elder-profiles/${elderUserId}/agent`,
     {
       method: 'PATCH',
-      headers: {
+      headers: await buildAuthHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify({
         agent_name: agentName,
         selected_voice: selectedVoice ?? null,

@@ -6,6 +6,7 @@ export type ParentAuthSession = {
   parentId: string;
   elderUserId: string;
   parentName: string;
+  accessToken: string;
   linkCode: string;
   guardianPhone: string;
   agentName: string;
@@ -77,13 +78,14 @@ function parseAuthSession(value: unknown): AuthSession | null {
     const parentId = normalizeString(value.parentId);
     const elderUserId = normalizeString(value.elderUserId) || parentId;
     const parentName = normalizeString(value.parentName);
+    const accessToken = normalizeString(value.accessToken);
     const linkCode = normalizeString(value.linkCode);
     const agentName =
       normalizeString(value.agentName) || normalizeString(value.agent_name);
     const agentVoice =
       normalizeString(value.agentVoice) || normalizeString(value.agent_voice);
 
-    if (!parentId || !parentName || !linkCode) {
+    if (!parentId || !parentName || !linkCode || !accessToken) {
       return null;
     }
 
@@ -92,6 +94,7 @@ function parseAuthSession(value: unknown): AuthSession | null {
       parentId,
       elderUserId,
       parentName,
+      accessToken,
       linkCode,
       guardianPhone: normalizeString(value.guardianPhone),
       agentName: agentName || '케어',
@@ -137,6 +140,7 @@ export function buildParentAuthSession(input: {
   parentId: string;
   elderUserId?: string;
   parentName: string;
+  accessToken?: string;
   linkCode: string;
   guardianPhone?: string;
   agentName?: string;
@@ -147,6 +151,7 @@ export function buildParentAuthSession(input: {
     parentId: input.parentId,
     elderUserId: input.elderUserId || input.parentId,
     parentName: input.parentName,
+    accessToken: input.accessToken || '',
     linkCode: input.linkCode,
     guardianPhone: input.guardianPhone || '',
     agentName: input.agentName?.trim() || '케어',
@@ -225,15 +230,34 @@ export function getAuthSessionHomeRoute(session: AuthSession) {
   };
 }
 
+function isSamePrincipal(existing: AuthSession, next: AuthSession) {
+  if (existing.role !== next.role) {
+    return false;
+  }
+
+  if (existing.role === 'parent' && next.role === 'parent') {
+    return existing.elderUserId === next.elderUserId;
+  }
+
+  if (existing.role === 'guardian' && next.role === 'guardian') {
+    return (
+      existing.guardianId === next.guardianId &&
+      existing.linkId === next.linkId
+    );
+  }
+
+  return false;
+}
+
 export async function saveAuthSession(session: AuthSession) {
   let sessionToSave = session;
-  if (session.role === 'guardian' && !session.accessToken) {
+  if (!session.accessToken) {
     const existingSession = await loadAuthSession();
-    if (existingSession?.role === 'guardian') {
+    if (existingSession && isSamePrincipal(existingSession, session)) {
       sessionToSave = {
         ...session,
         accessToken: existingSession.accessToken,
-      };
+      } as AuthSession;
     }
   }
 
@@ -307,4 +331,9 @@ async function deleteLegacySessionFile() {
 export async function getGuardianAccessToken() {
   const session = await loadAuthSession();
   return session?.role === 'guardian' ? session.accessToken : '';
+}
+
+export async function getAccessToken() {
+  const session = await loadAuthSession();
+  return session?.accessToken || '';
 }

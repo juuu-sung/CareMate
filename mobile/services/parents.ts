@@ -17,6 +17,9 @@ export type ParentSignupResponse = {
   parent_id: string;
   parent_name: string;
   link_code: string;
+  access_token: string;
+  token_type: 'bearer';
+  expires_at: string;
   message?: string;
 };
 
@@ -25,6 +28,9 @@ export type ParentLoginResponse = {
   parent_name: string;
   link_code: string;
   guardian_phone: string;
+  access_token: string;
+  token_type: 'bearer';
+  expires_at: string;
   message?: string;
 };
 
@@ -71,6 +77,10 @@ export function parentSignup(payload: ParentSignupPayload) {
 
 export function parentLogin(payload: ParentLoginPayload) {
   return apiPost<ParentLoginResponse>('/parents/login', payload);
+}
+
+export function parentLogout() {
+  return apiPost<void>('/parents/logout', {});
 }
 
 export function updateParentCareInfo(

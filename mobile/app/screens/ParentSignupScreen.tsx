@@ -24,6 +24,10 @@ import {
   isValidPersonName,
 } from '@/components/common/ProfileFormInputs';
 import { parentSignup } from '@/services/parents';
+import {
+  buildParentAuthSession,
+  saveAuthSession,
+} from '@/services/authSession';
 
 const ORANGE = '#F97316';
 const ORANGE_DARK = '#EA580C';
@@ -81,6 +85,16 @@ export default function ParentSignupScreen() {
         address: address.trim(),
         phone: phone.trim(),
       });
+
+      await saveAuthSession(
+        buildParentAuthSession({
+          parentId: result.parent_id,
+          elderUserId: result.parent_id,
+          parentName: result.parent_name,
+          accessToken: result.access_token,
+          linkCode: result.link_code,
+        })
+      );
 
       router.push({
         pathname: '/parent-complete',

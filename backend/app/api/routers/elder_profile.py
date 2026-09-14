@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.api.deps import (
+    CarePrincipal,
+    get_current_care_principal,
+    get_db,
+    require_elder_access,
+)
 from app.models.elder_profile import ElderProfile
 from app.schemas.agent_profile import (
     AgentProfileUpdateRequest,
@@ -41,9 +46,10 @@ def build_agent_profile_response(
 @router.get("/agent", response_model=AgentProfileResponse)
 def get_agent_profile(
     elder_user_id: str = Query(...),
+    principal: CarePrincipal = Depends(get_current_care_principal),
     db: Session = Depends(get_db),
 ):
-    cleaned_elder_user_id = elder_user_id.strip()
+    cleaned_elder_user_id = require_elder_access(principal, elder_user_id)
 
     profile = (
         db.query(ElderProfile)
@@ -60,15 +66,10 @@ def get_agent_profile(
 @router.patch("/agent", response_model=AgentProfileResponse)
 def update_agent_profile(
     request: AgentProfileUpdateRequest,
+    principal: CarePrincipal = Depends(get_current_care_principal),
     db: Session = Depends(get_db),
 ):
-    cleaned_elder_user_id = request.elder_user_id.strip()
-
-    if not cleaned_elder_user_id:
-        raise HTTPException(
-            status_code=400,
-            detail="elder_user_id is required",
-        )
+    cleaned_elder_user_id = require_elder_access(principal, request.elder_user_id)
 
     profile = (
         db.query(ElderProfile)

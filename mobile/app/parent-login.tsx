@@ -60,6 +60,7 @@ export default function ParentLoginPage() {
             parentId: result.parent_id,
             elderUserId: result.parent_id,
             parentName: result.parent_name,
+            accessToken: result.access_token,
             linkCode: result.link_code,
             guardianPhone: result.guardian_phone,
           })

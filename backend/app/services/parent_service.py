@@ -20,6 +20,7 @@ from app.schemas.parent import (
 )
 from app.services.file_upload import save_upload_file
 from app.services.gpt_summary import summarize_medical_image
+from app.services.elder_auth_service import issue_elder_session
 
 MEAL_TIMING_VALUES = {"식전", "식간", "식후"}
 UNKNOWN_TEXT_VALUES = {"", "확인 불가", "미확인", "unknown", "none", "null"}
@@ -148,12 +149,16 @@ def create_parent(db: Session, payload: ParentSignupRequest):
 
     db.commit()
     db.refresh(new_user)
+    issued_session = issue_elder_session(db, new_user)
 
     return {
         "message": "부모님 회원가입이 완료되었습니다.",
         "parent_id": new_user.id,
         "parent_name": new_user.name,
         "link_code": link_code,
+        "access_token": issued_session.access_token,
+        "token_type": "bearer",
+        "expires_at": issued_session.expires_at,
     }
 
 
@@ -180,12 +185,17 @@ def login_parent(db: Session, payload: ParentLoginRequest):
         if guardian_user and guardian_user.phone:
             guardian_phone = guardian_user.phone
 
+    issued_session = issue_elder_session(db, parent_user)
+
     return {
         "message": "부모님 로그인이 완료되었습니다.",
         "parent_id": parent_user.id,
         "parent_name": parent_user.name,
         "link_code": link.link_code,
         "guardian_phone": guardian_phone,
+        "access_token": issued_session.access_token,
+        "token_type": "bearer",
+        "expires_at": issued_session.expires_at,
     }
 
 

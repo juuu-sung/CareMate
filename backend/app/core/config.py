@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     AGENT_SESSION_TTL_MINUTES: int = 15
     ALERT_SWEEP_TOKEN: str | None = None
     GUARDIAN_SESSION_TTL_MINUTES: int = 1440
+    ELDER_SESSION_TTL_MINUTES: int = 1440
     CORS_ORIGINS: str = "http://localhost:8081,http://localhost:19006"
 
     # ----- AI 모델 설정 -----
@@ -177,6 +178,10 @@ class Settings(BaseSettings):
     @property
     def guardian_session_ttl_minutes(self) -> int:
         return max(15, min(self.GUARDIAN_SESSION_TTL_MINUTES, 10080))
+
+    @property
+    def elder_session_ttl_minutes(self) -> int:
+        return max(15, min(self.ELDER_SESSION_TTL_MINUTES, 10080))
 
     @property
     def cors_origins(self) -> list[str]:
