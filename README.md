@@ -238,3 +238,4 @@ EXPO_PUBLIC_API_BASE_URL=http://<YOUR_MAC_IP>:8001/api/v1
 <sub>Built with care for seniors and the people who care for them.</sub>
 
 </div>
+# Caremate
