@@ -6,11 +6,14 @@ export type ParentSignupPayload = {
   gender: string;
   address: string;
   phone: string;
+  password: string;
 };
 
 export type ParentLoginPayload = {
-  phone: string;
-  birth: string;
+    phone: string;
+    birth: string;
+    password: string;
+    link_code?: string;
 };
 
 export type ParentSignupResponse = {

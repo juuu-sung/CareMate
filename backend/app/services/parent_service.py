@@ -1,5 +1,8 @@
 import json
+import hashlib
+import hmac
 import re
+import secrets
 from datetime import datetime
 from uuid import uuid4
 
@@ -20,10 +23,13 @@ from app.schemas.parent import (
 )
 from app.services.file_upload import save_upload_file
 from app.services.gpt_summary import summarize_medical_image
-from app.services.elder_auth_service import issue_elder_session
+from app.services.elder_auth_service import issue_elder_session, revoke_elder_sessions_for_user
+from app.services.password_service import hash_password, verify_password
 
 MEAL_TIMING_VALUES = {"식전", "식간", "식후"}
 UNKNOWN_TEXT_VALUES = {"", "확인 불가", "미확인", "unknown", "none", "null"}
+PARENT_LOGIN_FAILURE_MESSAGE = "로그인 정보가 올바르지 않습니다."
+_DUMMY_PARENT_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 MEDICATION_TIME_LABELS = {
     "아침": "08:00",
     "점심": "13:00",
@@ -78,6 +84,11 @@ def _normalize_birth(value: str | None) -> str:
     return "".join(ch for ch in value if ch.isdigit())
 
 
+def build_parent_login_rate_key(phone: str | None) -> str:
+    normalized_phone = _normalize_phone(phone)
+    return hashlib.sha256(normalized_phone.encode("utf-8")).hexdigest()
+
+
 def _find_parent_user(db: Session, payload: ParentLoginRequest) -> User | None:
     normalized_phone = _normalize_phone(payload.phone)
     normalized_birth = _normalize_birth(payload.birth)
@@ -116,6 +127,7 @@ def create_parent(db: Session, payload: ParentSignupRequest):
         birth=payload.birth,
         gender=payload.gender,
         role="elder",
+        password_hash=hash_password(payload.password),
     )
 
     db.add(new_user)
@@ -166,7 +178,8 @@ def login_parent(db: Session, payload: ParentLoginRequest):
     parent_user = _find_parent_user(db, payload)
 
     if not parent_user:
-        raise ValueError("전화번호 또는 생년월일이 올바르지 않습니다.")
+        verify_password(payload.password, _DUMMY_PARENT_PASSWORD_HASH)
+        raise ValueError(PARENT_LOGIN_FAILURE_MESSAGE)
 
     link = (
         db.query(GuardianLink)
@@ -176,7 +189,20 @@ def login_parent(db: Session, payload: ParentLoginRequest):
     )
 
     if not link:
-        raise ValueError("연동 코드를 찾을 수 없습니다.")
+        verify_password(payload.password, _DUMMY_PARENT_PASSWORD_HASH)
+        raise ValueError(PARENT_LOGIN_FAILURE_MESSAGE)
+
+    if parent_user.password_hash:
+        if not verify_password(payload.password, parent_user.password_hash):
+            raise ValueError(PARENT_LOGIN_FAILURE_MESSAGE)
+    else:
+        verify_password(payload.password, _DUMMY_PARENT_PASSWORD_HASH)
+        migration_code = (payload.link_code or "").strip().upper()
+        expected_code = str(link.link_code).strip().upper()
+        if not migration_code or not hmac.compare_digest(migration_code, expected_code):
+            raise ValueError(PARENT_LOGIN_FAILURE_MESSAGE)
+        parent_user.password_hash = hash_password(payload.password)
+        db.commit()
 
     guardian_phone = ""
 
@@ -185,6 +211,7 @@ def login_parent(db: Session, payload: ParentLoginRequest):
         if guardian_user and guardian_user.phone:
             guardian_phone = guardian_user.phone
 
+    revoke_elder_sessions_for_user(db, str(parent_user.id))
     issued_session = issue_elder_session(db, parent_user)
 
     return {

@@ -20,6 +20,7 @@ from app.schemas.parent import (
 from app.services.parent_service import (
     analyze_parent_medication_images,
     create_parent,
+    build_parent_login_rate_key,
     login_parent,
     update_parent_care_info,
     update_parent_care_info_with_images,
@@ -55,10 +56,17 @@ def parent_login(
     db: Session = Depends(get_db),
 ):
     enforce_rate_limit(request, scope="parent-login", max_requests=10, window_seconds=300)
+    enforce_rate_limit(
+        request,
+        scope="parent-login-account",
+        max_requests=5,
+        window_seconds=300,
+        actor_id=build_parent_login_rate_key(payload.phone),
+    )
     try:
         return login_parent(db, payload)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=401, detail=str(e))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ParentSignupRequest(BaseModel):
@@ -9,11 +9,14 @@ class ParentSignupRequest(BaseModel):
     gender: str
     address: str
     phone: str
+    password: str = Field(..., min_length=8, max_length=128)
 
 
 class ParentLoginRequest(BaseModel):
     phone: str
     birth: str
+    password: str = Field(..., min_length=8, max_length=128)
+    link_code: str | None = Field(default=None, min_length=6, max_length=8)
 
 
 class ParentLoginResponse(BaseModel):
