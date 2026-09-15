@@ -1,10 +1,15 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.deps import get_current_guardian, get_optional_guardian
+from app.api.deps import (
+    CarePrincipal,
+    get_current_care_principal,
+    get_current_guardian,
+    require_elder_access,
+)
 from app.models.guardian_link import GuardianLink
 from app.models.letter import Letter
 from app.schemas.letter import (
@@ -61,40 +66,14 @@ def send_letter(
 @router.get("/elder/{elder_user_id}", response_model=LetterListResponse)
 def get_letters_for_elder(
     elder_user_id: str,
-    link_code: str | None = Query(default=None),
-    principal: GuardianPrincipal | None = Depends(get_optional_guardian),
+    principal: CarePrincipal = Depends(get_current_care_principal),
     db: Session = Depends(get_db),
 ):
-    if principal is not None:
-        if elder_user_id != principal.elder_user_id:
-            raise HTTPException(status_code=403, detail="다른 사용자의 편지에는 접근할 수 없습니다.")
-        effective_link_code = principal.link_code
-    elif link_code:
-        effective_link_code = link_code
-    else:
-        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
-
-    link = (
-        db.query(GuardianLink)
-        .filter(
-            GuardianLink.link_code == effective_link_code,
-            GuardianLink.elder_user_id == elder_user_id,
-        )
-        .first()
-    )
-
-    if not link:
-        raise HTTPException(status_code=404, detail="연결된 보호자 정보를 찾을 수 없습니다.")
-
-    letters = (
-        db.query(Letter)
-        .filter(
-            Letter.elder_user_id == elder_user_id,
-            Letter.link_code == effective_link_code,
-        )
-        .order_by(Letter.created_at.desc())
-        .all()
-    )
+    target_elder_user_id = require_elder_access(principal, elder_user_id)
+    query = db.query(Letter).filter(Letter.elder_user_id == target_elder_user_id)
+    if principal.role == "guardian":
+        query = query.filter(Letter.guardian_user_id == principal.actor_user_id)
+    letters = query.order_by(Letter.created_at.desc()).all()
 
     return LetterListResponse(
         success=True,

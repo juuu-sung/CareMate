@@ -1,9 +1,7 @@
 import { apiPost } from "@/services/api";
 
 export type GuardianEventAlertPayload = {
-  elder_user_id: string;
-  link_code: string;
-  type: string;
+  type: "emergency_call" | "guardian_call";
   message: string;
   severity?: "low" | "medium" | "high";
 };

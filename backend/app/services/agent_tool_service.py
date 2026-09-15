@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 
 from app.schemas.agent import AgentAction, AgentSlots
 from app.schemas.chat import CareMode
-from app.schemas.location import LocationRequestPayload
 from app.schemas.letter import LetterCreateRequest
 from app.services.letter import send_letter_from_elder
 from app.services.location_service import request_location_refresh
@@ -77,10 +76,7 @@ def execute_agent_action(
 
         result = request_location_refresh(
             db,
-            LocationRequestPayload(
-                elder_user_id=elder_user_id,
-                link_code=link_code,
-            ),
+            elder_user_id=elder_user_id,
         )
         return (result["message"], action)
 
@@ -101,34 +97,21 @@ def _get_primary_elder_link(
     db: Session,
     elder_user_id: str | None = None,
 ) -> tuple[str | None, str | None]:
-    if elder_user_id:
-        row = db.execute(
-            text(
-                """
-                SELECT elder_user_id, link_code
-                FROM guardian_links
-                WHERE elder_user_id = :elder_user_id
-                  AND guardian_user_id IS NOT NULL
-                ORDER BY created_at ASC
-                LIMIT 1
-                """
-            ),
-            {"elder_user_id": elder_user_id},
-        ).mappings().first()
-
-        if row:
-            return row["elder_user_id"], row["link_code"]
+    if not elder_user_id:
+        return None, None
 
     row = db.execute(
         text(
             """
             SELECT elder_user_id, link_code
             FROM guardian_links
-            WHERE guardian_user_id IS NOT NULL
+            WHERE elder_user_id = :elder_user_id
+              AND guardian_user_id IS NOT NULL
             ORDER BY created_at ASC
             LIMIT 1
             """
-        )
+        ),
+        {"elder_user_id": elder_user_id},
     ).mappings().first()
 
     if not row:

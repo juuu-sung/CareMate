@@ -403,7 +403,7 @@ export default function GuardianLocationScreen() {
 
     try {
       setIsRequestingLocation(true);
-      await requestGuardianLocationRefresh(elderUserId, linkCode);
+      await requestGuardianLocationRefresh();
       Alert.alert(
         '위치 요청 전달됨',
         '부모님 앱이 열려 있으면 잠시 후 최신 위치가 반영됩니다.'

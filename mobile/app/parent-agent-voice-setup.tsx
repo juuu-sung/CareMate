@@ -18,7 +18,7 @@ import {
 } from "expo-audio";
 
 import {
-  buildChatTtsUrl,
+  createChatTtsSource,
   CHAT_TTS_VOICE_OPTIONS,
   TtsVoiceId,
   updateAgentProfile,
@@ -124,7 +124,7 @@ export default function ParentAgentVoiceSetupScreen() {
       const previewText = `${parentName}님, 안녕하세요.`;
 
       pendingVoiceRef.current = voiceId;
-      player.replace(buildChatTtsUrl(previewText, "basic", voiceId));
+      player.replace(await createChatTtsSource(previewText, "basic", voiceId));
     } catch {
       pendingVoiceRef.current = null;
       setIsPlaying(null);

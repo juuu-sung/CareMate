@@ -21,7 +21,7 @@ TranscriptVisibility = Literal["always", "on_low_confidence", "hidden"]
 
 
 class ChatMessageRequest(BaseModel):
-    text: str
+    text: str = Field(min_length=1, max_length=4000)
     mode: CareMode = "basic"
     context_source: Literal["text"] = "text"
     client_message_id: str | None = None
@@ -50,10 +50,10 @@ class ChatSourceItem(BaseModel):
 
 
 class ChatPlaceStatusRequest(BaseModel):
-    place_name: str
-    address: str | None = None
-    phone: str | None = None
-    place_url: str | None = None
+    place_name: str = Field(min_length=1, max_length=200)
+    address: str | None = Field(default=None, max_length=500)
+    phone: str | None = Field(default=None, max_length=50)
+    place_url: str | None = Field(default=None, max_length=2000)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
 
@@ -61,6 +61,12 @@ class ChatPlaceStatusRequest(BaseModel):
 class ChatPlaceStatusResponse(BaseModel):
     answer: str
     sources: list[ChatSourceItem] = Field(default_factory=list)
+
+
+class ChatTtsRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    mode: CareMode = "basic"
+    voice: str | None = Field(default=None, min_length=1, max_length=40)
 
 
 class ChatResponseBase(BaseModel):

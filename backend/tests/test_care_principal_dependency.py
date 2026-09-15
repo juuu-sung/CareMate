@@ -68,6 +68,7 @@ class CarePrincipalDependencyTest(unittest.TestCase):
 
         self.assertEqual(principal.role, "elder")
         self.assertEqual(principal.elder_user_id, "elder-1")
+        self.assertEqual(principal.link_code, "PAIRCODE")
 
     def test_guardian_token_resolves_to_linked_elder(self) -> None:
         issued = issue_guardian_session(self.db, self.link)

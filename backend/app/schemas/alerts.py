@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 AlertStatus = Literal["open", "acknowledged", "resolved"]
@@ -16,16 +16,13 @@ class AlertItem(BaseModel):
 
 
 class AlertEventCreateRequest(BaseModel):
-    elder_user_id: str
-    link_code: str
-    type: str
-    message: str
-    severity: str = "medium"
+    type: Literal["emergency_call", "guardian_call"]
+    message: str = Field(min_length=1, max_length=300)
+    severity: Literal["low", "medium", "high"] = "medium"
 
 
 class AlertEventCreateResponse(BaseModel):
     elder_user_id: str
-    link_code: str
     type: str
     message: str
     created: bool

@@ -1,39 +1,45 @@
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models.guardian_link import GuardianLink
 from app.schemas.alerts import AlertEventCreateRequest, AlertEventCreateResponse, AlertItem
 from app.services.guardian_alert_service import create_guardian_alert
 
 
-def list_alerts() -> list[AlertItem]:
+def list_alerts(db: Session, *, elder_user_id: str) -> list[AlertItem]:
+    rows = db.execute(
+        text(
+            """
+            SELECT id::text AS id, type, severity, status, message, created_at
+            FROM alerts
+            WHERE senior_user_id = :elder_user_id
+            ORDER BY created_at DESC
+            LIMIT 100
+            """
+        ),
+        {"elder_user_id": elder_user_id},
+    ).mappings().all()
     return [
         AlertItem(
-            id="demo-alert",
-            type="medication_missed",
-            severity="high",
-            status="open",
-            message="복약 알림 3회 미응답",
-            created_at="2026-03-24T09:30:00+09:00",
+            id=row["id"],
+            type=row["type"],
+            severity=row["severity"],
+            status=row["status"],
+            message=row["message"],
+            created_at=row["created_at"].isoformat(),
         )
+        for row in rows
     ]
 
 
-def create_event_alert(db: Session, payload: AlertEventCreateRequest) -> AlertEventCreateResponse:
-    link = (
-        db.query(GuardianLink)
-        .filter(
-            GuardianLink.link_code == payload.link_code,
-            GuardianLink.elder_user_id == payload.elder_user_id,
-        )
-        .first()
-    )
-
-    if not link:
-        raise ValueError("연동된 보호자 정보를 찾지 못했습니다.")
-
+def create_event_alert(
+    db: Session,
+    payload: AlertEventCreateRequest,
+    *,
+    elder_user_id: str,
+) -> AlertEventCreateResponse:
     created = create_guardian_alert(
         db,
-        elder_user_id=payload.elder_user_id,
+        elder_user_id=elder_user_id,
         alert_type=payload.type,
         message=payload.message,
         severity=payload.severity,
@@ -42,8 +48,7 @@ def create_event_alert(db: Session, payload: AlertEventCreateRequest) -> AlertEv
     db.commit()
 
     return AlertEventCreateResponse(
-        elder_user_id=payload.elder_user_id,
-        link_code=payload.link_code,
+        elder_user_id=elder_user_id,
         type=payload.type,
         message=payload.message,
         created=created,

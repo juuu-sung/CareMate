@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -25,6 +25,7 @@ from app.services.parent_service import (
     update_parent_care_info_with_images,
 )
 from app.services.elder_auth_service import ElderPrincipal, revoke_elder_session_by_id
+from app.core.rate_limit import enforce_rate_limit
 
 router = APIRouter(prefix="/parents", tags=["parents"])
 
@@ -35,7 +36,12 @@ def parent_test():
 
 
 @router.post("/signup", response_model=ParentSignupResponse)
-def parent_signup(payload: ParentSignupRequest, db: Session = Depends(get_db)):
+def parent_signup(
+    request: Request,
+    payload: ParentSignupRequest,
+    db: Session = Depends(get_db),
+):
+    enforce_rate_limit(request, scope="parent-signup", max_requests=5, window_seconds=300)
     try:
         return create_parent(db, payload)
     except ValueError as e:
@@ -43,7 +49,12 @@ def parent_signup(payload: ParentSignupRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=ParentLoginResponse)
-def parent_login(payload: ParentLoginRequest, db: Session = Depends(get_db)):
+def parent_login(
+    request: Request,
+    payload: ParentLoginRequest,
+    db: Session = Depends(get_db),
+):
+    enforce_rate_limit(request, scope="parent-login", max_requests=10, window_seconds=300)
     try:
         return login_parent(db, payload)
     except ValueError as e:
@@ -75,12 +86,20 @@ def parent_care_info_update(
 
 @router.post("/{parent_user_id}/medication-image-analysis")
 async def parent_medication_image_analysis(
+    request: Request,
     parent_user_id: str,
     document_type: str = Form("medication_bag"),
     images: Optional[List[UploadFile]] = File(None),
     principal: CarePrincipal = Depends(get_current_care_principal),
     db: Session = Depends(get_db),
 ):
+    enforce_rate_limit(
+        request,
+        scope="medical-image-analysis",
+        max_requests=10,
+        window_seconds=300,
+        actor_id=principal.actor_user_id,
+    )
     target_elder_user_id = require_elder_access(principal, parent_user_id)
     try:
         return await analyze_parent_medication_images(
@@ -100,6 +119,7 @@ async def parent_medication_image_analysis(
 
 @router.put("/{parent_user_id}/care-info-with-images")
 async def parent_care_info_update_with_images(
+    request: Request,
     parent_user_id: str,
     medications: str = Form(""),
     diseases: str = Form(""),
@@ -115,6 +135,13 @@ async def parent_care_info_update_with_images(
     principal: CarePrincipal = Depends(get_current_care_principal),
     db: Session = Depends(get_db),
 ):
+    enforce_rate_limit(
+        request,
+        scope="care-info-image-upload",
+        max_requests=10,
+        window_seconds=300,
+        actor_id=principal.actor_user_id,
+    )
     target_elder_user_id = require_elder_access(principal, parent_user_id)
     try:
         return await update_parent_care_info_with_images(

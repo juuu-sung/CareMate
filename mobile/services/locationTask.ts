@@ -66,8 +66,6 @@ if (TaskManager && !TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK_NAME)) {
         }
 
         await syncElderLocation({
-          elder_user_id: elderUserId,
-          link_code: session.linkCode,
           latitude: current.coords.latitude,
           longitude: current.coords.longitude,
           source: "background",
@@ -114,8 +112,6 @@ export async function syncCurrentElderLocation({
     }));
 
   await syncElderLocation({
-    elder_user_id: elderUserId,
-    link_code: linkCode,
     latitude: current.coords.latitude,
     longitude: current.coords.longitude,
     source: "mobile",
@@ -136,7 +132,7 @@ export async function syncRequestedElderLocation({
     return false;
   }
 
-  const request = await getPendingLocationRequest(elderUserId, linkCode);
+  const request = await getPendingLocationRequest();
   if (!request.pending) {
     return false;
   }

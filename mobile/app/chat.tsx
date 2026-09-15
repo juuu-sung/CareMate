@@ -25,7 +25,7 @@ import {
 
 import { SeniorBottomNav } from '@/components/common/SeniorBottomNav';
 import {
-  buildChatTtsUrl,
+  createChatTtsSource,
   ChatPlaceItem,
   ChatRequesterRole,
   ChatSourceItem,
@@ -863,7 +863,9 @@ export default function ChatPage() {
         text: trimmedText,
       };
 
-      player.replace(buildChatTtsUrl(trimmedText, ttsMode, selectedVoice || undefined));
+      player.replace(
+        await createChatTtsSource(trimmedText, ttsMode, selectedVoice || undefined)
+      );
       player.play();
     } catch (ttsError) {
       pendingTtsRequestRef.current = null;

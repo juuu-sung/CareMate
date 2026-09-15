@@ -25,10 +25,8 @@ export function sendLetterFromGuardian(payload: SendLetterPayload) {
   });
 }
 
-export function fetchLettersForElder(elderUserId: string, linkCode: string) {
-  return apiGet<LetterListResponse>(
-    `/letters/elder/${elderUserId}?link_code=${encodeURIComponent(linkCode)}`
-  );
+export function fetchLettersForElder(elderUserId: string) {
+  return apiGet<LetterListResponse>(`/letters/elder/${elderUserId}`);
 }
 
 export function fetchLettersForGuardian(elderUserId: string) {

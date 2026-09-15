@@ -73,7 +73,7 @@ export async function primeGuardianLetterNotificationState(
     return;
   }
 
-  const response = await fetchLettersForElder(elderUserId, linkCode);
+  const response = await fetchLettersForElder(elderUserId);
   const latestGuardianLetter = getLatestGuardianLetter(response.letters);
 
   if (!latestGuardianLetter) {
@@ -88,7 +88,7 @@ export async function checkForNewGuardianLetter(
   elderUserId: string,
   linkCode: string
 ) {
-  const response = await fetchLettersForElder(elderUserId, linkCode);
+  const response = await fetchLettersForElder(elderUserId);
   const latestGuardianLetter = getLatestGuardianLetter(response.letters);
 
   if (!latestGuardianLetter) {

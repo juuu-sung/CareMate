@@ -33,6 +33,22 @@ async function createApiError(response: Response) {
   }
 }
 
+export async function apiPostRaw(path: string, body: unknown): Promise<Response> {
+  const response = await fetch(buildApiUrl(path), {
+    method: "POST",
+    headers: await buildAuthHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw await createApiError(response);
+  }
+
+  return response;
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     headers: await buildAuthHeaders(),

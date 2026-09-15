@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.api.deps import get_current_guardian
+from app.api.deps import (
+    CarePrincipal,
+    get_current_care_principal,
+    get_current_elder,
+    get_current_guardian,
+    get_db,
+)
 from app.schemas.location import (
-    LocationRequestPayload,
     LocationRequestStatusResponse,
     LocationSyncRequest,
     LocationSyncResponse,
@@ -15,14 +19,19 @@ from app.services.location_service import (
     request_location_refresh,
 )
 from app.services.guardian_auth_service import GuardianPrincipal
+from app.services.elder_auth_service import ElderPrincipal
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
 
 @router.post("", response_model=LocationSyncResponse)
-def create_location(payload: LocationSyncRequest, db: Session = Depends(get_db)):
+def create_location(
+    payload: LocationSyncRequest,
+    principal: ElderPrincipal = Depends(get_current_elder),
+    db: Session = Depends(get_db),
+):
     try:
-        return record_location(db, payload)
+        return record_location(db, payload, elder_user_id=principal.elder_user_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -35,10 +44,7 @@ def create_location_request(
     try:
         return request_location_refresh(
             db,
-            LocationRequestPayload(
-                elder_user_id=principal.elder_user_id,
-                link_code=principal.link_code,
-            ),
+            elder_user_id=principal.elder_user_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -46,17 +52,13 @@ def create_location_request(
 
 @router.get("/request", response_model=LocationRequestStatusResponse)
 def read_location_request_status(
-    elder_user_id: str = Query(...),
-    link_code: str = Query(...),
+    principal: CarePrincipal = Depends(get_current_care_principal),
     db: Session = Depends(get_db),
 ):
     try:
         return get_location_request_status(
             db,
-            LocationRequestPayload(
-                elder_user_id=elder_user_id,
-                link_code=link_code,
-            ),
+            elder_user_id=principal.elder_user_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

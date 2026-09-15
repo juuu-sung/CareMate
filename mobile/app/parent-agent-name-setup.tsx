@@ -25,7 +25,7 @@ import {
 } from "@/services/authSession";
 
 import {
-  buildChatTtsUrl,
+  createChatTtsSource,
   sendChatSpeech,
   TtsVoiceId,
   updateAgentProfile,
@@ -164,8 +164,8 @@ export default function ParentAgentNameSetupScreen() {
       await configurePlaybackMode();
       await stopPlayerSafely();
 
-      const url = buildChatTtsUrl(text, "basic", selectedVoice || undefined);
-      player.replace(url);
+      const source = await createChatTtsSource(text, "basic", selectedVoice || undefined);
+      player.replace(source);
 
       await sleep(400);
 
