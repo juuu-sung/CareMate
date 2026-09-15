@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -41,11 +42,21 @@ export default function ParentSignupScreen() {
   const [gender, setGender] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!name.trim() || !birth.trim() || !gender || !address.trim() || !phone.trim()) {
+    if (
+      !name.trim() ||
+      !birth.trim() ||
+      !gender ||
+      !address.trim() ||
+      !phone.trim() ||
+      !password ||
+      !passwordConfirm
+    ) {
       Alert.alert('입력 확인', '모든 항목을 입력해주세요.');
       return;
     }
@@ -70,6 +81,16 @@ export default function ParentSignupScreen() {
       return;
     }
 
+    if (password.length < 8) {
+      Alert.alert('입력 확인', '비밀번호는 8자 이상 입력해주세요.');
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      Alert.alert('입력 확인', '비밀번호가 서로 일치하지 않습니다.');
+      return;
+    }
+
     if (!agreed) {
       Alert.alert('동의 필요', '개인정보 수집 및 이용에 동의해주세요.');
       return;
@@ -84,6 +105,7 @@ export default function ParentSignupScreen() {
         gender,
         address: address.trim(),
         phone: phone.trim(),
+        password,
       });
 
       await saveAuthSession(
@@ -92,6 +114,7 @@ export default function ParentSignupScreen() {
           elderUserId: result.parent_id,
           parentName: result.parent_name,
           accessToken: result.access_token,
+          expiresAt: result.expires_at,
           linkCode: result.link_code,
         })
       );
@@ -155,6 +178,38 @@ export default function ParentSignupScreen() {
           required
           accentColor={ORANGE_DARK}
           disabled={loading}
+        />
+
+        <Text style={styles.label}>비밀번호 *</Text>
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="8자 이상 입력"
+          placeholderTextColor="#94A3B8"
+          secureTextEntry
+          textContentType="newPassword"
+          autoComplete="new-password"
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={128}
+          editable={!loading}
+        />
+
+        <Text style={styles.label}>비밀번호 확인 *</Text>
+        <TextInput
+          style={styles.input}
+          value={passwordConfirm}
+          onChangeText={setPasswordConfirm}
+          placeholder="비밀번호 다시 입력"
+          placeholderTextColor="#94A3B8"
+          secureTextEntry
+          textContentType="newPassword"
+          autoComplete="new-password"
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={128}
+          editable={!loading}
         />
 
         <TouchableOpacity

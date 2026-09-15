@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import base64
-import binascii
 import hashlib
-import hmac
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -14,6 +11,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.guardian_link import GuardianLink
 from app.models.guardian_session import GuardianSession
+from app.services.password_service import (
+    PasswordValidationError,
+    hash_password,
+    verify_password,
+)
 
 
 class GuardianAuthenticationError(ValueError):
@@ -36,13 +38,6 @@ class IssuedGuardianSession:
     link_id: str
 
 
-_PASSWORD_SCRYPT_N = 2**14
-_PASSWORD_SCRYPT_R = 8
-_PASSWORD_SCRYPT_P = 1
-_PASSWORD_SCRYPT_DKLEN = 32
-_PASSWORD_SCRYPT_MAXMEM = 64 * 1024 * 1024
-
-
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -58,55 +53,14 @@ def _hash_token(token: str) -> str:
 
 
 def hash_guardian_password(password: str) -> str:
-    if len(password) < 8 or len(password) > 128:
-        raise GuardianAuthenticationError("비밀번호는 8자 이상 128자 이하로 입력해 주세요.")
-
-    salt = secrets.token_bytes(16)
-    derived_key = hashlib.scrypt(
-        password.encode("utf-8"),
-        salt=salt,
-        n=_PASSWORD_SCRYPT_N,
-        r=_PASSWORD_SCRYPT_R,
-        p=_PASSWORD_SCRYPT_P,
-        dklen=_PASSWORD_SCRYPT_DKLEN,
-        maxmem=_PASSWORD_SCRYPT_MAXMEM,
-    )
-    encoded_salt = base64.urlsafe_b64encode(salt).decode("ascii")
-    encoded_key = base64.urlsafe_b64encode(derived_key).decode("ascii")
-    return (
-        f"scrypt${_PASSWORD_SCRYPT_N}${_PASSWORD_SCRYPT_R}"
-        f"${_PASSWORD_SCRYPT_P}${encoded_salt}${encoded_key}"
-    )
+    try:
+        return hash_password(password)
+    except PasswordValidationError as exc:
+        raise GuardianAuthenticationError(str(exc)) from exc
 
 
 def verify_guardian_password(password: str, encoded_hash: str | None) -> bool:
-    if not encoded_hash:
-        return False
-
-    try:
-        algorithm, n_value, r_value, p_value, encoded_salt, encoded_key = encoded_hash.split("$")
-        if algorithm != "scrypt":
-            return False
-        n = int(n_value)
-        r = int(r_value)
-        p = int(p_value)
-        if (n, r, p) != (_PASSWORD_SCRYPT_N, _PASSWORD_SCRYPT_R, _PASSWORD_SCRYPT_P):
-            return False
-        salt = base64.urlsafe_b64decode(encoded_salt.encode("ascii"))
-        expected_key = base64.urlsafe_b64decode(encoded_key.encode("ascii"))
-        actual_key = hashlib.scrypt(
-            password.encode("utf-8"),
-            salt=salt,
-            n=n,
-            r=r,
-            p=p,
-            dklen=len(expected_key),
-            maxmem=_PASSWORD_SCRYPT_MAXMEM,
-        )
-    except (binascii.Error, TypeError, ValueError):
-        return False
-
-    return hmac.compare_digest(actual_key, expected_key)
+    return verify_password(password, encoded_hash)
 
 
 def issue_guardian_session(db: Session, link: GuardianLink) -> IssuedGuardianSession:

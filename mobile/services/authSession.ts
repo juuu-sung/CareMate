@@ -7,6 +7,7 @@ export type ParentAuthSession = {
   elderUserId: string;
   parentName: string;
   accessToken: string;
+  expiresAt: string;
   linkCode: string;
   guardianPhone: string;
   agentName: string;
@@ -79,13 +80,14 @@ function parseAuthSession(value: unknown): AuthSession | null {
     const elderUserId = normalizeString(value.elderUserId) || parentId;
     const parentName = normalizeString(value.parentName);
     const accessToken = normalizeString(value.accessToken);
+    const expiresAt = normalizeString(value.expiresAt);
     const linkCode = normalizeString(value.linkCode);
     const agentName =
       normalizeString(value.agentName) || normalizeString(value.agent_name);
     const agentVoice =
       normalizeString(value.agentVoice) || normalizeString(value.agent_voice);
 
-    if (!parentId || !parentName || !linkCode || !accessToken) {
+    if (!parentId || !parentName || !linkCode || !accessToken || !expiresAt) {
       return null;
     }
 
@@ -95,6 +97,7 @@ function parseAuthSession(value: unknown): AuthSession | null {
       elderUserId,
       parentName,
       accessToken,
+      expiresAt,
       linkCode,
       guardianPhone: normalizeString(value.guardianPhone),
       agentName: agentName || '케어',
@@ -141,6 +144,7 @@ export function buildParentAuthSession(input: {
   elderUserId?: string;
   parentName: string;
   accessToken?: string;
+  expiresAt?: string;
   linkCode: string;
   guardianPhone?: string;
   agentName?: string;
@@ -152,6 +156,7 @@ export function buildParentAuthSession(input: {
     elderUserId: input.elderUserId || input.parentId,
     parentName: input.parentName,
     accessToken: input.accessToken || '',
+    expiresAt: input.expiresAt || '',
     linkCode: input.linkCode,
     guardianPhone: input.guardianPhone || '',
     agentName: input.agentName?.trim() || '케어',
@@ -251,12 +256,15 @@ function isSamePrincipal(existing: AuthSession, next: AuthSession) {
 
 export async function saveAuthSession(session: AuthSession) {
   let sessionToSave = session;
-  if (!session.accessToken) {
+  if (!session.accessToken || (session.role === 'parent' && !session.expiresAt)) {
     const existingSession = await loadAuthSession();
     if (existingSession && isSamePrincipal(existingSession, session)) {
       sessionToSave = {
         ...session,
-        accessToken: existingSession.accessToken,
+        accessToken: session.accessToken || existingSession.accessToken,
+        ...(session.role === 'parent' && existingSession.role === 'parent'
+          ? { expiresAt: session.expiresAt || existingSession.expiresAt }
+          : {}),
       } as AuthSession;
     }
   }
@@ -283,7 +291,19 @@ export async function loadAuthSession() {
     const contents = await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
     if (contents) {
       await deleteLegacySessionFile();
-      return parseAuthSession(JSON.parse(contents));
+      const session = parseAuthSession(JSON.parse(contents));
+      const parentExpiryMs = session?.role === 'parent'
+        ? Date.parse(session.expiresAt)
+        : Number.POSITIVE_INFINITY;
+      if (
+        !session ||
+        !Number.isFinite(parentExpiryMs) ||
+        parentExpiryMs <= Date.now()
+      ) {
+        await SecureStore.deleteItemAsync(SESSION_STORAGE_KEY);
+        return null;
+      }
+      return session;
     }
 
     if (!LEGACY_SESSION_FILE_URI) {

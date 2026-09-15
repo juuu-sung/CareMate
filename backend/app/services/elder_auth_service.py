@@ -94,3 +94,21 @@ def revoke_elder_session_by_id(db: Session, session_id: str) -> None:
     if session and session.revoked_at is None:
         session.revoked_at = _utc_now()
         db.commit()
+
+
+def revoke_elder_sessions_for_user(db: Session, elder_user_id: str) -> None:
+    now = _utc_now()
+    sessions = (
+        db.query(ElderSession)
+        .filter(
+            ElderSession.elder_user_id == elder_user_id,
+            ElderSession.revoked_at.is_(None),
+        )
+        .all()
+    )
+    if not sessions:
+        return
+
+    for session in sessions:
+        session.revoked_at = now
+    db.commit()
