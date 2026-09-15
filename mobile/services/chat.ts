@@ -1,4 +1,8 @@
-import { apiGet, apiPatch, apiPost, apiPostForm, buildApiUrl } from "@/services/api";
+import { Platform } from "react-native";
+import type { AudioSource } from "expo-audio";
+import { File, Paths } from "expo-file-system";
+
+import { apiGet, apiPatch, apiPost, apiPostForm, apiPostRaw } from "@/services/api";
 import { CareMode } from "@/types/care";
 
 export type ChatRequesterRole = "parent" | "guardian";
@@ -328,19 +332,28 @@ export function getPlaceStatus(payload: ChatPlaceStatusRequest) {
   return apiPost<ChatPlaceStatusResponse>("/chat/place-status", payload);
 }
 
-export function buildChatTtsUrl(
+export async function createChatTtsSource(
   text: string,
   mode: CareMode,
   voice?: TtsVoiceId | string
-) {
-  const searchParams = new URLSearchParams({
+): Promise<AudioSource> {
+  const response = await apiPostRaw("/chat/tts", {
     text,
     mode,
+    voice: voice || null,
   });
 
-  if (voice) {
-    searchParams.append("voice", voice);
+  if (Platform.OS === "web") {
+    return { uri: URL.createObjectURL(await response.blob()) };
   }
 
-  return buildApiUrl(`/chat/tts?${searchParams.toString()}`);
+  const contentType = response.headers.get("Content-Type") || "audio/mpeg";
+  const extension = contentType.includes("wav") ? "wav" : "mp3";
+  const audioFile = new File(
+    Paths.cache,
+    `caremate-tts-${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`
+  );
+  audioFile.create({ overwrite: true });
+  audioFile.write(new Uint8Array(await response.arrayBuffer()));
+  return { uri: audioFile.uri };
 }

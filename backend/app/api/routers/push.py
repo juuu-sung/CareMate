@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_optional_guardian
+from app.api.deps import CarePrincipal, get_current_care_principal, get_db
 from app.schemas.push import (
     PushTokenDisableRequest,
     PushTokenDisableResponse,
@@ -12,7 +12,6 @@ from app.services.push_notification_service import (
     disable_push_token,
     register_push_token,
 )
-from app.services.guardian_auth_service import GuardianPrincipal
 
 router = APIRouter()
 
@@ -20,21 +19,20 @@ router = APIRouter()
 @router.post("/register", response_model=PushTokenRegisterResponse)
 def register_device_push_token(
     payload: PushTokenRegisterRequest,
-    principal: GuardianPrincipal | None = Depends(get_optional_guardian),
+    principal: CarePrincipal = Depends(get_current_care_principal),
     db: Session = Depends(get_db),
 ):
     try:
-        if payload.user_role == "guardian":
-            if principal is None:
-                raise HTTPException(status_code=401, detail="보호자 로그인이 필요합니다.")
-            payload = payload.model_copy(
-                update={
-                    "user_id": principal.guardian_user_id,
-                    "elder_user_id": principal.elder_user_id,
-                    "link_code": principal.link_code,
-                }
-            )
-        return register_push_token(db, payload)
+        expected_role = "guardian" if principal.role == "guardian" else "elder"
+        if payload.user_role != expected_role:
+            raise HTTPException(status_code=403, detail="로그인 역할과 푸시 대상이 일치하지 않습니다.")
+        return register_push_token(
+            db,
+            payload,
+            user_id=principal.actor_user_id,
+            elder_user_id=principal.elder_user_id,
+            link_code=principal.link_code,
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
@@ -42,9 +40,16 @@ def register_device_push_token(
 @router.post("/disable", response_model=PushTokenDisableResponse)
 def disable_device_push_token(
     payload: PushTokenDisableRequest,
+    principal: CarePrincipal = Depends(get_current_care_principal),
     db: Session = Depends(get_db),
 ):
     try:
-        return PushTokenDisableResponse(disabled_count=disable_push_token(db, payload))
+        return PushTokenDisableResponse(
+            disabled_count=disable_push_token(
+                db,
+                payload,
+                user_id=principal.actor_user_id,
+            )
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))

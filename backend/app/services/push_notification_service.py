@@ -24,43 +24,58 @@ LOCATION_REQUEST_ALERT_TYPES = {"location_request"}
 def register_push_token(
     db: Session,
     payload: PushTokenRegisterRequest,
+    *,
+    user_id: str,
+    elder_user_id: str,
+    link_code: str | None,
 ) -> PushTokenRegisterResponse:
     expo_push_token = payload.expo_push_token.strip()
     device_id = payload.device_id.strip()
-    elder_user_id = payload.elder_user_id.strip()
-    link_code = payload.link_code.strip().upper()
-    user_id = (payload.user_id or "").strip() or None
+    elder_user_id = elder_user_id.strip()
+    link_code = (link_code or "").strip().upper()
+    user_id = user_id.strip()
 
     if not expo_push_token:
         raise ValueError("푸시 토큰이 비어 있습니다.")
     if not device_id:
         raise ValueError("기기 식별자가 비어 있습니다.")
-    if not elder_user_id or not link_code:
-        raise ValueError("연동 정보가 부족합니다.")
-
-    link = (
-        db.query(GuardianLink)
-        .filter(
-            GuardianLink.elder_user_id == elder_user_id,
-            GuardianLink.link_code == link_code,
-        )
-        .first()
-    )
-
-    if not link:
-        raise ValueError("푸시 토큰을 등록할 연동 정보를 찾지 못했습니다.")
+    if not elder_user_id or not user_id:
+        raise ValueError("로그인 사용자 정보가 부족합니다.")
 
     if payload.user_role == "elder":
         if user_id and user_id != elder_user_id:
             raise ValueError("부모님 사용자 정보가 올바르지 않습니다.")
         user_id = elder_user_id
-    elif user_id and link.guardian_user_id and user_id != link.guardian_user_id:
-        raise ValueError("보호자 사용자 정보가 올바르지 않습니다.")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or user.role != payload.user_role:
+        raise ValueError("푸시 토큰을 등록할 로그인 사용자를 찾지 못했습니다.")
 
-    if user_id:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise ValueError("푸시 토큰을 등록할 사용자를 찾지 못했습니다.")
+    if payload.user_role == "guardian":
+        link = (
+            db.query(GuardianLink)
+            .filter(
+                GuardianLink.elder_user_id == elder_user_id,
+                GuardianLink.guardian_user_id == user_id,
+                GuardianLink.is_used.is_(True),
+            )
+            .first()
+        )
+        if not link:
+            raise ValueError("로그인한 보호자 연결 정보를 찾지 못했습니다.")
+
+    existing_owner = db.execute(
+        text(
+            """
+            SELECT user_id
+            FROM push_tokens
+            WHERE expo_push_token = :expo_push_token
+            LIMIT 1
+            """
+        ),
+        {"expo_push_token": expo_push_token},
+    ).mappings().first()
+    if existing_owner and str(existing_owner["user_id"] or "") != user_id:
+        raise ValueError("다른 사용자에게 등록된 푸시 토큰입니다.")
 
     db.execute(
         text(
@@ -123,6 +138,8 @@ def register_push_token(
 def disable_push_token(
     db: Session,
     payload: PushTokenDisableRequest,
+    *,
+    user_id: str,
 ) -> int:
     expo_push_token = (payload.expo_push_token or "").strip()
     device_id = (payload.device_id or "").strip()
@@ -138,12 +155,14 @@ def disable_push_token(
                 updated_at = NOW()
             WHERE (:expo_push_token = '' OR expo_push_token = :expo_push_token)
               AND (:device_id = '' OR device_id = :device_id)
+              AND user_id = :user_id
               AND enabled = TRUE
             """
         ),
         {
             "expo_push_token": expo_push_token,
             "device_id": device_id,
+            "user_id": user_id,
         },
     )
     db.commit()

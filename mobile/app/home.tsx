@@ -276,15 +276,13 @@ export default function HomeScreen() {
   };
 
   const notifyGuardianEvent = (
-    type: string,
+    type: 'emergency_call' | 'guardian_call',
     message: string,
     severity: 'low' | 'medium' | 'high'
   ) => {
     if (!elderUserId || !linkCode) return;
 
     void createGuardianEventAlert({
-      elder_user_id: elderUserId,
-      link_code: linkCode,
       type,
       message,
       severity,
@@ -370,7 +368,7 @@ export default function HomeScreen() {
     try {
       if (showLoading) setLoadingLetter(true);
 
-      const data = await fetchLettersForElder(elderUserId, linkCode);
+      const data = await fetchLettersForElder(elderUserId);
 
       if (data?.letters && Array.isArray(data.letters) && data.letters.length > 0) {
         setLetters(data.letters);

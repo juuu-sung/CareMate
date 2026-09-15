@@ -7,10 +7,7 @@ PushUserRole = Literal["elder", "guardian"]
 
 
 class PushTokenRegisterRequest(BaseModel):
-    user_id: str | None = None
     user_role: PushUserRole
-    elder_user_id: str | None = None
-    link_code: str | None = None
     expo_push_token: str
     device_id: str
     platform: str = "unknown"

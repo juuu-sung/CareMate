@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -47,12 +47,18 @@ from app.services.safety_zone_service import (
     update_safety_zone,
 )
 from app.services.openai_service import generate_health_explanation
+from app.core.rate_limit import enforce_rate_limit
 
 router = APIRouter(prefix="/guardians", tags=["guardians"])
 
 
 @router.post("/signup", response_model=GuardianSignupResponse)
-def guardian_signup(payload: GuardianSignupRequest, db: Session = Depends(get_db)):
+def guardian_signup(
+    request: Request,
+    payload: GuardianSignupRequest,
+    db: Session = Depends(get_db),
+):
+    enforce_rate_limit(request, scope="guardian-signup", max_requests=5, window_seconds=300)
     try:
         return create_guardian_and_link(db, payload)
     except ValueError as e:
@@ -60,7 +66,12 @@ def guardian_signup(payload: GuardianSignupRequest, db: Session = Depends(get_db
 
 
 @router.post("/login", response_model=GuardianLoginResponse)
-def guardian_login(payload: GuardianLoginRequest, db: Session = Depends(get_db)):
+def guardian_login(
+    request: Request,
+    payload: GuardianLoginRequest,
+    db: Session = Depends(get_db),
+):
+    enforce_rate_limit(request, scope="guardian-login", max_requests=10, window_seconds=300)
     try:
         return login_guardian(db, payload)
     except ValueError as e:
@@ -323,9 +334,17 @@ class HealthExplainRequest(BaseModel):
 
 @router.post("/health-explain")
 def explain_health_metric(
+    request: Request,
     payload: HealthExplainRequest,
-    _principal: GuardianPrincipal = Depends(get_current_guardian),
+    principal: GuardianPrincipal = Depends(get_current_guardian),
 ):
+    enforce_rate_limit(
+        request,
+        scope="health-explanation",
+        max_requests=20,
+        window_seconds=300,
+        actor_id=principal.guardian_user_id,
+    )
     explanation = generate_health_explanation(
         metric=payload.metric,
         items=[item.model_dump() for item in payload.items],

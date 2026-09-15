@@ -1,13 +1,13 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 CareMode = Literal["basic", "cognitive_support", "health_support"]
 
 
 class GuardianOptions(BaseModel):
-    check_in_interval_minutes: int = 180
-    alert_repeat_count: int = 3
+    check_in_interval_minutes: int = Field(default=180, ge=30, le=1440)
+    alert_repeat_count: int = Field(default=3, ge=1, le=10)
     always_on_location_enabled: bool = True
 
 

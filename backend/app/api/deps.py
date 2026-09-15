@@ -17,6 +17,7 @@ from app.services.elder_auth_service import (
     ElderPrincipal,
     authenticate_elder_session,
 )
+from app.models.guardian_link import GuardianLink
 
 
 def get_db() -> Generator:
@@ -114,11 +115,22 @@ def get_current_care_principal(
 
     try:
         elder = authenticate_elder_session(db, token)
+        link = (
+            db.query(GuardianLink)
+            .filter(
+                GuardianLink.elder_user_id == elder.elder_user_id,
+                GuardianLink.guardian_user_id.is_not(None),
+                GuardianLink.is_used.is_(True),
+            )
+            .order_by(GuardianLink.created_at.desc())
+            .first()
+        )
         return CarePrincipal(
             role="elder",
             session_id=elder.session_id,
             actor_user_id=elder.elder_user_id,
             elder_user_id=elder.elder_user_id,
+            link_code=str(link.link_code) if link else None,
         )
     except ElderAuthenticationError:
         pass
