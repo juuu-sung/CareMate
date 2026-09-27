@@ -13,13 +13,15 @@
 
 <br /><br />
 
-[핵심 기능](#features) · [AI 안전 설계](#safety) · [아키텍처](#architecture) · [빠른 시작](#quick-start) · [문서](#documentation)
+[핵심 기능](#features) · [모델 학습](#model-training) · [AI 안전 설계](#safety) · [아키텍처](#architecture) · [빠른 시작](#quick-start) · [문서](#documentation)
 
 </div>
 
 ---
 
 ## 🎯 Why CareMate
+
+CareMate는 시니어의 일상 관리와 보호자 연계를 위한 **앱·서버 개발 프로젝트**입니다. 음성 대화, 복약·일정 관리, 위치 확인과 건강 신호 분석을 연결하며, 현재 개발·실험 단계입니다.
 
 복약, 병원 일정, 위치 확인, 긴급 연락은 서로 따로 떨어진 기능이 아닙니다. 하나의 생활 흐름입니다.
 
@@ -70,6 +72,31 @@ Voice → STT → Intent & Slots → Clarify / Confirm → Service Tool → TTS
 | **Cognitive Support** | 더 짧은 문장, 반복 알림, 위치 확인, 재확인 강화 |
 | **Health Support** | 복약·병원 일정 우선, 건강 기록, 보호자 공유 보조 |
 
+<a id="model-training"></a>
+
+## 🔬 모델 학습
+
+고령자·방언 음성 인식과 대화 속 건강 신호 분석을 위해 사전학습 모델을 목적별로 추가 학습하고, 앱·백엔드에 추론 경로를 연결했습니다.
+
+| 모델 | 학습 내용 | 프로젝트 적용 |
+| --- | --- | --- |
+| **Whisper-medium + LoRA** | 중·노년층 방언·노인 명령어 음성으로 한국어 STT 추가 학습. LoRA `r=32`, 약 1 epoch 학습 후 `checkpoint-60000` 선택 | 사용자 음성 전사와 반복 출력 감지 |
+| **XLS-R 300M** | 모노 16 kHz·최대 10초 음성을 입력으로 인지 저하·우울·불면 신호별 분류 모델 학습 | 발화별 건강 신호 보조 점수와 일별 집계 |
+| **KoELECTRA** | 전사문 기반 정상·인지 저하 신호 이진 분류 모델 학습 | 음성 분석과 함께 사용하는 인지 텍스트 보조 점수 |
+
+**Whisper 자체 평가** — 고정 Test set **63,844건**, 동일 체크포인트에서 출력 길이 설정을 비교했습니다. CER은 문자 오류율, WER은 단어 오류율이며 낮을수록 좋습니다.
+
+| 출력 설정 | CER | WER | 반복 출력 감지 |
+| --- | --- | --- | --- |
+| 최대 128 tokens · 성능 보고 | **10.56%** | **24.57%** | 185건 · 0.2898% |
+| 최대 80 tokens · STT 서버 기본값 | 10.92% | 24.77% | **59건 · 0.0924%** |
+
+최대 80 tokens 설정에서 반복 출력 감지 건수가 **68.1% 감소**했습니다. STT 서버는 입력을 30초까지 허용하며, 백엔드는 반복 출력이 감지된 전사를 사용하지 않고 오류로 처리합니다.
+
+평가 수치는 2026년 8월 자체 학습·평가 기록 기준이며 실제 사용자 운영 성과를 뜻하지 않습니다. 건강 신호 모델은 비진단 보조 지표로, 외부 검증과 집단별 편향 분석이 남아 있습니다. 원본 학습 데이터와 모델 가중치는 저장소에 포함하지 않습니다.
+
+구현: [Whisper STT 서버](backend/stt_server/caremate_stt_server.py) · [음성·텍스트 분석 모델](backend/app/ai_models) · [학습 데이터 manifest 도구](backend/scripts/build_stt_manifest.py)
+
 <a id="safety"></a>
 
 ## 🛡️ Safety by Design
@@ -81,7 +108,10 @@ CareMate의 핵심은 “AI가 많은 일을 하는 것”이 아니라 **“잘
 | **Grounded response** | 일정·복약·위치는 LLM의 기억이 아닌 실제 서비스 데이터로 답변합니다. |
 | **Human confirmation** | 일정 등록, 복약 기록, 보호자 메시지 등 변경 동작은 사용자 확인 후 실행합니다. |
 | **Deterministic safety** | SOS, 반복 미응답, 장시간 활동 없음은 LLM과 분리된 규칙 엔진에서 판단합니다. |
+| **Authenticated access** | 부모님·보호자 비밀번호 로그인과 만료·폐기 가능한 세션을 사용하고, 민감 API에서 본인 또는 연결된 어르신의 정보만 접근하도록 검증합니다. |
 | **Failure isolation** | AI·지도·기기 권한 오류가 복약·일정 등 핵심 기능 전체로 퍼지지 않게 나눅니다. |
+
+로그인·비용 발생 요청에는 요청 제한을 적용하고, 모바일 세션은 SecureStore에 저장합니다. 인증·권한·세션·요청 제한 관련 [백엔드 테스트](backend/tests) 45개를 통과했습니다.
 
 > [!IMPORTANT]
 > CareMate의 건강·음성 분석 기능은 진단이 아닌 **비진단 보조 지표**입니다. 전문 의료인의 진단과 치료를 대체하지 않습니다.
@@ -97,7 +127,7 @@ CareMate의 핵심은 “AI가 많은 일을 하는 것”이 아니라 **“잘
 flowchart LR
     Senior["시니어 앱<br/>음성 · 복약 · 일정 · SOS"]
     Guardian["보호자 앱<br/>대시보드 · 위치 · 알림"]
-    API["FastAPI<br/>52 REST endpoints"]
+    API["FastAPI<br/>인증 · 권한 검증 · REST API"]
     Agent["Care Agent<br/>STT → Confirm → Tool → TTS"]
     Rules["Safety Rules<br/>SOS · 미응답 · 이상 징후"]
     DB[(PostgreSQL)]
@@ -130,10 +160,12 @@ CareMate/
 │   ├── services/            # API·알림·위치·기기 연동
 │   └── ios/                 # Siri·위젯 포함 iOS 네이티브 구성
 ├── backend/                 # FastAPI 백엔드
-│   ├── app/api/             # 14개 도메인 라우터
+│   ├── app/api/             # 도메인별 API·인증·권한 검증
 │   ├── app/services/        # 에이전트·돌봄 비즈니스 로직
 │   ├── app/rules/           # 규칙 기반 안전 판단
 │   ├── app/ai_models/       # 음성·텍스트 보조 분석 모델
+│   ├── stt_server/          # Whisper LoRA 추론 서버
+│   ├── tests/               # 인증·권한·세션 테스트
 │   └── alembic/             # DB 마이그레이션
 ├── docs/                    # API·아키텍처·테스트 문서
 └── docker-compose.yml       # PostgreSQL·백엔드 로컬 환경
@@ -155,7 +187,7 @@ CareMate/
 
 ### Prerequisites
 
-- Node.js `20.19+`
+- Node.js `22.13+` (22.x 기준)
 - npm `11+`
 - Python `3.11`
 - Docker & Docker Compose
@@ -173,6 +205,7 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
 
 DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate \
   alembic upgrade head
@@ -181,7 +214,29 @@ DATABASE_URL=postgresql+psycopg://caremate:caremate@localhost:5433/caremate \
   python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-서버가 실행되면 `http://localhost:8001/docs`에서 API 문서를 확인할 수 있습니다.
+서버가 실행되면 `http://localhost:8001/docs`에서 API 문서를 확인할 수 있습니다. 위 명령은 로컬 개발용입니다.
+
+`backend/.env`의 `OPENAI_API_KEY`를 설정하면 예제의 OpenAI 대화·STT·TTS 경로를 사용할 수 있습니다. 키 없이 화면·API 흐름을 확인하려면 `LLM_PROVIDER`, `STT_PROVIDER`, `TTS_PROVIDER`를 `stub`으로 설정하세요. 건강 분석 모델은 별도 가중치가 있어야 동작합니다.
+
+<details>
+<summary>직접 학습한 CareMate Whisper 사용하기</summary>
+
+`backend/`에서 STT 의존성을 설치하고 LoRA 어댑터 경로를 지정해 별도 서버를 실행합니다.
+
+```bash
+pip install -r stt_requirements.txt
+STT_ADAPTER_DIR=/absolute/path/to/whisper-lora-adapter \
+  python -m uvicorn stt_server.caremate_stt_server:app --host 127.0.0.1 --port 8002
+```
+
+`backend/.env`에 아래 설정을 추가한 뒤 API 서버를 재시작합니다.
+
+```env
+STT_PROVIDER=caremate_whisper
+CAREMATE_STT_URL=http://127.0.0.1:8002/stt
+```
+
+</details>
 
 ### 2. Mobile
 
@@ -225,6 +280,8 @@ EXPO_PUBLIC_API_BASE_URL=http://<YOUR_MAC_IP>:8001/api/v1
 - [x] 음성 에이전트의 재확인·도구 실행 구조
 - [x] 복약·일정·편지·위치·안전구역 연결
 - [x] 푸시 알림·Siri Shortcut·홈/잠금 화면 위젯
+- [x] Whisper LoRA 학습·평가와 XLS-R·KoELECTRA 추론 연동
+- [x] 부모님·보호자 비밀번호 로그인과 민감 API 접근 권한 검증
 - [ ] 핵심 음성·복약·위치 시나리오 실기기 E2E 자동화
 - [ ] 개인정보 동의·보존·삭제·접근 기록 정책 고도화
 - [ ] 건강 신호 모델의 외부 검증과 편향 분석
@@ -238,5 +295,3 @@ EXPO_PUBLIC_API_BASE_URL=http://<YOUR_MAC_IP>:8001/api/v1
 <sub>Built with care for seniors and the people who care for them.</sub>
 
 </div>
-# Caremate
-
