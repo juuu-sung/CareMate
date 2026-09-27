@@ -35,6 +35,8 @@ CareMate는 단순히 대화하는 챗봇에서 멈추지 않고, 시니어의 �
 | 🆘 큰 버튼의 긴급 도움 요청 | 💬 대화 요약과 안부 편지 |
 | 📱 Siri·위젯으로 빠른 진입 | ⚙️ 인지·건강 지원 모드 설정 |
 
+시연 영상: https://youtu.be/b249RGvgv34?si=S7t4cDffTSlJIwqy
+
 <a id="features"></a>
 
 ## ✨ Features
@@ -294,10 +296,6 @@ EXPO_PUBLIC_API_BASE_URL=http://<YOUR_MAC_IP>:8001/api/v1
 - [ ] 핵심 음성·복약·위치 시나리오 실기기 E2E 자동화
 - [ ] 개인정보 동의·보존·삭제·접근 기록 정책 고도화
 - [ ] 건강 신호 모델의 외부 검증과 편향 분석
-
-## 📜 License
-
-이 프로젝트는 [MIT License](LICENSE)로 배포됩니다.
 
 <div align="center">
 
